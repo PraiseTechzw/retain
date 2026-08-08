@@ -1,3 +1,12 @@
 import Link from 'next/link'
-import { DashboardShell, DataTable, PageFrame, Status } from '@/components/dashboard-shell'
-export default function Page(){return <DashboardShell><PageFrame title="Asset Management" description="Track institutional equipment, assignments, and return verification."><DataTable columns={['Asset','Type','Assigned employee','Status']} rows={[['AST-1042 · MacBook Pro','Laptop',<Link key="1" href="/dashboard/employees/1" className="font-semibold text-foreground">Sarah Ndlovu</Link>,<Status key="a" tone="amber">Return pending</Status>],['AST-1187 · Projector','AV equipment','Engineering Office',<Status key="b" tone="green">Assigned</Status>],['AST-1201 · Access card','Access','Lerato Mokoena',<Status key="c">Returned</Status>] ]}/></PageFrame></DashboardShell>}
+import { DashboardShell, DataTable, EmptyState, PageFrame, Status } from '@/components/dashboard-shell'
+import { getAssets } from '@/lib/supabase/data'
+
+export default async function Page() {
+  const assets = await getAssets()
+  const rows = assets.map((asset) => {
+    const employee = Array.isArray(asset.employees) ? asset.employees[0] : asset.employees
+    return [<Link key={asset.id} href={`/dashboard/assets/${asset.id}`} className="font-semibold text-foreground hover:text-primary">{asset.asset_tag}</Link>, asset.asset_type, employee?.full_name ?? 'Unassigned', <Status key="status" tone={asset.status === 'returned' ? 'green' : 'amber'}>{asset.status}</Status>]
+  })
+  return <DashboardShell><PageFrame title="Asset Management" description="Track institutional equipment, assignments, and return verification.">{assets.length ? <DataTable columns={['Asset','Type','Assigned employee','Status']} rows={rows} /> : <EmptyState label="assets" />}</PageFrame></DashboardShell>
+}

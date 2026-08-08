@@ -1,5 +1,20 @@
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
-import { DashboardShell, DataTable, PageFrame, Status } from '@/components/dashboard-shell'
-const rows = [['EMP-001 · Sarah Ndlovu','Senior Lecturer · Computer Science','Active','28 Sep 2024'],['EMP-002 · Michael Banda','Professor · Engineering','Exit requested','04 Oct 2024'],['EMP-003 · Lerato Mokoena','Administrator · HR','Active','11 Oct 2024']]
-export default function Page(){return <DashboardShell><PageFrame title="Employee Management" description="Maintain employee records and monitor institutional transitions." action={<button className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"><Plus className="size-4"/>Add employee</button>}><div className="mb-4 flex gap-2"><input placeholder="Search employees" className="h-10 rounded-xl border border-input bg-card px-3 text-sm"/><select className="h-10 rounded-xl border border-input bg-card px-3 text-sm"><option>All departments</option><option>Computer Science</option><option>Engineering</option></select></div><DataTable columns={['Employee','Role & department','Status','Joined']} rows={rows.map((r,i)=>[<Link key="a" href={`/dashboard/employees/${i+1}`} className="font-semibold text-foreground hover:text-primary">{r[0]}</Link>,r[1],<Status key="s" tone={i===1?'blue':'green'}>{r[2]}</Status>,r[3]])}/></PageFrame></DashboardShell>}
+import { DashboardShell, DataTable, EmptyState, PageFrame, Status } from '@/components/dashboard-shell'
+import { getEmployees } from '@/lib/supabase/data'
+
+export default async function Page() {
+  const employees = await getEmployees()
+  const rows = employees.map((employee) => {
+    const department = Array.isArray(employee.departments) ? employee.departments[0] : employee.departments
+    return [
+      <Link key={employee.id} href={`/dashboard/employees/${employee.id}`} className="font-semibold text-foreground hover:text-primary">{employee.employee_number} · {employee.full_name}</Link>,
+      `${employee.job_title ?? 'Unassigned'} · ${department?.name ?? 'No department'}`,
+      <Status key="status" tone={employee.employment_status === 'active' ? 'green' : 'blue'}>{employee.employment_status}</Status>,
+      employee.joined_on ?? '—',
+    ]
+  })
+  return <DashboardShell><PageFrame title="Employee Management" description="Maintain employee records and monitor institutional transitions." action={<button className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"><Plus className="size-4"/>Add employee</button>}>
+    {employees.length === 0 ? <EmptyState label="employees" /> : <DataTable columns={['Employee','Role & department','Status','Joined']} rows={rows} />}
+  </PageFrame></DashboardShell>
+}
