@@ -40,6 +40,18 @@ export async function getKnowledgeDocuments() {
   return data ?? []
 }
 
+export async function getKnowledgeDocument(id: string) {
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('knowledge_documents')
+    .select('id, title, category, storage_path, created_at, created_by, employees(full_name, employee_number)')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) throw new Error('Document not found.')
+  return data
+}
+
 export async function getClearanceSteps() {
   const supabase = await createClient()
   const { data, error } = await supabase
