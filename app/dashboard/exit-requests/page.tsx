@@ -1,0 +1,5 @@
+import Link from 'next/link'
+import { ClipboardCheck } from 'lucide-react'
+import { DashboardShell, DataTable, PageFrame, Status } from '@/components/dashboard-shell'
+const rows=[['Sarah Ndlovu','Computer Science','In clearance','28 Sep 2024'],['Michael Banda','Engineering','Pending','04 Oct 2024'],['Lerato Mokoena','Human Resources','Approved','11 Oct 2024']]
+export default function Page(){return <DashboardShell><PageFrame title="Exit Requests" description="Review employee transitions, deadlines, and approval status." action={<button className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground"><ClipboardCheck className="size-4"/>New request</button>}><DataTable columns={['Employee','Department','Status','Last day']} rows={rows.map((r,i)=>[<Link key="e" href={`/dashboard/exit-requests/${i+1}`} className="font-semibold text-foreground hover:text-primary">{r[0]}</Link>,r[1],<Status key="s" tone={i===0?'blue':i===2?'green':'amber'}>{r[2]}</Status>,r[3]])}/></PageFrame></DashboardShell>}
