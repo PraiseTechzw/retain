@@ -1,0 +1,28 @@
+'use client'
+
+import { useState, useTransition } from 'react'
+import { createAsset, createEmployee, createExitRequest, uploadKnowledgeDocument } from '@/lib/supabase/actions'
+
+type Mode = 'employee' | 'exit' | 'asset' | 'knowledge'
+
+export function OperationsPanel({ mode, employees = [] }: { mode: Mode; employees?: { id: string; employee_number: string; full_name: string }[] }) {
+  const [open, setOpen] = useState(false)
+  const [message, setMessage] = useState('')
+  const [pending, startTransition] = useTransition()
+  const labels = { employee: 'Add employee', exit: 'New exit request', asset: 'Add asset', knowledge: 'Upload document' }
+  function submit(formData: FormData) {
+    setMessage('')
+    startTransition(async () => {
+      try {
+        if (mode === 'employee') await createEmployee(formData)
+        if (mode === 'exit') await createExitRequest(formData)
+        if (mode === 'asset') await createAsset(formData)
+        if (mode === 'knowledge') await uploadKnowledgeDocument(formData)
+        setMessage('Saved successfully.'); setOpen(false)
+      } catch (error) { setMessage(error instanceof Error ? error.message : 'Unable to save record.') }
+    })
+  }
+  return <div className="flex flex-col items-end gap-2"><button type="button" onClick={() => setOpen(true)} className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground shadow-sm hover:opacity-90">{labels[mode]}</button>{message && <p role="status" className="text-xs text-muted-foreground">{message}</p>}{open && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4" role="dialog" aria-modal="true" aria-label={labels[mode]}><div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl"><div className="flex items-center justify-between"><h2 className="text-lg font-semibold">{labels[mode]}</h2><button type="button" onClick={() => setOpen(false)} className="text-sm text-muted-foreground">Close</button></div><form action={submit} className="mt-5 flex flex-col gap-4">{mode === 'employee' && <><Field name="employee_number" label="Employee number" required /><Field name="full_name" label="Full name" required /><Field name="email" label="Email" type="email" /><Field name="job_title" label="Job title" /></>}{mode === 'exit' && <><label className="flex flex-col gap-1.5 text-sm font-medium">Employee<select name="employee_id" required className="h-10 rounded-lg border border-input bg-background px-3 font-normal">{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.employee_number} · {employee.full_name}</option>)}</select></label><Field name="last_day" label="Last working day" type="date" /><label className="flex flex-col gap-1.5 text-sm font-medium">Reason<textarea name="reason" required rows={4} className="rounded-lg border border-input bg-background p-3 font-normal" /></label></>}{mode === 'asset' && <><Field name="asset_tag" label="Asset tag" required /><Field name="asset_type" label="Asset type" required /><Field name="description" label="Description" /></>}{mode === 'knowledge' && <><Field name="title" label="Document title" required /><Field name="category" label="Category" /><label className="flex flex-col gap-1.5 text-sm font-medium">Employee<select name="employee_id" required className="h-10 rounded-lg border border-input bg-background px-3 font-normal">{employees.map((employee) => <option key={employee.id} value={employee.id}>{employee.employee_number} · {employee.full_name}</option>)}</select></label><label className="flex flex-col gap-1.5 text-sm font-medium">File<input name="file" type="file" required className="rounded-lg border border-input bg-background p-2 text-sm font-normal" /></label></>}<button disabled={pending} className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60">{pending ? 'Saving…' : 'Save record'}</button></form></div></div>}</div>
+}
+
+function Field({ name, label, type = 'text', required = false }: { name: string; label: string; type?: string; required?: boolean }) { return <label className="flex flex-col gap-1.5 text-sm font-medium">{label}<input name={name} type={type} required={required} className="h-10 rounded-lg border border-input bg-background px-3 font-normal outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" /></label> }
