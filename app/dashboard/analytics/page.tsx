@@ -66,7 +66,10 @@ function renderAnalyticsError({
 }) {
   return (
     <DashboardShell userName={userName} userRole={userRole}>
-      <PageFrame title="Talent Intelligence" description="The analytics view could not be loaded.">
+      <PageFrame
+        title="Talent Intelligence"
+        description="The analytics view could not be loaded."
+      >
         <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/25 dark:text-rose-200">
           <p className="font-semibold">Analytics unavailable</p>
           <p className="mt-2 text-sm">{message}</p>
@@ -97,31 +100,66 @@ function renderAnalyticsPage({
   assetRecoveryRate,
   assignedAssets,
   dataQuality,
-  requirementList,
-  knowledgeCompletion,
 }: {
   userName: string;
   userRole: string;
-  filters: { range: string; department: string; employmentCategory: string; employeeType: string; exitStatus: string };
+  filters: {
+    range: string;
+    department: string;
+    employmentCategory: string;
+    employeeType: string;
+    exitStatus: string;
+  };
   departments: Array<{ id: string; name: string }>;
-  employeeList: Array<{ id: string; department_id?: string | null; employment_category?: string | null; employment_status?: string | null }>;
+  employeeList: Array<{
+    id: string;
+    department_id?: string | null;
+    employment_category?: string | null;
+    employment_status?: string | null;
+  }>;
   rangeOptions: Array<{ value: string; label: string }>;
-  metrics: Array<{ label: string; value: string; description: string; icon: typeof Users; tone: string }>;
+  metrics: Array<{
+    label: string;
+    value: string;
+    description: string;
+    icon: typeof Users;
+    tone: string;
+  }>;
   attritionDelta: number;
   monthlyTrend: Array<{ label: string; value: number }>;
   maxTrend: number;
   comparisonRows: Array<{ label: string; value: string; delta: string }>;
-  departmentRows: Array<{ department: string; employees: number; exits: number; attrition: number }>;
+  departmentRows: Array<{
+    department: string;
+    employees: number;
+    exits: number;
+    attrition: number;
+  }>;
   exitReasonRows: Array<{ reason: string; count: number; percentage: number }>;
-  categoryRows: Array<{ category: string; employees: number; exits: number; attrition: number }>;
-  knowledgeRiskRows: Array<{ department: string; exiting: number; risk: string }>;
+  categoryRows: Array<{
+    category: string;
+    employees: number;
+    exits: number;
+    attrition: number;
+  }>;
+  knowledgeRiskRows: Array<{
+    department: string;
+    exiting: number;
+    risk: string;
+  }>;
   clearanceStatusCounts: Record<string, number>;
   bottleneckRows: Array<{ department: string; count: number }>;
   assetRecoveryRate: number;
-  assignedAssets: Array<{ asset_tag?: string | null; status?: string | null; employees?: { full_name?: string | null } | null }>;
-  dataQuality: { departmentCoverage: number; validDates: number; exitReasons: number };
-  requirementList: Array<{ id: string }>;
-  knowledgeCompletion: number;
+  assignedAssets: Array<{
+    asset_tag?: string | null;
+    status?: string | null;
+    employees?: { full_name?: string | null } | null;
+  }>;
+  dataQuality: {
+    departmentCoverage: number;
+    validDates: number;
+    exitReasons: number;
+  };
 }) {
   return (
     <DashboardShell userName={userName} userRole={userRole}>
@@ -130,7 +168,10 @@ function renderAnalyticsPage({
         description="Review turnover, exit velocity, knowledge exposure, and operational risk across the workforce."
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <Link href="/dashboard/reports" className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-sm font-medium text-foreground hover:bg-muted">
+            <Link
+              href="/dashboard/reports"
+              className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-sm font-medium text-foreground hover:bg-muted"
+            >
               <FileText className="size-4" />
               Generate report
             </Link>
@@ -146,33 +187,61 @@ function renderAnalyticsPage({
             <form method="GET" className="grid gap-3 md:grid-cols-5">
               <label className="text-sm font-medium text-foreground">
                 Date range
-                <select name="range" defaultValue={filters.range} className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm">
+                <select
+                  name="range"
+                  defaultValue={filters.range}
+                  className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                >
                   {rangeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>{option.label}</option>
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
                   ))}
                 </select>
               </label>
               <label className="text-sm font-medium text-foreground">
                 Department
-                <select name="department" defaultValue={filters.department} className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm">
+                <select
+                  name="department"
+                  defaultValue={filters.department}
+                  className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                >
                   <option value="all">All departments</option>
                   {departments.map((department) => (
-                    <option key={department.id} value={department.id}>{department.name}</option>
+                    <option key={department.id} value={department.id}>
+                      {department.name}
+                    </option>
                   ))}
                 </select>
               </label>
               <label className="text-sm font-medium text-foreground">
                 Employment category
-                <select name="employmentCategory" defaultValue={filters.employmentCategory} className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm">
+                <select
+                  name="employmentCategory"
+                  defaultValue={filters.employmentCategory}
+                  className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                >
                   <option value="all">All categories</option>
-                  {[...new Set(employeeList.map((employee) => employee.employment_category ?? "Other"))].map((category) => (
-                    <option key={category} value={category}>{category}</option>
+                  {[
+                    ...new Set(
+                      employeeList.map(
+                        (employee) => employee.employment_category ?? "Other",
+                      ),
+                    ),
+                  ].map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
                   ))}
                 </select>
               </label>
               <label className="text-sm font-medium text-foreground">
                 Employee type
-                <select name="employeeType" defaultValue={filters.employeeType} className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm">
+                <select
+                  name="employeeType"
+                  defaultValue={filters.employeeType}
+                  className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                >
                   <option value="all">All</option>
                   <option value="active">Active</option>
                   <option value="exiting">Exiting</option>
@@ -181,7 +250,11 @@ function renderAnalyticsPage({
               </label>
               <label className="text-sm font-medium text-foreground">
                 Exit status
-                <select name="exitStatus" defaultValue={filters.exitStatus} className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm">
+                <select
+                  name="exitStatus"
+                  defaultValue={filters.exitStatus}
+                  className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                >
                   <option value="all">All</option>
                   <option value="submitted">Submitted</option>
                   <option value="under_review">Under review</option>
@@ -196,15 +269,22 @@ function renderAnalyticsPage({
 
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {metrics.map(({ label, value, description, icon: Icon, tone }) => (
-              <div key={label} className="rounded-2xl border border-border/70 bg-card p-5">
+              <div
+                key={label}
+                className="rounded-2xl border border-border/70 bg-card p-5"
+              >
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
                     <Icon className="size-5" />
                   </div>
-                  <Status tone={tone as "green" | "amber" | "blue"}>{label}</Status>
+                  <Status tone={tone as "green" | "amber" | "blue"}>
+                    {label}
+                  </Status>
                 </div>
                 <p className="mt-5 text-3xl font-semibold">{value}</p>
-                <p className="mt-2 text-sm text-muted-foreground">{description}</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  {description}
+                </p>
               </div>
             ))}
           </section>
@@ -213,19 +293,38 @@ function renderAnalyticsPage({
             <div className="rounded-2xl border border-border/70 bg-card p-5">
               <div className="flex items-center justify-between gap-4">
                 <h2 className="text-lg font-semibold">Attrition trend</h2>
-                <Status tone={attritionDelta > 0 ? "amber" : attritionDelta < 0 ? "green" : "blue"}>
-                  {attritionDelta > 0 ? "Increasing" : attritionDelta < 0 ? "Improving" : "Stable"}
+                <Status
+                  tone={
+                    attritionDelta > 0
+                      ? "amber"
+                      : attritionDelta < 0
+                        ? "green"
+                        : "blue"
+                  }
+                >
+                  {attritionDelta > 0
+                    ? "Increasing"
+                    : attritionDelta < 0
+                      ? "Improving"
+                      : "Stable"}
                 </Status>
               </div>
               <div className="mt-6 flex h-52 items-end gap-3">
                 {monthlyTrend.map((entry) => (
-                  <div key={entry.label} className="flex flex-1 flex-col items-center gap-2">
+                  <div
+                    key={entry.label}
+                    className="flex flex-1 flex-col items-center gap-2"
+                  >
                     <div
                       className="w-full rounded-t-xl bg-gradient-to-t from-primary to-primary/40"
-                      style={{ height: `${Math.max(12, (entry.value / maxTrend) * 100)}%` }}
+                      style={{
+                        height: `${Math.max(12, (entry.value / maxTrend) * 100)}%`,
+                      }}
                       title={`${entry.label}: ${entry.value} exits`}
                     />
-                    <span className="text-[10px] text-muted-foreground">{entry.label}</span>
+                    <span className="text-[10px] text-muted-foreground">
+                      {entry.label}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -235,17 +334,26 @@ function renderAnalyticsPage({
               <h2 className="text-lg font-semibold">Period comparison</h2>
               <div className="mt-4 space-y-3">
                 {comparisonRows.map((row) => (
-                  <div key={row.label} className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/10 p-3">
-                    <span className="text-sm text-muted-foreground">{row.label}</span>
+                  <div
+                    key={row.label}
+                    className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/10 p-3"
+                  >
+                    <span className="text-sm text-muted-foreground">
+                      {row.label}
+                    </span>
                     <div className="flex items-center gap-3">
                       <span className="text-lg font-semibold">{row.value}</span>
-                      {row.delta !== "Insufficient data" && row.delta !== "Operational view" && row.delta !== "Comparable" ? (
+                      {row.delta !== "Insufficient data" &&
+                      row.delta !== "Operational view" &&
+                      row.delta !== "Comparable" ? (
                         <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
                           <ArrowUpRight className="size-3" />
                           {row.delta}
                         </span>
                       ) : (
-                        <span className="text-xs text-muted-foreground">{row.delta}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {row.delta}
+                        </span>
                       )}
                     </div>
                   </div>
@@ -261,11 +369,21 @@ function renderAnalyticsPage({
                 <div className="mt-4 overflow-x-auto">
                   <DataTable
                     columns={["Department", "Employees", "Exits", "Attrition"]}
-                    rows={departmentRows.map((row) => [row.department, String(row.employees), String(row.exits), formatPercent(row.attrition)])}
+                    rows={departmentRows.map((row) => [
+                      row.department,
+                      String(row.employees),
+                      String(row.exits),
+                      formatPercent(row.attrition),
+                    ])}
                   />
                 </div>
               ) : (
-                <div className="mt-4"><EmptyState label="department analytics" description="No department attrition data is available for the selected scope." /></div>
+                <div className="mt-4">
+                  <EmptyState
+                    label="department analytics"
+                    description="No department attrition data is available for the selected scope."
+                  />
+                </div>
               )}
             </div>
 
@@ -277,32 +395,54 @@ function renderAnalyticsPage({
                     <div key={row.reason} className="space-y-2">
                       <div className="flex items-center justify-between gap-3 text-sm">
                         <span>{row.reason}</span>
-                        <span className="font-medium">{row.count} ({formatPercent(row.percentage)})</span>
+                        <span className="font-medium">
+                          {row.count} ({formatPercent(row.percentage)})
+                        </span>
                       </div>
                       <div className="h-2 overflow-hidden rounded-full bg-muted">
-                        <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(row.percentage, 100)}%` }} />
+                        <div
+                          className="h-full rounded-full bg-primary"
+                          style={{ width: `${Math.min(row.percentage, 100)}%` }}
+                        />
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="mt-4"><EmptyState label="exit reasons" description="No exit reasons are available for the selected period." /></div>
+                <div className="mt-4">
+                  <EmptyState
+                    label="exit reasons"
+                    description="No exit reasons are available for the selected period."
+                  />
+                </div>
               )}
             </div>
           </section>
 
           <section className="grid gap-6 xl:grid-cols-2">
             <div className="rounded-2xl border border-border/70 bg-card p-5">
-              <h2 className="text-lg font-semibold">Attrition by employment category</h2>
+              <h2 className="text-lg font-semibold">
+                Attrition by employment category
+              </h2>
               {categoryRows.length ? (
                 <div className="mt-4 overflow-x-auto">
                   <DataTable
                     columns={["Category", "Population", "Exits", "Attrition"]}
-                    rows={categoryRows.map((row) => [row.category, String(row.employees), String(row.exits), formatPercent(row.attrition)])}
+                    rows={categoryRows.map((row) => [
+                      row.category,
+                      String(row.employees),
+                      String(row.exits),
+                      formatPercent(row.attrition),
+                    ])}
                   />
                 </div>
               ) : (
-                <div className="mt-4"><EmptyState label="category analytics" description="No employment-category analytics are available in the current selection." /></div>
+                <div className="mt-4">
+                  <EmptyState
+                    label="category analytics"
+                    description="No employment-category analytics are available in the current selection."
+                  />
+                </div>
               )}
             </div>
 
@@ -312,11 +452,20 @@ function renderAnalyticsPage({
                 <div className="mt-4 overflow-x-auto">
                   <DataTable
                     columns={["Department", "Exiting staff", "Risk"]}
-                    rows={knowledgeRiskRows.map((row) => [row.department, String(row.exiting), row.risk])}
+                    rows={knowledgeRiskRows.map((row) => [
+                      row.department,
+                      String(row.exiting),
+                      row.risk,
+                    ])}
                   />
                 </div>
               ) : (
-                <div className="mt-4"><EmptyState label="knowledge risk" description="No knowledge risk pattern is visible in the selected cohort." /></div>
+                <div className="mt-4">
+                  <EmptyState
+                    label="knowledge risk"
+                    description="No knowledge risk pattern is visible in the selected cohort."
+                  />
+                </div>
               )}
             </div>
           </section>
@@ -326,18 +475,28 @@ function renderAnalyticsPage({
               <h2 className="text-lg font-semibold">Clearance performance</h2>
               <div className="mt-4 space-y-3">
                 {Object.entries(clearanceStatusCounts).map(([label, value]) => (
-                  <div key={label} className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/10 p-3">
-                    <span className="text-sm text-muted-foreground">{label}</span>
+                  <div
+                    key={label}
+                    className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/10 p-3"
+                  >
+                    <span className="text-sm text-muted-foreground">
+                      {label}
+                    </span>
                     <span className="text-lg font-semibold">{value}</span>
                   </div>
                 ))}
               </div>
               {bottleneckRows.length ? (
                 <div className="mt-5">
-                  <h3 className="text-sm font-medium text-muted-foreground">Bottleneck departments</h3>
+                  <h3 className="text-sm font-medium text-muted-foreground">
+                    Bottleneck departments
+                  </h3>
                   <div className="mt-3 space-y-2">
                     {bottleneckRows.map((row) => (
-                      <div key={row.department} className="flex items-center justify-between text-sm">
+                      <div
+                        key={row.department}
+                        className="flex items-center justify-between text-sm"
+                      >
                         <span>{row.department}</span>
                         <span className="font-medium">{row.count}</span>
                       </div>
@@ -345,7 +504,9 @@ function renderAnalyticsPage({
                   </div>
                 </div>
               ) : (
-                <p className="mt-4 text-sm text-muted-foreground">No clearance bottleneck detected.</p>
+                <p className="mt-4 text-sm text-muted-foreground">
+                  No clearance bottleneck detected.
+                </p>
               )}
             </div>
 
@@ -353,23 +514,50 @@ function renderAnalyticsPage({
               <h2 className="text-lg font-semibold">Asset recovery</h2>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-xl border border-border/70 bg-muted/10 p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Recovered</p>
-                  <p className="mt-3 text-2xl font-semibold">{formatPercent(assetRecoveryRate)}</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                    Recovered
+                  </p>
+                  <p className="mt-3 text-2xl font-semibold">
+                    {formatPercent(assetRecoveryRate)}
+                  </p>
                 </div>
                 <div className="rounded-xl border border-border/70 bg-muted/10 p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Outstanding</p>
-                  <p className="mt-3 text-2xl font-semibold">{Math.max(0, assignedAssets.length - assignedAssets.filter((asset) => ["returned", "verified"].includes(String(asset.status ?? "").toLowerCase())).length)}</p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                    Outstanding
+                  </p>
+                  <p className="mt-3 text-2xl font-semibold">
+                    {Math.max(
+                      0,
+                      assignedAssets.length -
+                        assignedAssets.filter((asset) =>
+                          ["returned", "verified"].includes(
+                            String(asset.status ?? "").toLowerCase(),
+                          ),
+                        ).length,
+                    )}
+                  </p>
                 </div>
               </div>
               {assignedAssets.length ? (
                 <div className="mt-4 overflow-x-auto">
                   <DataTable
                     columns={["Asset tag", "Status", "Assigned to"]}
-                    rows={assignedAssets.slice(0, 6).map((asset) => [String(asset.asset_tag ?? "—"), String(asset.status ?? "assigned"), String(asset.employees?.full_name ?? "Unassigned")])}
+                    rows={assignedAssets
+                      .slice(0, 6)
+                      .map((asset) => [
+                        String(asset.asset_tag ?? "—"),
+                        String(asset.status ?? "assigned"),
+                        String(asset.employees?.full_name ?? "Unassigned"),
+                      ])}
                   />
                 </div>
               ) : (
-                <div className="mt-4"><EmptyState label="asset recovery data" description="No assigned asset records are available for the selected scope." /></div>
+                <div className="mt-4">
+                  <EmptyState
+                    label="asset recovery data"
+                    description="No assigned asset records are available for the selected scope."
+                  />
+                </div>
               )}
             </div>
           </section>
@@ -378,16 +566,28 @@ function renderAnalyticsPage({
             <h2 className="text-lg font-semibold">Analytics data quality</h2>
             <div className="mt-4 grid gap-3 md:grid-cols-3">
               <div className="rounded-xl border border-border/70 bg-muted/10 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Department coverage</p>
-                <p className="mt-3 text-2xl font-semibold">{formatPercent(dataQuality.departmentCoverage)}</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                  Department coverage
+                </p>
+                <p className="mt-3 text-2xl font-semibold">
+                  {formatPercent(dataQuality.departmentCoverage)}
+                </p>
               </div>
               <div className="rounded-xl border border-border/70 bg-muted/10 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Valid joined dates</p>
-                <p className="mt-3 text-2xl font-semibold">{formatPercent(dataQuality.validDates)}</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                  Valid joined dates
+                </p>
+                <p className="mt-3 text-2xl font-semibold">
+                  {formatPercent(dataQuality.validDates)}
+                </p>
               </div>
               <div className="rounded-xl border border-border/70 bg-muted/10 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Exit reason coverage</p>
-                <p className="mt-3 text-2xl font-semibold">{formatPercent(dataQuality.exitReasons)}</p>
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
+                  Exit reason coverage
+                </p>
+                <p className="mt-3 text-2xl font-semibold">
+                  {formatPercent(dataQuality.exitReasons)}
+                </p>
               </div>
             </div>
           </section>
@@ -844,463 +1044,32 @@ export default async function Page({
       },
     ];
 
-    return (
-      <DashboardShell userName={userName} userRole={userRole}>
-        <PageFrame
-          title="Talent Intelligence"
-          description="Review turnover, exit velocity, knowledge exposure, and operational risk across the workforce."
-          action={
-            <div className="flex flex-wrap items-center gap-2">
-              <Link
-                href="/dashboard/reports"
-                className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2.5 text-sm font-medium text-foreground hover:bg-muted"
-              >
-                <FileText className="size-4" />
-                Generate report
-              </Link>
-              <button className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
-                <Download className="size-4" />
-                Export CSV
-              </button>
-            </div>
-          }
-        >
-          <div className="space-y-8">
-            <div className="rounded-2xl border border-border/70 bg-card p-4 md:p-5">
-              <form method="GET" className="grid gap-3 md:grid-cols-5">
-                <label className="text-sm font-medium text-foreground">
-                  Date range
-                  <select
-                    name="range"
-                    defaultValue={filters.range}
-                    className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
-                  >
-                    {rangeOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-sm font-medium text-foreground">
-                  Department
-                  <select
-                    name="department"
-                    defaultValue={filters.department}
-                    className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="all">All departments</option>
-                    {departments.map((department) => (
-                      <option key={department.id} value={department.id}>
-                        {department.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-sm font-medium text-foreground">
-                  Employment category
-                  <select
-                    name="employmentCategory"
-                    defaultValue={filters.employmentCategory}
-                    className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="all">All categories</option>
-                    {[
-                      ...new Set(
-                        employeeList.map(
-                          (employee) => employee.employment_category ?? "Other",
-                        ),
-                      ),
-                    ].map((category) => (
-                      <option key={category} value={category}>
-                        {category}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-sm font-medium text-foreground">
-                  Employee type
-                  <select
-                    name="employeeType"
-                    defaultValue={filters.employeeType}
-                    className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="all">All</option>
-                    <option value="active">Active</option>
-                    <option value="exiting">Exiting</option>
-                    <option value="exited">Exited</option>
-                  </select>
-                </label>
-                <label className="text-sm font-medium text-foreground">
-                  Exit status
-                  <select
-                    name="exitStatus"
-                    defaultValue={filters.exitStatus}
-                    className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="all">All</option>
-                    <option value="submitted">Submitted</option>
-                    <option value="under_review">Under review</option>
-                    <option value="clearance">Clearance</option>
-                    <option value="blocked">Blocked</option>
-                    <option value="completed">Completed</option>
-                    <option value="rejected">Rejected</option>
-                  </select>
-                </label>
-              </form>
-            </div>
-
-            <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-              {metrics.map(
-                ({ label, value, description, icon: Icon, tone }) => (
-                  <div
-                    key={label}
-                    className="rounded-2xl border border-border/70 bg-card p-5"
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                        <Icon className="size-5" />
-                      </div>
-                      <Status tone={tone as "green" | "amber" | "blue"}>
-                        {label}
-                      </Status>
-                    </div>
-                    <p className="mt-5 text-3xl font-semibold">{value}</p>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {description}
-                    </p>
-                  </div>
-                ),
-              )}
-            </section>
-
-            <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-              <div className="rounded-2xl border border-border/70 bg-card p-5">
-                <div className="flex items-center justify-between gap-4">
-                  <h2 className="text-lg font-semibold">Attrition trend</h2>
-                  <Status
-                    tone={
-                      attritionDelta > 0
-                        ? "amber"
-                        : attritionDelta < 0
-                          ? "green"
-                          : "blue"
-                    }
-                  >
-                    {attritionDelta > 0
-                      ? "Increasing"
-                      : attritionDelta < 0
-                        ? "Improving"
-                        : "Stable"}
-                  </Status>
-                </div>
-                <div className="mt-6 flex h-52 items-end gap-3">
-                  {monthlyTrend.map((entry) => (
-                    <div
-                      key={entry.label}
-                      className="flex flex-1 flex-col items-center gap-2"
-                    >
-                      <div
-                        className="w-full rounded-t-xl bg-gradient-to-t from-primary to-primary/40"
-                        style={{
-                          height: `${Math.max(12, (entry.value / maxTrend) * 100)}%`,
-                        }}
-                        title={`${entry.label}: ${entry.value} exits`}
-                      />
-                      <span className="text-[10px] text-muted-foreground">
-                        {entry.label}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-border/70 bg-card p-5">
-                <h2 className="text-lg font-semibold">Period comparison</h2>
-                <div className="mt-4 space-y-3">
-                  {comparisonRows.map((row) => (
-                    <div
-                      key={row.label}
-                      className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/10 p-3"
-                    >
-                      <span className="text-sm text-muted-foreground">
-                        {row.label}
-                      </span>
-                      <div className="flex items-center gap-3">
-                        <span className="text-lg font-semibold">
-                          {row.value}
-                        </span>
-                        {row.delta !== "Insufficient data" &&
-                        row.delta !== "Operational view" &&
-                        row.delta !== "Comparable" ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600">
-                            <ArrowUpRight className="size-3" />
-                            {row.delta}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">
-                            {row.delta}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            <section className="grid gap-6 xl:grid-cols-2">
-              <div className="rounded-2xl border border-border/70 bg-card p-5">
-                <h2 className="text-lg font-semibold">
-                  Turnover by department
-                </h2>
-                {departmentRows.length ? (
-                  <div className="mt-4 overflow-x-auto">
-                    <DataTable
-                      columns={[
-                        "Department",
-                        "Employees",
-                        "Exits",
-                        "Attrition",
-                      ]}
-                      rows={departmentRows.map((row) => [
-                        row.department,
-                        String(row.employees),
-                        String(row.exits),
-                        formatPercent(row.attrition),
-                      ])}
-                    />
-                  </div>
-                ) : (
-                  <div className="mt-4">
-                    <EmptyState
-                      label="department analytics"
-                      description="No department attrition data is available for the selected scope."
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-2xl border border-border/70 bg-card p-5">
-                <h2 className="text-lg font-semibold">Exit reasons</h2>
-                {exitReasonRows.length ? (
-                  <div className="mt-4 space-y-3">
-                    {exitReasonRows.map((row) => (
-                      <div key={row.reason} className="space-y-2">
-                        <div className="flex items-center justify-between gap-3 text-sm">
-                          <span>{row.reason}</span>
-                          <span className="font-medium">
-                            {row.count} ({formatPercent(row.percentage)})
-                          </span>
-                        </div>
-                        <div className="h-2 overflow-hidden rounded-full bg-muted">
-                          <div
-                            className="h-full rounded-full bg-primary"
-                            style={{
-                              width: `${Math.min(row.percentage, 100)}%`,
-                            }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-4">
-                    <EmptyState
-                      label="exit reasons"
-                      description="No exit reasons are available for the selected period."
-                    />
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section className="grid gap-6 xl:grid-cols-2">
-              <div className="rounded-2xl border border-border/70 bg-card p-5">
-                <h2 className="text-lg font-semibold">
-                  Attrition by employment category
-                </h2>
-                {categoryRows.length ? (
-                  <div className="mt-4 overflow-x-auto">
-                    <DataTable
-                      columns={["Category", "Population", "Exits", "Attrition"]}
-                      rows={categoryRows.map((row) => [
-                        row.category,
-                        String(row.employees),
-                        String(row.exits),
-                        formatPercent(row.attrition),
-                      ])}
-                    />
-                  </div>
-                ) : (
-                  <div className="mt-4">
-                    <EmptyState
-                      label="category analytics"
-                      description="No employment-category analytics are available in the current selection."
-                    />
-                  </div>
-                )}
-              </div>
-
-              <div className="rounded-2xl border border-border/70 bg-card p-5">
-                <h2 className="text-lg font-semibold">Knowledge risk</h2>
-                {knowledgeRiskRows.length ? (
-                  <div className="mt-4 overflow-x-auto">
-                    <DataTable
-                      columns={["Department", "Exiting staff", "Risk"]}
-                      rows={knowledgeRiskRows.map((row) => [
-                        row.department,
-                        String(row.exiting),
-                        row.risk,
-                      ])}
-                    />
-                  </div>
-                ) : (
-                  <div className="mt-4">
-                    <EmptyState
-                      label="knowledge risk"
-                      description="No knowledge risk pattern is visible in the selected cohort."
-                    />
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section className="grid gap-6 xl:grid-cols-2">
-              <div className="rounded-2xl border border-border/70 bg-card p-5">
-                <h2 className="text-lg font-semibold">Clearance performance</h2>
-                <div className="mt-4 space-y-3">
-                  {Object.entries(clearanceStatusCounts).map(
-                    ([label, value]) => (
-                      <div
-                        key={label}
-                        className="flex items-center justify-between rounded-xl border border-border/70 bg-muted/10 p-3"
-                      >
-                        <span className="text-sm text-muted-foreground">
-                          {label}
-                        </span>
-                        <span className="text-lg font-semibold">{value}</span>
-                      </div>
-                    ),
-                  )}
-                </div>
-                {bottleneckRows.length ? (
-                  <div className="mt-5">
-                    <h3 className="text-sm font-medium text-muted-foreground">
-                      Bottleneck departments
-                    </h3>
-                    <div className="mt-3 space-y-2">
-                      {bottleneckRows.map((row) => (
-                        <div
-                          key={row.department}
-                          className="flex items-center justify-between text-sm"
-                        >
-                          <span>{row.department}</span>
-                          <span className="font-medium">{row.count}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <p className="mt-4 text-sm text-muted-foreground">
-                    No clearance bottleneck detected.
-                  </p>
-                )}
-              </div>
-
-              <div className="rounded-2xl border border-border/70 bg-card p-5">
-                <h2 className="text-lg font-semibold">Asset recovery</h2>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-xl border border-border/70 bg-muted/10 p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                      Recovered
-                    </p>
-                    <p className="mt-3 text-2xl font-semibold">
-                      {formatPercent(assetRecoveryRate)}
-                    </p>
-                  </div>
-                  <div className="rounded-xl border border-border/70 bg-muted/10 p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                      Outstanding
-                    </p>
-                    <p className="mt-3 text-2xl font-semibold">
-                      {Math.max(0, assignedAssets.length - returnedAssets)}
-                    </p>
-                  </div>
-                </div>
-                {assignedAssets.length ? (
-                  <div className="mt-4 overflow-x-auto">
-                    <DataTable
-                      columns={["Asset tag", "Status", "Assigned to"]}
-                      rows={assignedAssets
-                        .slice(0, 6)
-                        .map((asset) => [
-                          String(asset.asset_tag ?? "—"),
-                          String(asset.status ?? "assigned"),
-                          String(asset.employees?.full_name ?? "Unassigned"),
-                        ])}
-                    />
-                  </div>
-                ) : (
-                  <div className="mt-4">
-                    <EmptyState
-                      label="asset recovery data"
-                      description="No assigned asset records are available for the selected scope."
-                    />
-                  </div>
-                )}
-              </div>
-            </section>
-
-            <section className="rounded-2xl border border-border/70 bg-card p-5">
-              <h2 className="text-lg font-semibold">Analytics data quality</h2>
-              <div className="mt-4 grid gap-3 md:grid-cols-3">
-                <div className="rounded-xl border border-border/70 bg-muted/10 p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                    Department coverage
-                  </p>
-                  <p className="mt-3 text-2xl font-semibold">
-                    {formatPercent(dataQuality.departmentCoverage)}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-border/70 bg-muted/10 p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                    Valid joined dates
-                  </p>
-                  <p className="mt-3 text-2xl font-semibold">
-                    {formatPercent(dataQuality.validDates)}
-                  </p>
-                </div>
-                <div className="rounded-xl border border-border/70 bg-muted/10 p-4">
-                  <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                    Exit reason coverage
-                  </p>
-                  <p className="mt-3 text-2xl font-semibold">
-                    {formatPercent(dataQuality.exitReasons)}
-                  </p>
-                </div>
-              </div>
-            </section>
-          </div>
-        </PageFrame>
-      </DashboardShell>
-    );
+    return renderAnalyticsPage({
+      userName,
+      userRole,
+      filters,
+      departments,
+      employeeList,
+      rangeOptions,
+      metrics,
+      attritionDelta,
+      monthlyTrend,
+      maxTrend,
+      comparisonRows,
+      departmentRows,
+      exitReasonRows,
+      categoryRows,
+      knowledgeRiskRows,
+      clearanceStatusCounts,
+      bottleneckRows,
+      assetRecoveryRate,
+      assignedAssets,
+      dataQuality,
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Unable to fetch analytics.";
 
-    return (
-      <DashboardShell userName={userName} userRole={userRole}>
-        <PageFrame
-          title="Talent Intelligence"
-          description="The analytics view could not be loaded."
-        >
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/25 dark:text-rose-200">
-            <p className="font-semibold">Analytics unavailable</p>
-            <p className="mt-2 text-sm">{message}</p>
-          </div>
-        </PageFrame>
-      </DashboardShell>
-    );
+    return renderAnalyticsError({ userName, userRole, message });
   }
 }
