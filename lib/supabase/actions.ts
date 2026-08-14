@@ -883,6 +883,116 @@ export async function updateProfile(formData: FormData) {
   revalidatePath("/dashboard/settings");
 }
 
+function normalizeDepartmentCode(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "DEPT";
+
+  const slug = trimmed
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 12);
+
+  return slug || "DEPT";
+}
+
+export async function createDepartment(formData: FormData) {
+  const { supabase, user } = await actor();
+  await requireAdminRole(supabase, user);
+
+  const name = String(formData.get("name") ?? "").trim();
+  const code = String(formData.get("code") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+
+  if (!name) throw new Error("Department name is required.");
+
+  const departmentCode = normalizeDepartmentCode(code || name);
+  const { error } = await supabase.from("departments").insert({
+    name,
+    code: departmentCode,
+    description: description || null,
+  });
+
+  if (error) {
+    throw new Error(error.message || "Unable to create department.");
+  }
+
+  await audit(supabase, user.id, "created", "department", name, {
+    name,
+    code: departmentCode,
+    description,
+  });
+
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/employees");
+}
+
+export async function updateDepartment(formData: FormData) {
+  const { supabase, user } = await actor();
+  await requireAdminRole(supabase, user);
+
+  const id = String(formData.get("id") ?? "").trim();
+  const name = String(formData.get("name") ?? "").trim();
+  const code = String(formData.get("code") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+
+  if (!id || !name) throw new Error("Department name is required.");
+
+  const departmentCode = normalizeDepartmentCode(code || name);
+  const { error } = await supabase
+    .from("departments")
+    .update({
+      name,
+      code: departmentCode,
+      description: description || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) {
+    throw new Error(error.message || "Unable to update department.");
+  }
+
+  await audit(supabase, user.id, "updated", "department", id, {
+    name,
+    code: departmentCode,
+    description,
+  });
+
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/employees");
+}
+
+export async function deleteDepartment(formData: FormData) {
+  const { supabase, user } = await actor();
+  await requireAdminRole(supabase, user);
+
+  const id = String(formData.get("id") ?? "").trim();
+  if (!id) throw new Error("Department is required.");
+
+  const [{ data: employeeRef }, { data: profileRef }] = await Promise.all([
+    supabase.from("employees").select("id").eq("department_id", id).limit(1),
+    supabase.from("profiles").select("id").eq("department_id", id).limit(1),
+  ]);
+
+  if ((employeeRef?.length ?? 0) > 0 || (profileRef?.length ?? 0) > 0) {
+    throw new Error(
+      "This department is still assigned to employees or profiles. Reassign them first.",
+    );
+  }
+
+  const { error } = await supabase.from("departments").delete().eq("id", id);
+
+  if (error) {
+    throw new Error(error.message || "Unable to delete department.");
+  }
+
+  await audit(supabase, user.id, "deleted", "department", id);
+
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard/employees");
+}
+
 export async function saveSystemSetting(formData: FormData) {
   const { supabase, user } = await actor();
   await requireAdminRole(supabase, user);

@@ -9,11 +9,15 @@ import {
 import {
   getAdminOverviewSnapshot,
   getAuditEvents,
+  getDepartments,
   getSystemSettings,
 } from "@/lib/supabase/data";
 import {
+  createDepartment,
+  deleteDepartment,
   restoreDefaultWorkflow,
   saveSystemSetting,
+  updateDepartment,
   updateProfile,
 } from "@/lib/supabase/actions";
 
@@ -21,11 +25,13 @@ export default async function Page() {
   const { userName, userRole } = await resolveDashboardUserContext();
   await createClient();
 
-  const [systemSettings, auditEvents, adminOverview] = await Promise.all([
-    getSystemSettings(),
-    getAuditEvents(6),
-    getAdminOverviewSnapshot(),
-  ]);
+  const [systemSettings, auditEvents, adminOverview, departmentRecords] =
+    await Promise.all([
+      getSystemSettings(),
+      getAuditEvents(6),
+      getAdminOverviewSnapshot(),
+      getDepartments(),
+    ]);
 
   const settingsMap = Object.fromEntries(
     systemSettings.map((setting) => [setting.key, setting.value ?? ""]),
@@ -134,6 +140,125 @@ export default async function Page() {
                     </button>
                   </div>
                 </form>
+              </section>
+            )}
+
+            {isAdminRole && (
+              <section className="rounded-2xl border border-border/70 bg-card p-6">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Organization
+                </p>
+                <h2 className="mt-2 text-xl font-semibold">
+                  Department management
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Create, edit, and remove departments used across employee
+                  records and clearance workflows.
+                </p>
+
+                <form
+                  action={createDepartment}
+                  className="mt-6 grid gap-4 md:grid-cols-3"
+                >
+                  <label className="block text-sm font-medium text-foreground">
+                    Department name
+                    <input
+                      name="name"
+                      placeholder="Operations"
+                      className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                    />
+                  </label>
+                  <label className="block text-sm font-medium text-foreground">
+                    Code
+                    <input
+                      name="code"
+                      placeholder="OPS"
+                      className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                    />
+                  </label>
+                  <label className="block text-sm font-medium text-foreground md:pt-6">
+                    <button className="h-10 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+                      Add department
+                    </button>
+                  </label>
+                  <label className="block text-sm font-medium text-foreground md:col-span-3">
+                    Description
+                    <textarea
+                      name="description"
+                      rows={3}
+                      placeholder="Describe the department and its responsibilities."
+                      className="mt-2 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+                    />
+                  </label>
+                </form>
+
+                <div className="mt-6 space-y-3">
+                  {departmentRecords.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No departments configured yet.
+                    </p>
+                  ) : (
+                    departmentRecords.map((department) => (
+                      <div
+                        key={department.id ?? department.name}
+                        className="rounded-xl border border-border/70 bg-muted/20 p-4"
+                      >
+                        <form
+                          action={updateDepartment}
+                          className="grid gap-3 md:grid-cols-[1.5fr_0.9fr_1.7fr_auto] md:items-end"
+                        >
+                          <input
+                            type="hidden"
+                            name="id"
+                            value={department.id ?? ""}
+                          />
+                          <label className="block text-sm font-medium text-foreground">
+                            Name
+                            <input
+                              name="name"
+                              defaultValue={department.name ?? ""}
+                              className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                            />
+                          </label>
+                          <label className="block text-sm font-medium text-foreground">
+                            Code
+                            <input
+                              name="code"
+                              defaultValue={department.code ?? ""}
+                              className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                            />
+                          </label>
+                          <label className="block text-sm font-medium text-foreground">
+                            Description
+                            <input
+                              name="description"
+                              defaultValue={department.description ?? ""}
+                              className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                            />
+                          </label>
+                          <div className="flex gap-2">
+                            <button className="h-10 rounded-xl border border-border px-3 text-sm font-medium hover:bg-muted">
+                              Save
+                            </button>
+                            <form action={deleteDepartment} className="inline">
+                              <input
+                                type="hidden"
+                                name="id"
+                                value={department.id ?? ""}
+                              />
+                              <button
+                                type="submit"
+                                className="h-10 rounded-xl border border-rose-200 bg-rose-50 px-3 text-sm font-medium text-rose-700 hover:bg-rose-100"
+                              >
+                                Delete
+                              </button>
+                            </form>
+                          </div>
+                        </form>
+                      </div>
+                    ))
+                  )}
+                </div>
               </section>
             )}
 

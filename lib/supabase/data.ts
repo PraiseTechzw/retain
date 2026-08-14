@@ -195,6 +195,23 @@ export async function getEmployees(): Promise<EmployeeRecord[]> {
   throw new Error(error.message);
 }
 
+export async function getDepartments(): Promise<DepartmentRecord[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("departments")
+    .select("id, name, code, description, created_at, updated_at")
+    .order("name", { ascending: true });
+
+  if (error) {
+    if (error.code === "42P01" || /does not exist/i.test(error.message)) {
+      return [];
+    }
+    throw new Error(error.message);
+  }
+
+  return (data ?? []) as DepartmentRecord[];
+}
+
 export async function getExitRequests(): Promise<ExitRequestRecord[]> {
   const supabase = await createClient();
   const baseQuery = supabase
