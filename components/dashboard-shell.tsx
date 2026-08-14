@@ -151,8 +151,54 @@ function SidebarNav({
         <div
           className={`flex items-center gap-3 ${collapsed ? "lg:justify-center" : "px-3"}`}
         >
-          <div className="relative flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
-            <ShieldCheck className="size-5" strokeWidth={2.25} />
+          <div className="relative flex size-14 shrink-0 items-center justify-center rounded-2xl bg-[#edf3ff] shadow-lg shadow-primary/10 dark:bg-[#1d2f5e]">
+            <svg
+              viewBox="0 0 64 64"
+              className="size-8"
+              aria-label="Retain brand icon"
+              role="img"
+            >
+              <defs>
+                <linearGradient
+                  id="sidebar-retain-brand"
+                  x1="0"
+                  x2="1"
+                  y1="0"
+                  y2="1"
+                >
+                  <stop offset="0%" stopColor="#3b5bdb" />
+                  <stop offset="100%" stopColor="#2b3fb3" />
+                </linearGradient>
+              </defs>
+              <rect width="64" height="64" rx="18" fill="#edf3ff" />
+              <path
+                d="M32 6.5c-9.6 5.3-17 6.1-17 6.1v16.7c0 9.7 6.4 18.5 17 24.1 10.6-5.6 17-14.4 17-24.1V12.6s-7.4-.8-17-6.1Z"
+                fill="url(#sidebar-retain-brand)"
+              />
+              <path
+                d="M32 13.5c-6.6 3.7-12.2 4.3-12.2 4.3v11.4c0 6.7 4.4 12.8 12.2 16.8 7.8-4 12.2-10.1 12.2-16.8V17.8s-5.6-.6-12.2-4.3Z"
+                fill="#ffffff"
+                opacity="0.18"
+              />
+              <circle cx="32" cy="24.5" r="7" fill="#ffffff" />
+              <path
+                d="M25.5 33.8c2.2 3 5.2 4.5 6.5 4.5 1.2 0 4.1-1.5 6.5-4.5"
+                fill="none"
+                stroke="#ffffff"
+                strokeWidth="2.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <circle cx="48" cy="14" r="7" fill="#2ec27e" />
+              <path
+                d="M45 14.2l2.2 2.2 4.7-5.1"
+                fill="none"
+                stroke="#ffffff"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
             <span className="absolute -bottom-1 -right-1 size-3 rounded-full border-2 border-sidebar bg-emerald-500" />
           </div>
           <div className={`min-w-0 ${collapsed ? "lg:hidden" : ""}`}>

@@ -1153,10 +1153,32 @@ export async function deleteDepartment(formData: FormData) {
     supabase.from("profiles").select("id").eq("department_id", id).limit(1),
   ]);
 
-  if ((employeeRef?.length ?? 0) > 0 || (profileRef?.length ?? 0) > 0) {
-    throw new Error(
-      "This department is still assigned to employees or profiles. Reassign them first.",
-    );
+  if ((employeeRef?.length ?? 0) > 0) {
+    const { error: employeeClearError } = await supabase
+      .from("employees")
+      .update({ department_id: null })
+      .eq("department_id", id);
+
+    if (employeeClearError) {
+      throw new Error(
+        employeeClearError.message ||
+          "Unable to clear employee department assignments.",
+      );
+    }
+  }
+
+  if ((profileRef?.length ?? 0) > 0) {
+    const { error: profileClearError } = await supabase
+      .from("profiles")
+      .update({ department_id: null })
+      .eq("department_id", id);
+
+    if (profileClearError) {
+      throw new Error(
+        profileClearError.message ||
+          "Unable to clear profile department assignments.",
+      );
+    }
   }
 
   const { error } = await supabase.from("departments").delete().eq("id", id);

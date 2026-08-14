@@ -7,6 +7,11 @@ export const metadata: Metadata = {
   title: `${appConfig.appName} | ${appConfig.organization}`,
   description: `Secure employee exit, clearance, and institutional knowledge preservation for ${appConfig.organization}.`,
   generator: "v0.app",
+  icons: {
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
+    apple: "/icon.svg",
+  },
 };
 
 export const viewport: Viewport = {
