@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  Archive,
   BarChart3,
   Bell,
   BookOpen,
@@ -12,6 +11,7 @@ import {
   ClipboardCheck,
   FileText,
   LayoutDashboard,
+  LogOut,
   Menu,
   PackageCheck,
   PanelLeftClose,
@@ -42,7 +42,6 @@ function SidebarNav({
   collapsed,
   mobileOpen,
   onClose,
-  onToggleCollapse,
   userName,
   userRole,
 }: {
@@ -50,7 +49,6 @@ function SidebarNav({
   collapsed: boolean;
   mobileOpen: boolean;
   onClose: () => void;
-  onToggleCollapse: () => void;
   userName: string;
   userRole: string;
 }) {
@@ -67,59 +65,45 @@ function SidebarNav({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex h-screen flex-col border-r border-sidebar-border bg-sidebar px-3 py-5 shadow-xl transition-all duration-200 lg:static ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"} ${collapsed ? "w-24 lg:w-24" : "w-72 lg:w-72"}`}
+        className={`fixed inset-y-0 left-0 z-40 flex h-screen w-72 flex-col border-r border-sidebar-border bg-sidebar px-3 py-5 shadow-xl transition-all duration-200 lg:static ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"} ${collapsed ? "lg:w-24" : "lg:w-72"}`}
       >
         <div
-          className={`flex items-center ${collapsed ? "justify-center" : "gap-3 px-3"}`}
+          className={`flex items-center gap-3 ${collapsed ? "lg:justify-center" : "px-3"}`}
         >
           <div className="relative flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
-            <Archive className="size-5" />
+            <ShieldCheck className="size-5" strokeWidth={2.25} />
             <span className="absolute -bottom-1 -right-1 size-3 rounded-full border-2 border-sidebar bg-emerald-500" />
           </div>
-          {!collapsed && (
-            <div className="min-w-0">
-              <p className="text-lg font-semibold tracking-tight">
-                {appConfig.appName}
-              </p>
-              <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                {appConfig.subtitle}
-              </p>
-            </div>
-          )}
-          <button
-            aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-            className="ml-auto hidden rounded-lg p-2 text-muted-foreground transition hover:bg-sidebar-accent hover:text-foreground lg:inline-flex"
-            onClick={onToggleCollapse}
-          >
-            {collapsed ? (
-              <PanelLeftOpen className="size-4" />
-            ) : (
-              <PanelLeftClose className="size-4" />
-            )}
-          </button>
+          <div className={`min-w-0 ${collapsed ? "lg:hidden" : ""}`}>
+            <p className="text-lg font-semibold tracking-tight">
+              {appConfig.appName}
+            </p>
+            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              {appConfig.subtitle}
+            </p>
+          </div>
           <button
             aria-label="Close navigation"
-            className="ml-auto rounded-lg p-2 text-muted-foreground hover:bg-sidebar-accent hover:text-foreground lg:hidden"
+            className="ml-auto rounded-lg p-2 text-muted-foreground transition hover:bg-sidebar-accent hover:text-foreground lg:hidden"
             onClick={onClose}
           >
             <X className="size-4" />
           </button>
         </div>
 
-        {!collapsed && (
-          <div className="mt-9 flex items-center justify-between px-3">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-              Workspace
-            </p>
-            <span className="rounded-full border border-sidebar-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-              Live
-            </span>
-          </div>
-        )}
+        <div className={`mt-9 flex items-center justify-between px-3 ${collapsed ? "lg:justify-center" : ""}`}>
+          <p className={`text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground ${collapsed ? "lg:hidden" : ""}`}>
+            Workspace
+          </p>
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-sidebar-border bg-sidebar-accent/50 px-2 py-1 text-[10px] font-semibold text-muted-foreground">
+            <span className="size-1.5 rounded-full bg-emerald-500" />
+            <span className={collapsed ? "lg:hidden" : ""}>Live</span>
+          </span>
+        </div>
 
         <nav
           aria-label="Workspace navigation"
-          className={`mt-3 flex flex-1 flex-col gap-1 ${collapsed ? "items-center" : ""}`}
+          className={`mt-4 flex flex-1 flex-col gap-1 ${collapsed ? "lg:items-center" : ""}`}
         >
           {items.map(([label, href, Icon]) => {
             const active =
@@ -134,45 +118,33 @@ function SidebarNav({
                 onClick={onClose}
                 aria-current={active ? "page" : undefined}
                 title={collapsed ? label : undefined}
-                className={`group relative flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition ${collapsed ? "justify-center px-2" : "gap-3"} ${active ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-sm shadow-primary/15" : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"}`}
+                className={`group relative flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition ${collapsed ? "lg:justify-center lg:px-2" : "gap-3"} ${active ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-md shadow-primary/10" : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"}`}
               >
-                <span
-                  className={`flex size-8 shrink-0 items-center justify-center rounded-lg transition ${active ? "bg-primary-foreground/15" : "bg-sidebar-accent/60 group-hover:bg-sidebar-accent"}`}
-                >
-                  <Icon className="size-[17px]" />
+                <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg transition ${active ? "bg-primary-foreground/15" : "bg-sidebar-accent/60 group-hover:bg-sidebar-accent"}`}>
+                  <Icon className="size-[17px]" strokeWidth={active ? 2.35 : 2} />
                 </span>
-                {!collapsed && <span>{label}</span>}
-                {active && !collapsed && (
-                  <span className="absolute right-3 size-1.5 rounded-full bg-primary-foreground" />
-                )}
+                <span className={collapsed ? "lg:hidden" : ""}>{label}</span>
+                {active && <span className={`absolute right-3 size-1.5 rounded-full bg-primary-foreground ${collapsed ? "lg:hidden" : ""}`} />}
               </Link>
             );
           })}
         </nav>
 
-        <div
-          className={`border-t border-sidebar-border pt-4 ${collapsed ? "px-0" : "px-0"}`}
-        >
+        <div className="border-t border-sidebar-border pt-4">
           <Link
             href="/profile"
             title={collapsed ? userName : undefined}
-            className={`group flex items-center rounded-2xl border border-sidebar-border/70 bg-sidebar-accent/55 p-3 transition hover:border-primary/30 hover:bg-sidebar-accent ${collapsed ? "justify-center px-2" : "gap-3"}`}
+            className={`group flex items-center rounded-2xl border border-sidebar-border/70 bg-sidebar-accent/55 p-3 transition hover:border-primary/30 hover:bg-sidebar-accent ${collapsed ? "lg:justify-center lg:px-2" : "gap-3"}`}
           >
             <div className="relative flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
               {initials}
               <span className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-sidebar bg-emerald-500" />
             </div>
-            {!collapsed && (
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-semibold">{userName}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {userRole} · Online
-                </p>
-              </div>
-            )}
-            {!collapsed && (
-              <ChevronDown className="size-4 text-muted-foreground transition group-hover:text-foreground" />
-            )}
+            <div className="min-w-0">
+              <p className={`truncate text-sm font-semibold ${collapsed ? "lg:hidden" : ""}`}>{userName}</p>
+              <p className={`truncate text-xs text-muted-foreground ${collapsed ? "lg:hidden" : ""}`}>{userRole} · Online</p>
+            </div>
+            <ChevronDown className={`ml-auto size-4 text-muted-foreground transition group-hover:text-foreground ${collapsed ? "lg:hidden" : ""}`} />
           </Link>
         </div>
       </aside>
@@ -207,16 +179,15 @@ export function DashboardShell({
           collapsed={collapsed}
           mobileOpen={mobileOpen}
           onClose={() => setMobileOpen(false)}
-          onToggleCollapse={() => setCollapsed((value) => !value)}
           userName={displayName}
           userRole={displayRole}
         />
 
         <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <header className="relative flex min-h-20 items-center gap-3 border-b border-border/70 bg-background/85 px-4 shadow-[0_8px_24px_-24px_hsl(var(--foreground)/0.5)] backdrop-blur-xl md:gap-5 md:px-8">
+          <header className="relative flex min-h-[76px] items-center gap-3 border-b border-border/70 bg-background/90 px-4 shadow-[0_8px_24px_-24px_hsl(var(--foreground)/0.5)] backdrop-blur-xl md:gap-5 md:px-8">
             <button
               aria-label="Open navigation"
-              className="rounded-xl border border-border/70 bg-card p-2.5 text-muted-foreground shadow-sm transition hover:bg-muted hover:text-foreground lg:hidden"
+              className="rounded-xl border border-border/70 bg-card p-2.5 text-muted-foreground shadow-sm transition hover:border-primary/30 hover:bg-muted hover:text-foreground lg:hidden"
               onClick={() => setMobileOpen(true)}
             >
               <Menu className="size-5" />
@@ -226,7 +197,7 @@ export function DashboardShell({
               aria-label={
                 collapsed ? "Expand navigation" : "Collapse navigation"
               }
-              className="hidden rounded-xl border border-border/70 bg-card p-2.5 text-muted-foreground shadow-sm transition hover:bg-muted hover:text-foreground lg:inline-flex"
+              className="hidden rounded-xl border border-border/70 bg-card p-2.5 text-muted-foreground shadow-sm transition hover:border-primary/30 hover:bg-muted hover:text-foreground lg:inline-flex"
               onClick={() => setCollapsed((value) => !value)}
             >
               {collapsed ? (
@@ -236,23 +207,24 @@ export function DashboardShell({
               )}
             </button>
 
-            <div className="hidden min-w-[150px] md:block">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
-                Operations
-              </p>
-              <p className="mt-1 text-sm font-semibold">
+            <div className="hidden min-w-[180px] lg:block">
+              <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                <LayoutDashboard className="size-3" />
+                Workspace
+              </div>
+              <p className="mt-1 truncate text-sm font-semibold">
                 {headerWorkspaceLabel}
               </p>
             </div>
 
-            <div className="relative max-w-xl flex-1">
+            <div className="relative max-w-2xl flex-1">
               <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
               <input
                 aria-label="Search workspace"
                 placeholder="Search employees, requests, assets..."
                 className="h-11 w-full rounded-xl border border-input bg-card/80 pl-10 pr-20 text-sm outline-none shadow-sm transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/15"
               />
-              <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground sm:block">
+              <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground xl:block">
                 ⌘ K
               </kbd>
             </div>
@@ -260,7 +232,7 @@ export function DashboardShell({
             <button
               aria-label="Notifications"
               onClick={() => setNotice(!notice)}
-              className="relative rounded-xl border border-transparent p-2.5 text-muted-foreground transition hover:border-border hover:bg-card hover:text-foreground"
+              className="relative rounded-xl border border-transparent p-2.5 text-muted-foreground transition hover:border-border hover:bg-card hover:text-foreground focus-visible:border-primary focus-visible:outline-none"
             >
               <Bell className="size-5" />
               <span className="absolute right-2 top-2 size-1.5 rounded-full bg-rose-500 ring-2 ring-background" />
@@ -268,7 +240,7 @@ export function DashboardShell({
 
             <Link
               href="/profile"
-              className="hidden items-center gap-2 rounded-xl border border-transparent px-2 py-1.5 text-left transition hover:border-border hover:bg-card sm:flex"
+              className="hidden items-center gap-2 rounded-xl border border-transparent px-2 py-1.5 text-left transition hover:border-border hover:bg-card md:flex"
             >
               <div className="relative flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
                 {getInitials(displayName)}
@@ -284,9 +256,12 @@ export function DashboardShell({
             <form action={signOut}>
               <button
                 type="submit"
-                className="rounded-xl border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground transition hover:text-foreground"
+                aria-label="Sign out"
+                title="Sign out"
+                className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
               >
-                Sign out
+                <LogOut className="size-4" />
+                <span className="hidden xl:inline">Sign out</span>
               </button>
             </form>
           </header>

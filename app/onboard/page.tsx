@@ -15,14 +15,14 @@ import { createClient } from "@/lib/supabase/client";
 type Department = { id: string; name: string; code: string | null };
 type OnboardingAction = (formData: FormData) => void | Promise<void>;
 
-const FALLBACK_DEPARTMENTS: Department[] = [
-  { id: "ict", name: "Information and Communication Technology", code: "ICT" },
-  { id: "hr", name: "Human Resources", code: "HR" },
-  { id: "library", name: "Library Services", code: "LIB" },
-  { id: "finance", name: "Finance", code: "FIN" },
-  { id: "engineering", name: "Faculty of Engineering", code: "ENG" },
-  { id: "research", name: "Research and Innovation", code: "R&I" },
-];
+const FALLBACK_DEPARTMENTS = [
+  { name: "Information and Communication Technology", code: "ICT" },
+  { name: "Human Resources", code: "HR" },
+  { name: "Library Services", code: "LIB" },
+  { name: "Finance", code: "FIN" },
+  { name: "Faculty of Engineering", code: "ENG" },
+  { name: "Research and Innovation", code: "R&I" },
+] as const;
 
 const ROLE_ACCESSORY: Record<string, string> = {
   Employee: "laptop",
@@ -66,10 +66,14 @@ export default function OnboardingForm({
     async function loadDepartments() {
       if (safeDepartments.length) {
         setAvailableDepartments(safeDepartments);
+        if (!departmentId && safeDepartments[0]?.id) {
+          setDepartmentId(safeDepartments[0].id);
+        }
         return;
       }
 
       const supabase = createClient();
+
       const { data, error } = await supabase
         .from("departments")
         .select("id, name, code")
@@ -79,34 +83,56 @@ export default function OnboardingForm({
 
       if (!error && Array.isArray(data) && data.length > 0) {
         setAvailableDepartments(data as Department[]);
+        if (!departmentId && data[0]?.id) {
+          setDepartmentId(data[0].id);
+        }
         return;
       }
 
       const fallbackPayload = FALLBACK_DEPARTMENTS.map((department) => ({
-        id: department.id,
         name: department.name,
         code: department.code,
       }));
 
-      const { error: seedError } = await supabase
+      const { error: seedError, data: seededData } = await supabase
         .from("departments")
-        .upsert(fallbackPayload, { onConflict: "name" });
+        .upsert(fallbackPayload, { onConflict: "name" })
+        .select("id, name, code");
 
       if (!active) return;
 
-      if (!seedError) {
-        const { data: seededData } = await supabase
-          .from("departments")
-          .select("id, name, code")
-          .order("name");
-
-        if (Array.isArray(seededData) && seededData.length > 0) {
-          setAvailableDepartments(seededData as Department[]);
-          return;
+      if (!seedError && Array.isArray(seededData) && seededData.length > 0) {
+        setAvailableDepartments(seededData as Department[]);
+        if (!departmentId && seededData[0]?.id) {
+          setDepartmentId(seededData[0].id);
         }
+        return;
       }
 
-      setAvailableDepartments(FALLBACK_DEPARTMENTS);
+      const fallbackRows = await supabase
+        .from("departments")
+        .select("id, name, code")
+        .in(
+          "name",
+          FALLBACK_DEPARTMENTS.map((department) => department.name),
+        )
+        .order("name");
+
+      if (!active) return;
+
+      if (
+        !fallbackRows.error &&
+        Array.isArray(fallbackRows.data) &&
+        fallbackRows.data.length > 0
+      ) {
+        setAvailableDepartments(fallbackRows.data as Department[]);
+        if (!departmentId && fallbackRows.data[0]?.id) {
+          setDepartmentId(fallbackRows.data[0].id);
+        }
+        return;
+      }
+
+      setAvailableDepartments([]);
     }
 
     loadDepartments();
@@ -114,7 +140,7 @@ export default function OnboardingForm({
     return () => {
       active = false;
     };
-  }, [safeDepartments]);
+  }, [departmentId, safeDepartments]);
 
   useEffect(() => {
     let active = true;
@@ -439,9 +465,16 @@ export default function OnboardingForm({
             </select>
           </label>
 
+          {availableDepartments.length === 0 ? (
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+              Departments are not available yet. Please contact an administrator
+              to seed the department list.
+            </p>
+          ) : null}
+
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || availableDepartments.length === 0}
             className="h-11 rounded-xl bg-primary font-semibold text-primary-foreground transition hover:brightness-110 active:scale-[0.98] disabled:opacity-70"
           >
             {submitting ? "Setting things up…" : "Continue to dashboard"}

@@ -599,12 +599,22 @@ export async function completeOnboarding(formData: FormData) {
   if (!fullName) throw new Error("Full name is required.");
   if (!departmentId) throw new Error("Please select your department.");
 
+  const { data: departmentRow, error: departmentLookupError } = await supabase
+    .from("departments")
+    .select("id")
+    .eq("id", departmentId)
+    .maybeSingle();
+
+  if (departmentLookupError || !departmentRow) {
+    throw new Error("Please select a valid department.");
+  }
+
   const { error: profileError } = await supabase.from("profiles").upsert(
     {
       id: user.id,
       full_name: fullName,
       role: role || appConfig.defaultRole,
-      department_id: departmentId,
+      department_id: departmentRow.id,
     },
     { onConflict: "id" },
   );
