@@ -13,15 +13,96 @@ const DEFAULT_CLEARANCE_DEPARTMENTS = [
   "Knowledge",
 ];
 
+async function ensureUserProfile(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  user: {
+    id: string;
+    email?: string | null;
+    user_metadata?: Record<string, unknown>;
+  },
+  preferredRole?: string,
+) {
+  const fullName =
+    String(
+      user.user_metadata?.full_name ??
+        user.email?.split("@")[0] ??
+        appConfig.defaultUserName,
+    ).trim() || appConfig.defaultUserName;
+
+  const role =
+    String(
+      preferredRole ?? user.user_metadata?.role ?? appConfig.defaultRole,
+    ).trim() || appConfig.defaultRole;
+
+  const { data: existingProfile } = await supabase
+    .from("profiles")
+    .select("id, full_name, role, department_id")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!existingProfile) {
+    const { error } = await supabase.from("profiles").insert({
+      id: user.id,
+      full_name: fullName,
+      role,
+      department_id: null,
+    });
+
+    if (error && !/duplicate key|already exists/i.test(error.message)) {
+      throw new Error("Unable to create profile for this user.");
+    }
+  } else {
+    const updates: Record<string, string | null> = {};
+    if (!existingProfile.full_name) updates.full_name = fullName;
+    if (!existingProfile.role) updates.role = role;
+
+    if (Object.keys(updates).length > 0) {
+      const { error } = await supabase
+        .from("profiles")
+        .update(updates)
+        .eq("id", user.id);
+
+      if (error) throw new Error("Unable to update user profile.");
+    }
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id, full_name, role, department_id")
+    .eq("id", user.id)
+    .single();
+
+  return profile;
+}
+
 export async function signIn(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
 
-  if (!email || !password) throw new Error("Email and password are required.");
+  if (!email || !password) {
+    redirect(
+      "/auth/login?message=" +
+        encodeURIComponent("Email and password are required."),
+    );
+  }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
-  if (error) throw new Error(error.message);
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
+
+  if (error) {
+    redirect(
+      "/auth/login?message=" +
+        encodeURIComponent(error.message || "Invalid login credentials"),
+    );
+  }
+
+  const profile = await ensureUserProfile(supabase, data.user);
+  if (!profile?.department_id) {
+    redirect("/onboard?next=/dashboard");
+  }
 
   redirect("/dashboard");
 }
@@ -30,9 +111,7 @@ export async function signUp(formData: FormData) {
   const fullName = String(formData.get("full_name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const role =
-    String(formData.get("role") ?? appConfig.defaultRole).trim() ||
-    appConfig.defaultRole;
+  const role = appConfig.defaultRole;
 
   if (!fullName || !email || !password)
     throw new Error("Full name, email, and password are required.");
@@ -52,6 +131,19 @@ export async function signUp(formData: FormData) {
   });
 
   if (error) throw new Error(error.message);
+
+  if (data.user) {
+    const { error: profileError } = await supabase.from("profiles").upsert({
+      id: data.user.id,
+      full_name: fullName,
+      role,
+    });
+
+    if (profileError) {
+      throw new Error("Account created, but profile setup failed.");
+    }
+  }
+
   if (data.user && !data.session) {
     redirect(
       "/auth/login?message=" +
@@ -87,12 +179,28 @@ async function actor() {
   return { supabase, user };
 }
 
+function requireAdminRole(user: { user_metadata?: Record<string, unknown> }) {
+  const role =
+    typeof user.user_metadata?.role === "string"
+      ? user.user_metadata.role.trim()
+      : "";
+
+  if (
+    !role ||
+    (!role.toLowerCase().includes("admin") &&
+      !role.toLowerCase().includes("hr"))
+  ) {
+    throw new Error("You are not authorized to change system settings.");
+  }
+}
+
 type ClearanceStep = { department: string; status: string; comments?: string };
 type AssetRow = {
   id: string;
   asset_tag: string;
   asset_type: string;
   status: string;
+  returned_at?: string | null;
 };
 
 async function audit(
@@ -143,6 +251,31 @@ export async function createExitRequest(formData: FormData) {
   const lastDay = String(formData.get("last_day") ?? "") || null;
   if (!employeeId || !reason)
     throw new Error("Employee and reason are required.");
+
+  const { data: configurationRow } = await supabase
+    .from("system_settings")
+    .select("value")
+    .eq("key", "default_clearance_departments")
+    .maybeSingle();
+
+  let defaultDepartments = [...DEFAULT_CLEARANCE_DEPARTMENTS];
+  if (configurationRow?.value) {
+    try {
+      const parsed = JSON.parse(configurationRow.value) as unknown;
+      if (Array.isArray(parsed)) {
+        defaultDepartments = parsed
+          .map((item) => String(item).trim())
+          .filter(Boolean);
+      }
+    } catch {
+      const splitValue = configurationRow.value
+        .split(/[\n,]+/)
+        .map((item) => item.trim())
+        .filter(Boolean);
+      if (splitValue.length) defaultDepartments = splitValue;
+    }
+  }
+
   const { data, error } = await supabase
     .from("exit_requests")
     .insert({ employee_id: employeeId, reason, last_day: lastDay })
@@ -150,13 +283,11 @@ export async function createExitRequest(formData: FormData) {
     .single();
   if (error) throw new Error("Unable to submit exit request.");
   await audit(supabase, user.id, "created", "exit_request", data.id);
-  // Automatically create clearance workflow using default departments
   try {
-    await createClearanceSteps(data.id, DEFAULT_CLEARANCE_DEPARTMENTS);
+    await createClearanceSteps(data.id, defaultDepartments);
   } catch (err) {
-    // If step creation fails, audit but don't block exit request creation
     await audit(supabase, user.id, "warn", "clearance_steps", data.id, {
-      message: "Unable to create default clearance steps",
+      message: "Unable to create configured clearance steps",
       error: err instanceof Error ? err.message : String(err),
     });
   }
@@ -252,10 +383,10 @@ export async function checkExitBlockers(exitRequestId: string) {
   // Outstanding assets assigned to employee (not returned)
   const { data: assets } = await supabase
     .from("assets")
-    .select("id,asset_tag,asset_type,status")
+    .select("id,asset_tag,asset_type,status,returned_at")
     .eq("assigned_to", employeeId);
   const outstandingAssets = (assets ?? []).filter(
-    (a: AssetRow) => a.status !== "returned",
+    (a: AssetRow) => a.status !== "returned" || !a.returned_at,
   );
 
   // Knowledge documents count
@@ -283,6 +414,55 @@ export async function checkExitBlockers(exitRequestId: string) {
   return { blocked: Object.keys(blockers).length > 0, blockers };
 }
 
+export async function canFinalizeExit(exitRequestId: string) {
+  const { blocked, blockers } = await checkExitBlockers(exitRequestId);
+
+  const reasons: Array<{ type: string; message: string; department?: string }> =
+    [];
+
+  if (Array.isArray((blockers as Record<string, unknown>)?.clearance)) {
+    const clearanceBlocks = (blockers as Record<string, unknown>)
+      .clearance as Array<Record<string, unknown>>;
+    clearanceBlocks.forEach((block) => {
+      reasons.push({
+        type: "clearance",
+        department:
+          typeof block.department === "string" ? block.department : undefined,
+        message:
+          typeof block.comments === "string" && block.comments.trim()
+            ? block.comments
+            : `Clearance for ${block.department ?? "department"} is still pending.`,
+      });
+    });
+  }
+
+  if (Array.isArray((blockers as Record<string, unknown>)?.assets)) {
+    const assetBlocks = (blockers as Record<string, unknown>).assets as Array<
+      Record<string, unknown>
+    >;
+    assetBlocks.forEach((block) => {
+      reasons.push({
+        type: "asset",
+        department: "ICT",
+        message: `Asset ${String(block.tag ?? block.id ?? "unknown")} is not yet returned or verified.`,
+      });
+    });
+  }
+
+  if ((blockers as Record<string, unknown>)?.knowledge === "no_documents") {
+    reasons.push({
+      type: "knowledge",
+      message: "Required knowledge handover documents are missing.",
+    });
+  }
+
+  return {
+    eligible: !blocked,
+    blocked,
+    blockers: reasons,
+  };
+}
+
 export async function finalizeExit(formData: FormData | string) {
   const isString = typeof formData === "string";
   const exitRequestId = isString
@@ -291,7 +471,6 @@ export async function finalizeExit(formData: FormData | string) {
   if (!exitRequestId) throw new Error("Exit request is required.");
   const { supabase, user } = await actor();
 
-  // Role check: only Administrators or HR roles
   const _meta2 = user.user_metadata as Record<string, unknown> | undefined;
   const userRole =
     typeof _meta2?.role === "string" ? (_meta2.role as string) : undefined;
@@ -303,21 +482,19 @@ export async function finalizeExit(formData: FormData | string) {
     throw new Error("You are not authorized to finalize exits.");
   }
 
-  // Re-check blockers
-  const { blocked, blockers } = await checkExitBlockers(exitRequestId);
-  if (blocked) {
+  const readiness = await canFinalizeExit(exitRequestId);
+  if (!readiness.eligible) {
     await audit(
       supabase,
       user.id,
       "finalization_blocked",
       "exit_request",
       exitRequestId,
-      { blockers },
+      { blockers: readiness.blockers },
     );
-    return { success: false, blockers };
+    return { success: false, blockers: readiness.blockers };
   }
 
-  // Proceed to finalize
   const now = new Date().toISOString();
   const { data: exitReq, error: exitErr } = await supabase
     .from("exit_requests")
@@ -412,6 +589,64 @@ export async function getCurrentUser() {
   return { id: user.id, email: user.email ?? "" };
 }
 
+export async function completeOnboarding(formData: FormData) {
+  const { supabase, user } = await actor();
+
+  const fullName = String(formData.get("full_name") ?? "").trim();
+  const role = String(formData.get("role") ?? appConfig.defaultRole).trim();
+  const departmentId = String(formData.get("department_id") ?? "").trim();
+
+  if (!fullName) throw new Error("Full name is required.");
+  if (!departmentId) throw new Error("Please select your department.");
+
+  const { error: profileError } = await supabase.from("profiles").upsert(
+    {
+      id: user.id,
+      full_name: fullName,
+      role: role || appConfig.defaultRole,
+      department_id: departmentId,
+    },
+    { onConflict: "id" },
+  );
+
+  if (profileError) throw new Error("Unable to save your onboarding details.");
+
+  const { data: existingEmployee } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("email", user.email ?? "")
+    .maybeSingle();
+
+  if (!existingEmployee) {
+    const employeeNumber = `USER-${user.id.slice(0, 8).toUpperCase()}`;
+    const { error: employeeError } = await supabase.from("employees").insert({
+      employee_number: employeeNumber,
+      full_name: fullName,
+      email: user.email,
+      department_id: departmentId,
+      employment_status: "active",
+      job_title: "Onboarded user",
+    });
+
+    if (employeeError) {
+      throw new Error(
+        "Profile saved, but the employee record could not be created.",
+      );
+    }
+  }
+
+  await audit(supabase, user.id, "onboarded", "profile", user.id, {
+    role,
+    department_id: departmentId,
+  });
+
+  revalidatePath("/dashboard");
+  revalidatePath("/profile");
+  revalidatePath("/dashboard/settings");
+
+  redirect("/dashboard");
+}
+
 export async function signOut() {
   const { supabase } = await actor();
   await supabase.auth.signOut();
@@ -449,6 +684,59 @@ export async function updateProfile(formData: FormData) {
   if (error) throw new Error("Unable to update profile.");
   await audit(supabase, user.id, "updated", "profile", user.id);
   revalidatePath("/profile");
+  revalidatePath("/dashboard/settings");
+}
+
+export async function saveSystemSetting(formData: FormData) {
+  const { supabase, user } = await actor();
+  requireAdminRole(user);
+
+  const key = String(formData.get("key") ?? "").trim();
+  const value = String(formData.get("value") ?? "").trim();
+  if (!key) throw new Error("Setting key is required.");
+
+  const { error } = await supabase
+    .from("system_settings")
+    .upsert({ key, value }, { onConflict: "key" });
+
+  if (error) throw new Error("Unable to save system setting.");
+
+  await audit(supabase, user.id, "updated", "system_setting", key, {
+    key,
+    value,
+  });
+
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard");
+}
+
+export async function restoreDefaultWorkflow() {
+  const { supabase, user } = await actor();
+  requireAdminRole(user);
+
+  const defaults = [...DEFAULT_CLEARANCE_DEPARTMENTS];
+  const { error } = await supabase
+    .from("system_settings")
+    .upsert(
+      { key: "default_clearance_departments", value: JSON.stringify(defaults) },
+      { onConflict: "key" },
+    );
+
+  if (error) throw new Error("Unable to restore workflow defaults.");
+
+  await audit(
+    supabase,
+    user.id,
+    "reset",
+    "system_setting",
+    "default_clearance_departments",
+    {
+      defaults,
+    },
+  );
+
+  revalidatePath("/dashboard/settings");
+  revalidatePath("/dashboard");
 }
 
 export async function createInterview(formData: FormData) {
@@ -505,14 +793,12 @@ export async function assignAsset(formData: FormData) {
     .update({ assigned_to: employeeId, status: "assigned" })
     .eq("id", assetId);
   if (error) throw new Error("Unable to assign asset.");
-  await supabase
-    .from("asset_history")
-    .insert({
-      asset_id: assetId,
-      action: "assigned",
-      actor_id: user.id,
-      notes: `Assigned to ${employeeId}`,
-    });
+  await supabase.from("asset_history").insert({
+    asset_id: assetId,
+    action: "assigned",
+    actor_id: user.id,
+    notes: `Assigned to ${employeeId}`,
+  });
   await audit(supabase, user.id, "assigned", "asset", assetId, {
     assigned_to: employeeId,
   });
