@@ -757,33 +757,42 @@ export async function getReportDashboardSnapshot(): Promise<ReportDashboardSnaps
 
 export type SystemUserRecord = {
   id?: string | null;
-  email?: string | null;
   full_name?: string | null;
   role?: string | null;
+  department_id?: string | null;
   created_at?: string | null;
-  active?: boolean | null;
+  updated_at?: string | null;
 };
 
 export async function getSystemUsers(): Promise<SystemUserRecord[]> {
   const supabase = await createClient();
 
   try {
-    // Query profiles table for all user data
-    // profiles table is synced with auth.users via database triggers
+    // Query profiles table for user data
+    // Note: profiles table is linked to auth.users via id (foreign key)
+    // Email comes from auth.users, but we can only access it if RLS allows
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, email, full_name, role, created_at, active")
-      .not("id", "is", null)
+      .select("id, full_name, role, department_id, created_at, updated_at")
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("Error fetching system users:", error);
+      console.error("Error fetching system users:", {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+      });
       return [];
     }
 
-    return (data ?? []) as SystemUserRecord[];
+    if (!data) {
+      console.warn("No profile data returned");
+      return [];
+    }
+
+    return data as SystemUserRecord[];
   } catch (err) {
-    console.error("Error in getSystemUsers:", err);
+    console.error("Error in getSystemUsers catch:", err);
     return [];
   }
 }

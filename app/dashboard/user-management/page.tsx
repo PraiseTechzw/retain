@@ -7,6 +7,7 @@ import {
 } from "@/components/dashboard-shell";
 import { getSystemUsers } from "@/lib/supabase/data";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
+import { updateUserRole } from "@/lib/supabase/actions";
 
 export default async function Page() {
   const { userName, userRole } = await resolveDashboardUserContext();
@@ -53,17 +54,37 @@ export default async function Page() {
 
     return [
       <div key={user.id} className="flex flex-col">
-        <span className="font-semibold text-foreground">{user.full_name}</span>
-        <span className="text-xs text-muted-foreground">{user.email}</span>
+        <span className="font-semibold text-foreground">
+          {user.full_name || "(No name)"}
+        </span>
+        <span className="text-xs text-muted-foreground">{user.id}</span>
       </div>,
       roleDisplay,
-      <Status
-        key="status"
-        tone={roleDisplay.toLowerCase().includes("admin") ? "blue" : "gray"}
-      >
-        {roleDisplay}
+      <Status key="status" tone="green">
+        Active
       </Status>,
       createdAt,
+      <form key={`role-${user.id}`} action={updateUserRole}>
+        <input type="hidden" name="user_id" value={user.id ?? ""} />
+        <select
+          name="role"
+          defaultValue={user.role ?? "Employee"}
+          className="h-8 rounded border border-input bg-background px-2 text-xs"
+        >
+          <option value="Employee">Employee</option>
+          <option value="HR">HR</option>
+          <option value="Administrator">Administrator</option>
+          <option value="ICT">ICT</option>
+          <option value="Library">Library</option>
+          <option value="Management">Management</option>
+        </select>
+        <button
+          type="submit"
+          className="ml-2 rounded border border-input px-2 py-1 text-xs font-medium hover:bg-muted"
+        >
+          Update
+        </button>
+      </form>,
     ];
   });
 
@@ -73,14 +94,36 @@ export default async function Page() {
         title="User Management"
         description="Manage system users, roles, and access permissions."
       >
-        {users.length === 0 ? (
-          <EmptyState label="users" />
-        ) : (
-          <DataTable
-            columns={["User", "Role", "Status", "Created"]}
-            rows={rows}
-          />
-        )}
+        <div className="space-y-6">
+          <div className="rounded-2xl border border-border/70 bg-card p-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+              Overview
+            </p>
+            <h2 className="mt-2 text-xl font-semibold">System users</h2>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Total system users: <strong>{users.length}</strong>
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Select a role from the dropdown to change a user&apos;s role.
+              Changes are saved immediately.
+            </p>
+          </div>
+
+          {users.length === 0 ? (
+            <EmptyState label="users" />
+          ) : (
+            <DataTable
+              columns={[
+                "User",
+                "Current Role",
+                "Status",
+                "Created",
+                "Change Role",
+              ]}
+              rows={rows}
+            />
+          )}
+        </div>
       </PageFrame>
     </DashboardShell>
   );

@@ -1118,3 +1118,76 @@ export async function disableUserAccount(formData: FormData) {
 
   revalidatePath("/dashboard/user-management");
 }
+
+export async function activateUserAccount(formData: FormData) {
+  const { supabase, user } = await actor();
+
+  // Verify admin role
+  await requireAdminRole(supabase, user);
+
+  const userId = String(formData.get("user_id") ?? "");
+
+  if (!userId) {
+    throw new Error("User ID is required.");
+  }
+
+  // Mark as active in profile
+  const { error } = await supabase
+    .from("profiles")
+    .update({ active: true })
+    .eq("id", userId);
+
+  if (error) {
+    throw new Error("Unable to activate user account.");
+  }
+
+  // Log audit event
+  await audit(
+    supabase,
+    user.id,
+    "activated_user_account",
+    "system_user",
+    userId,
+    {},
+  );
+
+  revalidatePath("/dashboard/user-management");
+}
+
+export async function updateUserProfile(formData: FormData) {
+  const { supabase, user } = await actor();
+
+  // Verify admin role
+  await requireAdminRole(supabase, user);
+
+  const userId = String(formData.get("user_id") ?? "");
+  const fullName = String(formData.get("full_name") ?? "").trim();
+
+  if (!userId || !fullName) {
+    throw new Error("User ID and name are required.");
+  }
+
+  // Update profile (only full_name exists in profiles table)
+  const { error } = await supabase
+    .from("profiles")
+    .update({ full_name: fullName })
+    .eq("id", userId);
+
+  if (error) {
+    throw new Error("Unable to update user profile.");
+  }
+
+  // Log audit event
+  await audit(
+    supabase,
+    user.id,
+    "updated_user_profile",
+    "system_user",
+    userId,
+    {
+      full_name: fullName,
+    },
+  );
+
+  revalidatePath("/dashboard/user-management");
+}
