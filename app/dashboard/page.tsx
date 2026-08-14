@@ -62,7 +62,7 @@ export default async function Page() {
     user?.email?.split("@")[0] ||
     "User";
   const userRole =
-    profile?.role || (user?.user_metadata?.role as string | undefined) || "Administrator";
+    (user?.user_metadata?.role as string | undefined) || profile?.role || "Employee";
 
   const completedClearances = (clearanceSteps ?? []).filter(
     (step) => step.status === "approved",

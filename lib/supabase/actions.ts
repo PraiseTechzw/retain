@@ -29,16 +29,19 @@ async function ensureUserProfile(
         appConfig.defaultUserName,
     ).trim() || appConfig.defaultUserName;
 
-  const role =
-    String(
-      preferredRole ?? user.user_metadata?.role ?? appConfig.defaultRole,
-    ).trim() || appConfig.defaultRole;
-
   const { data: existingProfile } = await supabase
     .from("profiles")
     .select("id, full_name, role, department_id")
     .eq("id", user.id)
     .maybeSingle();
+
+  // Auth metadata is the assigned role. Keep the public profile copy in sync
+  // so the same user is not shown as (for example) both Employee and
+  // Administrator in different areas of the app.
+  const assignedRole = String(
+    preferredRole ?? user.user_metadata?.role ?? existingProfile?.role ?? appConfig.defaultRole,
+  ).trim();
+  const role = assignedRole || appConfig.defaultRole;
 
   if (!existingProfile) {
     const { error } = await supabase.from("profiles").insert({
@@ -54,7 +57,7 @@ async function ensureUserProfile(
   } else {
     const updates: Record<string, string | null> = {};
     if (!existingProfile.full_name) updates.full_name = fullName;
-    if (!existingProfile.role) updates.role = role;
+    if (existingProfile.role !== role) updates.role = role;
 
     if (Object.keys(updates).length > 0) {
       const { error } = await supabase
@@ -593,7 +596,6 @@ export async function completeOnboarding(formData: FormData) {
   const { supabase, user } = await actor();
 
   const fullName = String(formData.get("full_name") ?? "").trim();
-  const role = String(formData.get("role") ?? appConfig.defaultRole).trim();
   const departmentId = String(formData.get("department_id") ?? "").trim();
 
   if (!fullName) throw new Error("Full name is required.");
@@ -608,6 +610,20 @@ export async function completeOnboarding(formData: FormData) {
   if (departmentLookupError || !departmentRow) {
     throw new Error("Please select a valid department.");
   }
+
+  const { data: existingProfile, error: profileLookupError } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileLookupError) throw new Error("Unable to load your profile.");
+
+  // The assigned role is never accepted from onboarding form data. This stops
+  // a user from creating a conflicting or elevated role for themselves.
+  const role = String(
+    user.user_metadata?.role ?? existingProfile?.role ?? appConfig.defaultRole,
+  ).trim() || appConfig.defaultRole;
 
   const profile = {
     full_name: fullName,

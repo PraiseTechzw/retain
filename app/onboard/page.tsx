@@ -177,7 +177,8 @@ export default function OnboardingForm({
       }
 
       if (profile?.full_name) setFullName(profile.full_name);
-      if (profile?.role) setRole(profile.role);
+      // The Auth-assigned role is canonical. Do not replace it with a stale
+      // profile value while the profile is being synchronized on submit.
 
       const { data: employee } = await supabase
         .from("employees")
@@ -429,16 +430,12 @@ export default function OnboardingForm({
               <BriefcaseBusiness className="h-4 w-4 text-primary" />
               Role
             </span>
-            <select
-              name="role"
+            <input
               value={role}
-              onChange={(e) => setRole(e.target.value)}
-              className="h-11 rounded-xl border border-input bg-background px-3 outline-none transition focus:ring-2 focus:ring-primary/40"
-            >
-              <option value="Employee">Employee</option>
-              <option value="HR">HR</option>
-              <option value="Management">Management</option>
-            </select>
+              readOnly
+              aria-readonly="true"
+              className="h-11 rounded-xl border border-input bg-muted/50 px-3 text-muted-foreground"
+            />
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm font-medium">

@@ -23,7 +23,7 @@ export default async function Page() {
     user?.email?.split("@")[0] ||
     "User";
   const userRole =
-    (user?.user_metadata?.role as string | undefined) || "Administrator";
+    (user?.user_metadata?.role as string | undefined) || "Employee";
 
   const [systemSettings, auditEvents] = await Promise.all([
     getSystemSettings(),
