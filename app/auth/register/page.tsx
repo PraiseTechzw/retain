@@ -4,7 +4,14 @@ import { signUp } from "@/lib/supabase/actions";
 import { appConfig } from "@/lib/system";
 import RegisterMascotForm from "@/components/auth/register-mscot-form";
 
-export default function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams?: Promise<{ message?: string }> | { message?: string };
+}) {
+  const params = await Promise.resolve(searchParams);
+  const message = params?.message ? decodeURIComponent(params.message) : "";
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-background p-6">
       <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 shadow-sm">
@@ -14,7 +21,11 @@ export default function Page() {
           </div>
           <span className="text-sm font-semibold">{appConfig.appName}</span>
         </div>
-        <RegisterMascotForm signUp={signUp} appName={appConfig.appName} />
+        <RegisterMascotForm
+          signUp={signUp}
+          appName={appConfig.appName}
+          message={message}
+        />
         <Link href="/auth/login" className="mt-5 block text-sm text-primary">
           Back to sign in
         </Link>

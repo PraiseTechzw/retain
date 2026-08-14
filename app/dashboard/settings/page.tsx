@@ -240,20 +240,23 @@ export default async function Page() {
                             <button className="h-10 rounded-xl border border-border px-3 text-sm font-medium hover:bg-muted">
                               Save
                             </button>
-                            <form action={deleteDepartment} className="inline">
-                              <input
-                                type="hidden"
-                                name="id"
-                                value={department.id ?? ""}
-                              />
-                              <button
-                                type="submit"
-                                className="h-10 rounded-xl border border-rose-200 bg-rose-50 px-3 text-sm font-medium text-rose-700 hover:bg-rose-100"
-                              >
-                                Delete
-                              </button>
-                            </form>
                           </div>
+                        </form>
+                        <form
+                          action={deleteDepartment}
+                          className="mt-3 flex justify-end"
+                        >
+                          <input
+                            type="hidden"
+                            name="id"
+                            value={department.id ?? ""}
+                          />
+                          <button
+                            type="submit"
+                            className="h-10 rounded-xl border border-rose-200 bg-rose-50 px-3 text-sm font-medium text-rose-700 hover:bg-rose-100"
+                          >
+                            Delete
+                          </button>
                         </form>
                       </div>
                     ))

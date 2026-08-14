@@ -14,6 +14,54 @@ const DEFAULT_CLEARANCE_DEPARTMENTS = [
   "Knowledge",
 ];
 
+function userFriendlyAuthMessage(
+  rawMessage?: string | null,
+  fallback = "Something went wrong. Please try again.",
+) {
+  const message = (rawMessage ?? "").trim();
+  if (!message) return fallback;
+
+  const lower = message.toLowerCase();
+
+  if (
+    /rate limit|too many requests|too many sign|request limit|email rate/i.test(
+      lower,
+    )
+  ) {
+    return "Too many sign-up attempts for this email. Please wait a few minutes and try again.";
+  }
+
+  if (/already.*(registered|exists)|duplicate|user already/i.test(lower)) {
+    return "An account with this email already exists. Please sign in instead.";
+  }
+
+  if (
+    /invalid login|invalid credentials|wrong password|email or password|auth user not found|user not found|invalid email/i.test(
+      lower,
+    )
+  ) {
+    return "We could not sign you in with those details. Please check your email and password.";
+  }
+
+  if (/confirm.*email|email.*verified|verification/i.test(lower)) {
+    return "Please check your inbox and confirm your email before signing in.";
+  }
+
+  if (
+    /weak password|password.*(at least|minimum|length)|password.*too short/i.test(
+      lower,
+    )
+  ) {
+    return "Please choose a stronger password with at least 8 characters.";
+  }
+
+  if (/network|timed out|failed to fetch|unexpected|server/i.test(lower)) {
+    return "Something went wrong on our side. Please try again in a moment.";
+  }
+
+  return fallback;
+}
+
 async function ensureUserProfile(
   supabase: Awaited<ReturnType<typeof createClient>>,
   user: {
@@ -91,6 +139,62 @@ async function ensureUserProfile(
   return profile;
 }
 
+async function ensureEmployeeRecord(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  user: {
+    id: string;
+    email?: string | null;
+    user_metadata?: Record<string, unknown>;
+  },
+  overrides: { fullName?: string; departmentId?: string | null } = {},
+) {
+  const email = String(user.email ?? "").trim();
+  const fullName =
+    String(
+      overrides.fullName ??
+        user.user_metadata?.full_name ??
+        email.split("@")[0] ??
+        appConfig.defaultUserName,
+    ).trim() || appConfig.defaultUserName;
+
+  const { data: existingEmployee } = await supabase
+    .from("employees")
+    .select(
+      "id, employee_number, full_name, email, department_id, job_title, employment_status",
+    )
+    .eq("email", email)
+    .maybeSingle();
+
+  if (existingEmployee) {
+    return existingEmployee;
+  }
+
+  const employeeNumber = `USER-${user.id.slice(0, 8).toUpperCase()}`;
+  const { data, error } = await supabase
+    .from("employees")
+    .insert({
+      employee_number: employeeNumber,
+      full_name: fullName,
+      email: email || `${user.id}@local.invalid`,
+      department_id: overrides.departmentId ?? null,
+      employment_status: "active",
+      job_title: "Onboarded user",
+    })
+    .select(
+      "id, employee_number, full_name, email, department_id, job_title, employment_status",
+    )
+    .single();
+
+  if (error) {
+    if (/duplicate key|already exists|duplicate/i.test(error.message)) {
+      return existingEmployee;
+    }
+    throw new Error("Unable to create employee record for this user.");
+  }
+
+  return data;
+}
+
 export async function signIn(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
@@ -111,11 +215,20 @@ export async function signIn(formData: FormData) {
   if (error) {
     redirect(
       "/auth/login?message=" +
-        encodeURIComponent(error.message || "Invalid login credentials"),
+        encodeURIComponent(
+          userFriendlyAuthMessage(
+            error.message,
+            "We could not sign you in with those details. Please check your email and password.",
+          ),
+        ),
     );
   }
 
   const profile = await ensureUserProfile(supabase, data.user);
+  await ensureEmployeeRecord(supabase, data.user, {
+    fullName: profile?.full_name ?? undefined,
+  });
+
   if (!profile?.department_id) {
     redirect("/onboard?next=/dashboard");
   }
@@ -129,10 +242,21 @@ export async function signUp(formData: FormData) {
   const password = String(formData.get("password") ?? "");
   const role = appConfig.defaultRole;
 
-  if (!fullName || !email || !password)
-    throw new Error("Full name, email, and password are required.");
-  if (password.length < 8)
-    throw new Error("Password must be at least 8 characters long.");
+  if (!fullName || !email || !password) {
+    redirect(
+      "/auth/register?message=" +
+        encodeURIComponent("Full name, email, and password are required."),
+    );
+  }
+
+  if (password.length < 8) {
+    redirect(
+      "/auth/register?message=" +
+        encodeURIComponent(
+          "Please choose a stronger password with at least 8 characters.",
+        ),
+    );
+  }
 
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
@@ -146,9 +270,19 @@ export async function signUp(formData: FormData) {
     },
   });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    redirect(
+      "/auth/register?message=" +
+        encodeURIComponent(
+          userFriendlyAuthMessage(
+            error.message,
+            "We could not create your account right now. Please try again.",
+          ),
+        ),
+    );
+  }
 
-  if (data.user) {
+  if (data.user && data.session) {
     const { error: profileError } = await supabase.from("profiles").upsert({
       id: data.user.id,
       full_name: fullName,
@@ -156,14 +290,21 @@ export async function signUp(formData: FormData) {
     });
 
     if (profileError) {
-      throw new Error("Account created, but profile setup failed.");
+      redirect(
+        "/auth/register?message=" +
+          encodeURIComponent(
+            "Your account was created, but we could not finish setting up your profile. Please sign in and try again.",
+          ),
+      );
     }
   }
 
   if (data.user && !data.session) {
     redirect(
       "/auth/login?message=" +
-        encodeURIComponent("Check your email to confirm your account."),
+        encodeURIComponent(
+          "Check your email to confirm your account before signing in.",
+        ),
     );
   }
 
@@ -172,7 +313,14 @@ export async function signUp(formData: FormData) {
 
 export async function resetPassword(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
-  if (!email) throw new Error("Email is required.");
+  if (!email) {
+    redirect(
+      "/auth/login?message=" +
+        encodeURIComponent(
+          "Please enter your email address to reset your password.",
+        ),
+    );
+  }
 
   const supabase = await createClient();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
@@ -180,7 +328,17 @@ export async function resetPassword(formData: FormData) {
     redirectTo: `${appUrl}/auth/reset-password`,
   });
 
-  if (error) throw new Error(error.message);
+  if (error) {
+    redirect(
+      "/auth/login?message=" +
+        encodeURIComponent(
+          userFriendlyAuthMessage(
+            error.message,
+            "We could not send a password reset email right now. Please try again.",
+          ),
+        ),
+    );
+  }
   redirect(
     "/auth/login?message=" + encodeURIComponent("Password reset email sent."),
   );

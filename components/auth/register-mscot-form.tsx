@@ -27,9 +27,11 @@ const strengthColor = [
 export default function RegisterMascotForm({
   signUp,
   appName,
+  message,
 }: {
   signUp: SignUpAction;
   appName: string;
+  message?: string;
 }) {
   const [focusedField, setFocusedField] = useState<
     "name" | "email" | "password" | null
@@ -41,6 +43,10 @@ export default function RegisterMascotForm({
 
   const strength = passwordStrength(password);
   const eyesCovered = focusedField === "password" && !showPassword;
+  const isErrorMessage =
+    !!message &&
+    /invalid|error|required|failed|denied|weak|already|limit/i.test(message);
+  const isSuccessMessage = !!message && !isErrorMessage;
 
   // eyes track cursor while name/email focused
   useEffect(() => {
@@ -188,6 +194,21 @@ export default function RegisterMascotForm({
       <p className="mt-2 text-center text-sm text-muted-foreground">
         Request access to {appName}.
       </p>
+
+      {message ? (
+        <p
+          aria-live="polite"
+          className={
+            isErrorMessage
+              ? "mt-4 max-w-full break-words rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+              : isSuccessMessage
+                ? "mt-4 max-w-full break-words rounded-xl border border-emerald-200 bg-emerald-50/90 px-3 py-2 text-sm text-emerald-700"
+                : "mt-4 max-w-full break-words rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700"
+          }
+        >
+          {message}
+        </p>
+      ) : null}
 
       <form action={signUp} className="mt-8 flex flex-col gap-4">
         <input

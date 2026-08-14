@@ -13,6 +13,10 @@ export type AnalyticsFilterState = {
 export type DepartmentRecord = {
   id?: string | null;
   name?: string | null;
+  code?: string | null;
+  description?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type EmployeeRecord = {
