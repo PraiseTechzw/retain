@@ -5,6 +5,14 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { appConfig } from "@/lib/system";
 
+const DEFAULT_CLEARANCE_DEPARTMENTS = [
+  "ICT",
+  "Library",
+  "Finance",
+  "Department head",
+  "Knowledge",
+];
+
 export async function signIn(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
@@ -79,6 +87,14 @@ async function actor() {
   return { supabase, user };
 }
 
+type ClearanceStep = { department: string; status: string; comments?: string };
+type AssetRow = {
+  id: string;
+  asset_tag: string;
+  asset_type: string;
+  status: string;
+};
+
 async function audit(
   supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
@@ -87,15 +103,13 @@ async function audit(
   entityId?: string,
   metadata: Record<string, unknown> = {},
 ) {
-  await supabase
-    .from("audit_events")
-    .insert({
-      actor_id: userId,
-      action,
-      entity_type: entityType,
-      entity_id: entityId ?? null,
-      metadata,
-    });
+  await supabase.from("audit_events").insert({
+    actor_id: userId,
+    action,
+    entity_type: entityType,
+    entity_id: entityId ?? null,
+    metadata,
+  });
 }
 
 export async function createEmployee(formData: FormData) {
@@ -136,6 +150,16 @@ export async function createExitRequest(formData: FormData) {
     .single();
   if (error) throw new Error("Unable to submit exit request.");
   await audit(supabase, user.id, "created", "exit_request", data.id);
+  // Automatically create clearance workflow using default departments
+  try {
+    await createClearanceSteps(data.id, DEFAULT_CLEARANCE_DEPARTMENTS);
+  } catch (err) {
+    // If step creation fails, audit but don't block exit request creation
+    await audit(supabase, user.id, "warn", "clearance_steps", data.id, {
+      message: "Unable to create default clearance steps",
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
   revalidatePath("/dashboard/exit-requests");
   revalidatePath("/dashboard");
 }
@@ -154,14 +178,12 @@ export async function updateAssetStatus(formData: FormData) {
     })
     .eq("id", id);
   if (error) throw new Error("Unable to update asset status.");
-  await supabase
-    .from("asset_history")
-    .insert({
-      asset_id: id,
-      action: status,
-      actor_id: user.id,
-      notes: "Status updated from operations workspace.",
-    });
+  await supabase.from("asset_history").insert({
+    asset_id: id,
+    action: status,
+    actor_id: user.id,
+    notes: "Status updated from operations workspace.",
+  });
   await audit(supabase, user.id, "updated", "asset", id, { status });
   revalidatePath("/dashboard/assets");
   revalidatePath("/dashboard/assets/returns");
@@ -171,6 +193,23 @@ export async function approveClearance(formData: FormData) {
   const { supabase, user } = await actor();
   const id = String(formData.get("clearance_id") ?? "");
   if (!id) throw new Error("Clearance step is required.");
+  // Role-based check: only allow department officers or admins/HR
+  const { data: stepData } = await supabase
+    .from("clearance_steps")
+    .select("id,department,exit_request_id")
+    .eq("id", id)
+    .single();
+  const stepDept = stepData?.department ?? "";
+  const _meta = user.user_metadata as Record<string, unknown> | undefined;
+  const userRole =
+    typeof _meta?.role === "string" ? (_meta.role as string) : undefined;
+  const allowed =
+    userRole === appConfig.defaultRole ||
+    (userRole && userRole.toLowerCase().includes(stepDept.toLowerCase())) ||
+    userRole?.toLowerCase().includes("hr");
+  if (!allowed)
+    throw new Error("You are not authorized to approve this clearance.");
+
   const { data, error } = await supabase
     .from("clearance_steps")
     .update({
@@ -184,6 +223,122 @@ export async function approveClearance(formData: FormData) {
   if (error) throw new Error("Unable to approve clearance step.");
   await audit(supabase, user.id, "approved", "clearance_step", data.id);
   revalidatePath("/dashboard/clearances");
+}
+
+// Helper: check blockers for an exit request
+export async function checkExitBlockers(exitRequestId: string) {
+  const supabase = await createClient();
+  // Get exit request and employee
+  const { data: exitReq, error: exitErr } = await supabase
+    .from("exit_requests")
+    .select("id, employee_id, status")
+    .eq("id", exitRequestId)
+    .single();
+  if (exitErr || !exitReq) throw new Error("Exit request not found.");
+
+  const employeeId = exitReq.employee_id;
+
+  // Clearance steps pending/rejected
+  const { data: steps } = await supabase
+    .from("clearance_steps")
+    .select("department,status,comments")
+    .eq("exit_request_id", exitRequestId)
+    .order("step_order", { ascending: true });
+
+  const pending = (steps ?? []).filter(
+    (s: ClearanceStep) => s.status !== "approved",
+  );
+
+  // Outstanding assets assigned to employee (not returned)
+  const { data: assets } = await supabase
+    .from("assets")
+    .select("id,asset_tag,asset_type,status")
+    .eq("assigned_to", employeeId);
+  const outstandingAssets = (assets ?? []).filter(
+    (a: AssetRow) => a.status !== "returned",
+  );
+
+  // Knowledge documents count
+  const { data: docs } = await supabase
+    .from("knowledge_documents")
+    .select("id")
+    .eq("employee_id", employeeId);
+
+  const blockers: Record<string, unknown> = {};
+  if (pending.length)
+    blockers.clearance = pending.map((p: ClearanceStep) => ({
+      department: p.department,
+      status: p.status,
+      comments: p.comments,
+    }));
+  if (outstandingAssets.length)
+    blockers.assets = outstandingAssets.map((a: AssetRow) => ({
+      id: a.id,
+      tag: a.asset_tag,
+      type: a.asset_type,
+      status: a.status,
+    }));
+  if (!docs || docs.length === 0) blockers.knowledge = "no_documents";
+
+  return { blocked: Object.keys(blockers).length > 0, blockers };
+}
+
+export async function finalizeExit(formData: FormData | string) {
+  const isString = typeof formData === "string";
+  const exitRequestId = isString
+    ? (formData as string)
+    : String((formData as FormData).get("exit_request_id") ?? "");
+  if (!exitRequestId) throw new Error("Exit request is required.");
+  const { supabase, user } = await actor();
+
+  // Role check: only Administrators or HR roles
+  const _meta2 = user.user_metadata as Record<string, unknown> | undefined;
+  const userRole =
+    typeof _meta2?.role === "string" ? (_meta2.role as string) : undefined;
+  if (
+    !userRole ||
+    (!userRole.toLowerCase().includes("admin") &&
+      !userRole.toLowerCase().includes("hr"))
+  ) {
+    throw new Error("You are not authorized to finalize exits.");
+  }
+
+  // Re-check blockers
+  const { blocked, blockers } = await checkExitBlockers(exitRequestId);
+  if (blocked) {
+    await audit(
+      supabase,
+      user.id,
+      "finalization_blocked",
+      "exit_request",
+      exitRequestId,
+      { blockers },
+    );
+    return { success: false, blockers };
+  }
+
+  // Proceed to finalize
+  const now = new Date().toISOString();
+  const { data: exitReq, error: exitErr } = await supabase
+    .from("exit_requests")
+    .update({ status: "completed", completed_at: now, finalized_by: user.id })
+    .eq("id", exitRequestId)
+    .select("id,employee_id")
+    .single();
+  if (exitErr || !exitReq) throw new Error("Unable to finalize exit request.");
+
+  // Update employee status
+  const { error: empErr } = await supabase
+    .from("employees")
+    .update({ employment_status: "exited", exit_date: now })
+    .eq("id", exitReq.employee_id);
+  if (empErr) throw new Error("Unable to update employee status.");
+
+  await audit(supabase, user.id, "finalized", "exit_request", exitRequestId);
+  // Optionally trigger notifications here (left as an integration point)
+  revalidatePath("/dashboard/exit-requests");
+  revalidatePath("/dashboard");
+  return { success: true };
 }
 
 export async function uploadKnowledgeDocument(formData: FormData) {
@@ -337,6 +492,56 @@ export async function createAsset(formData: FormData) {
     asset_tag: asset.asset_tag,
   });
   revalidatePath("/dashboard/assets");
+}
+
+export async function assignAsset(formData: FormData) {
+  const { supabase, user } = await actor();
+  const assetId = String(formData.get("asset_id") ?? "");
+  const employeeId = String(formData.get("employee_id") ?? "");
+  if (!assetId || !employeeId)
+    throw new Error("Asset and employee are required.");
+  const { error } = await supabase
+    .from("assets")
+    .update({ assigned_to: employeeId, status: "assigned" })
+    .eq("id", assetId);
+  if (error) throw new Error("Unable to assign asset.");
+  await supabase
+    .from("asset_history")
+    .insert({
+      asset_id: assetId,
+      action: "assigned",
+      actor_id: user.id,
+      notes: `Assigned to ${employeeId}`,
+    });
+  await audit(supabase, user.id, "assigned", "asset", assetId, {
+    assigned_to: employeeId,
+  });
+  revalidatePath("/dashboard/assets");
+  revalidatePath(`/dashboard/assets/${assetId}`);
+}
+
+export async function verifyAsset(formData: FormData) {
+  const { supabase, user } = await actor();
+  const assetId = String(formData.get("asset_id") ?? "");
+  const status = String(formData.get("status") ?? "returned");
+  const notes = String(formData.get("notes") ?? "");
+  if (!assetId) throw new Error("Asset is required.");
+  const update: Record<string, unknown> = { status };
+  if (status === "returned") update["returned_at"] = new Date().toISOString();
+  const { error } = await supabase
+    .from("assets")
+    .update(update)
+    .eq("id", assetId);
+  if (error) throw new Error("Unable to update asset verification.");
+  await supabase
+    .from("asset_history")
+    .insert({ asset_id: assetId, action: status, actor_id: user.id, notes });
+  await audit(supabase, user.id, "verified", "asset", assetId, {
+    status,
+    notes,
+  });
+  revalidatePath("/dashboard/assets");
+  revalidatePath(`/dashboard/assets/${assetId}`);
 }
 
 export async function createHandover(formData: FormData) {
