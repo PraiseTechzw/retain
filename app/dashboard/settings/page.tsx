@@ -52,13 +52,18 @@ export default async function Page() {
             {!isAdminRole && (
               <section className="rounded-2xl border border-dashed border-amber-300 bg-amber-50 p-6 dark:border-amber-700 dark:bg-amber-950/30">
                 <div className="flex items-start gap-4">
-                  <div className="mt-1 flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-200 text-sm font-bold text-amber-900 dark:bg-amber-800 dark:text-amber-100">⚠</div>
+                  <div className="mt-1 flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-200 text-sm font-bold text-amber-900 dark:bg-amber-800 dark:text-amber-100">
+                    ⚠
+                  </div>
                   <div>
                     <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
                       Limited access
                     </p>
                     <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
-                      Your current role is <strong>{userRole}</strong>. Only administrators and HR managers can edit institutional settings and workflow configuration. Contact your administrator if you need access.
+                      Your current role is <strong>{userRole}</strong>. Only
+                      administrators and HR managers can edit institutional
+                      settings and workflow configuration. Contact your
+                      administrator if you need access.
                     </p>
                   </div>
                 </div>
@@ -103,140 +108,140 @@ export default async function Page() {
             </section>
 
             {isAdminRole && (
-            <section className="rounded-2xl border border-border/70 bg-card p-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Organization
-              </p>
-              <h2 className="mt-2 text-xl font-semibold">
-                Institution profile
-              </h2>
-              <form action={saveSystemSetting} className="mt-6 space-y-4">
-                <input type="hidden" name="key" value="organization_name" />
-                <label className="block text-sm font-medium text-foreground">
-                  Institution name
-                  <input
-                    name="value"
-                    defaultValue={resolveSystemSettingValue(
-                      "organization_name",
-                      settingsMap.organization_name,
-                    )}
-                    className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
-                  />
-                </label>
-                <div className="flex justify-end">
-                  <button className="rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-muted">
-                    Save institution name
-                  </button>
-                </div>
-              </form>
-            </section>
-            )}
-
-            {isAdminRole && (
-            <section className="rounded-2xl border border-border/70 bg-card p-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Workflow
-              </p>
-              <h2 className="mt-2 text-xl font-semibold">
-                Clearance workflow defaults
-              </h2>
-              <p className="mt-2 text-sm text-muted-foreground">
-                This configuration is used whenever a new exit request is
-                created.
-              </p>
-
-              <form action={saveSystemSetting} className="mt-6 space-y-4">
-                <input
-                  type="hidden"
-                  name="key"
-                  value="default_clearance_departments"
-                />
-                <label className="block text-sm font-medium text-foreground">
-                  Default departments
-                  <textarea
-                    name="value"
-                    rows={4}
-                    defaultValue={departments.join(", ")}
-                    className="mt-2 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
-                  />
-                </label>
-                <div className="flex flex-wrap justify-between gap-3">
-                  <button className="rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-muted">
-                    Save workflow defaults
-                  </button>
-                </div>
-              </form>
-
-              <form
-                action={restoreDefaultWorkflow}
-                className="mt-4 flex justify-end"
-              >
-                <button
-                  type="submit"
-                  className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100"
-                >
-                  Restore defaults
-                </button>
-              </form>
-            </section>
-            )}
-
-            {isAdminRole && (
-            <section className="rounded-2xl border border-border/70 bg-card p-6">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                Controls
-              </p>
-              <h2 className="mt-2 text-xl font-semibold">
-                Retention & notification policy
-              </h2>
-              <div className="mt-6 grid gap-4 md:grid-cols-2">
-                <form action={saveSystemSetting} className="space-y-3">
-                  <input type="hidden" name="key" value="retention_days" />
+              <section className="rounded-2xl border border-border/70 bg-card p-6">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Organization
+                </p>
+                <h2 className="mt-2 text-xl font-semibold">
+                  Institution profile
+                </h2>
+                <form action={saveSystemSetting} className="mt-6 space-y-4">
+                  <input type="hidden" name="key" value="organization_name" />
                   <label className="block text-sm font-medium text-foreground">
-                    Knowledge retention (days)
+                    Institution name
                     <input
                       name="value"
-                      type="number"
-                      min="30"
                       defaultValue={resolveSystemSettingValue(
-                        "retention_days",
-                        settingsMap.retention_days,
+                        "organization_name",
+                        settingsMap.organization_name,
                       )}
                       className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
                     />
                   </label>
-                  <button className="rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-muted">
-                    Save retention
-                  </button>
+                  <div className="flex justify-end">
+                    <button className="rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-muted">
+                      Save institution name
+                    </button>
+                  </div>
                 </form>
+              </section>
+            )}
 
-                <form action={saveSystemSetting} className="space-y-3">
+            {isAdminRole && (
+              <section className="rounded-2xl border border-border/70 bg-card p-6">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Workflow
+                </p>
+                <h2 className="mt-2 text-xl font-semibold">
+                  Clearance workflow defaults
+                </h2>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  This configuration is used whenever a new exit request is
+                  created.
+                </p>
+
+                <form action={saveSystemSetting} className="mt-6 space-y-4">
                   <input
                     type="hidden"
                     name="key"
-                    value="notification_channel"
+                    value="default_clearance_departments"
                   />
                   <label className="block text-sm font-medium text-foreground">
-                    Default notification channel
-                    <select
+                    Default departments
+                    <textarea
                       name="value"
-                      defaultValue={resolveSystemSettingValue(
-                        "notification_channel",
-                        settingsMap.notification_channel,
-                      )}
-                      className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
-                    >
-                      <option value="email">Email</option>
-                      <option value="in_app">In-app</option>
-                      <option value="both">Both</option>
-                    </select>
+                      rows={4}
+                      defaultValue={departments.join(", ")}
+                      className="mt-2 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+                    />
                   </label>
-                  <button className="rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-muted">
-                    Save notification setting
+                  <div className="flex flex-wrap justify-between gap-3">
+                    <button className="rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-muted">
+                      Save workflow defaults
+                    </button>
+                  </div>
+                </form>
+
+                <form
+                  action={restoreDefaultWorkflow}
+                  className="mt-4 flex justify-end"
+                >
+                  <button
+                    type="submit"
+                    className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-medium text-rose-700 hover:bg-rose-100"
+                  >
+                    Restore defaults
                   </button>
                 </form>
-              </div>
-            </section>
+              </section>
+            )}
+
+            {isAdminRole && (
+              <section className="rounded-2xl border border-border/70 bg-card p-6">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Controls
+                </p>
+                <h2 className="mt-2 text-xl font-semibold">
+                  Retention & notification policy
+                </h2>
+                <div className="mt-6 grid gap-4 md:grid-cols-2">
+                  <form action={saveSystemSetting} className="space-y-3">
+                    <input type="hidden" name="key" value="retention_days" />
+                    <label className="block text-sm font-medium text-foreground">
+                      Knowledge retention (days)
+                      <input
+                        name="value"
+                        type="number"
+                        min="30"
+                        defaultValue={resolveSystemSettingValue(
+                          "retention_days",
+                          settingsMap.retention_days,
+                        )}
+                        className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                      />
+                    </label>
+                    <button className="rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-muted">
+                      Save retention
+                    </button>
+                  </form>
+
+                  <form action={saveSystemSetting} className="space-y-3">
+                    <input
+                      type="hidden"
+                      name="key"
+                      value="notification_channel"
+                    />
+                    <label className="block text-sm font-medium text-foreground">
+                      Default notification channel
+                      <select
+                        name="value"
+                        defaultValue={resolveSystemSettingValue(
+                          "notification_channel",
+                          settingsMap.notification_channel,
+                        )}
+                        className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                      >
+                        <option value="email">Email</option>
+                        <option value="in_app">In-app</option>
+                        <option value="both">Both</option>
+                      </select>
+                    </label>
+                    <button className="rounded-xl border border-border px-4 py-2 text-sm font-medium hover:bg-muted">
+                      Save notification setting
+                    </button>
+                  </form>
+                </div>
+              </section>
             )}
           </div>
 
