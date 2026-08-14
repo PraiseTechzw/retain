@@ -20,7 +20,7 @@ export default async function Page({
   const { data: asset } = await supabase
     .from("assets")
     .select(
-      "id,asset_tag,asset_type,description,status,assigned_to,returned_at,employees(full_name,employee_number)",
+      "id,asset_tag,asset_type,description,status,assigned_to,returned_at,employees!assigned_to(full_name,employee_number)",
     )
     .eq("id", id)
     .single();

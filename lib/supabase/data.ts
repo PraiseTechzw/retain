@@ -17,7 +17,7 @@ export async function getExitRequests() {
   const { data, error } = await supabase
     .from("exit_requests")
     .select(
-      "id, status, reason, submitted_on, last_day, employees(full_name, employee_number)",
+      "id, status, reason, submitted_on, last_day, employees!employee_id(full_name, employee_number)",
     )
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
@@ -29,7 +29,7 @@ export async function getAssets() {
   const { data, error } = await supabase
     .from("assets")
     .select(
-      "id, asset_tag, asset_type, description, status, returned_at, employees(full_name, employee_number)",
+      "id, asset_tag, asset_type, description, status, returned_at, employees!assigned_to(full_name, employee_number)",
     )
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
@@ -41,7 +41,7 @@ export async function getKnowledgeDocuments() {
   const { data, error } = await supabase
     .from("knowledge_documents")
     .select(
-      "id, title, category, storage_path, created_at, employees(full_name, employee_number)",
+      "id, title, category, storage_path, created_at, employees!employee_id(full_name, employee_number)",
     )
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
@@ -53,7 +53,7 @@ export async function getClearanceSteps() {
   const { data, error } = await supabase
     .from("clearance_steps")
     .select(
-      "id, department, status, step_order, comments, exit_requests(id, employees(full_name, employee_number))",
+      "id, department, status, step_order, comments, exit_requests!exit_request_id(id, employees!employee_id(full_name, employee_number))",
     )
     .order("step_order", { ascending: true });
   if (error) throw new Error(error.message);
