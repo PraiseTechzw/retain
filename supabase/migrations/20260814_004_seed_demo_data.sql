@@ -9,8 +9,7 @@ values
   ('Faculty of Engineering', 'ENG', 'Academic department'),
   ('Finance', 'FIN', 'Finance and procurement controls'),
   ('Research and Innovation', 'R&I', 'Research governance'),
-  ('Procurement', 'PROC', 'Contract and assets management'),
-  ('Administration', 'ADMIN', 'Institutional administration')
+  ('Procurement', 'PROC', 'Contract and assets management')
 on conflict (name) do nothing;
 
 insert into system_settings (key, value)

@@ -9,10 +9,20 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { signOut } from "@/lib/supabase/actions";
 import { createClient } from "@/lib/supabase/client";
 
 type Department = { id: string; name: string; code: string | null };
 type OnboardingAction = (formData: FormData) => void | Promise<void>;
+
+const FALLBACK_DEPARTMENTS: Department[] = [
+  { id: "ict", name: "Information and Communication Technology", code: "ICT" },
+  { id: "hr", name: "Human Resources", code: "HR" },
+  { id: "library", name: "Library Services", code: "LIB" },
+  { id: "finance", name: "Finance", code: "FIN" },
+  { id: "engineering", name: "Faculty of Engineering", code: "ENG" },
+  { id: "research", name: "Research and Innovation", code: "R&I" },
+];
 
 const ROLE_ACCESSORY: Record<string, string> = {
   Employee: "laptop",
@@ -63,9 +73,37 @@ export default function OnboardingForm({
         .order("name");
 
       if (!active) return;
-      if (!error && Array.isArray(data)) {
+
+      if (!error && Array.isArray(data) && data.length > 0) {
         setAvailableDepartments(data as Department[]);
+        return;
       }
+
+      const fallbackPayload = FALLBACK_DEPARTMENTS.map((department) => ({
+        id: department.id,
+        name: department.name,
+        code: department.code,
+      }));
+
+      const { error: seedError } = await supabase
+        .from("departments")
+        .upsert(fallbackPayload, { onConflict: "name" });
+
+      if (!active) return;
+
+      if (!seedError) {
+        const { data: seededData } = await supabase
+          .from("departments")
+          .select("id, name, code")
+          .order("name");
+
+        if (Array.isArray(seededData) && seededData.length > 0) {
+          setAvailableDepartments(seededData as Department[]);
+          return;
+        }
+      }
+
+      setAvailableDepartments(FALLBACK_DEPARTMENTS);
     }
 
     loadDepartments();
@@ -407,10 +445,19 @@ export default function OnboardingForm({
           </button>
         </form>
 
-        <div className="mt-5 text-sm text-muted-foreground">
+        <form action={signOut} className="mt-5 text-sm text-muted-foreground">
+          <button
+            type="submit"
+            className="text-primary underline-offset-4 hover:underline"
+          >
+            Sign out
+          </button>
+        </form>
+
+        <div className="mt-3 text-sm text-muted-foreground">
           Need a different account?{" "}
           <Link href="/auth/login" className="text-primary">
-            Sign out
+            Back to login
           </Link>
         </div>
       </div>

@@ -10,8 +10,7 @@ values
   (gen_random_uuid(), 'Faculty of Engineering', 'ENG', 'Academic department'),
   (gen_random_uuid(), 'Finance', 'FIN', 'Finance and procurement controls'),
   (gen_random_uuid(), 'Research and Innovation', 'R&I', 'Research governance'),
-  (gen_random_uuid(), 'Procurement', 'PROC', 'Contract and assets management'),
-  (gen_random_uuid(), 'Administration', 'ADMIN', 'Institutional administration')
+  (gen_random_uuid(), 'Procurement', 'PROC', 'Contract and assets management')
 on conflict (name) do nothing;
 
 insert into system_settings (key, value)
