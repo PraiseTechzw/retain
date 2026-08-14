@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { DashboardShell, PageFrame } from "@/components/dashboard-shell";
 import { DashboardOverview } from "@/components/dashboard/overview";
+import { normalizeUserRole } from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function Page() {
@@ -85,10 +86,11 @@ export default async function Page() {
     (user?.user_metadata?.full_name as string | undefined) ||
     user?.email?.split("@")[0] ||
     "User";
-  const userRole =
+  const userRole = normalizeUserRole(
     (user?.user_metadata?.role as string | undefined) ||
-    profile?.role ||
-    "Employee";
+      profile?.role ||
+      "Employee",
+  );
 
   const completedClearances = (clearanceSteps ?? []).filter(
     (step) => step.status === "approved",
@@ -152,7 +154,11 @@ export default async function Page() {
     <DashboardShell userName={userName} userRole={userRole}>
       <PageFrame
         title={`Good morning, ${userName}`}
-        description="Here is what is happening across your institutional continuity workspace."
+        description={
+          userRole === "Employee"
+            ? "Here is the continuity information relevant to your role and department."
+            : "Here is what is happening across your institutional continuity workspace."
+        }
         action={
           <a
             href="/dashboard/reports"
@@ -168,6 +174,7 @@ export default async function Page() {
           clearanceTotal={(clearanceSteps ?? []).length}
           clearanceApproved={completedClearances}
           clearancePending={pendingClearances}
+          userRole={userRole}
         />
       </PageFrame>
     </DashboardShell>
