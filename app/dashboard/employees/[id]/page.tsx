@@ -1,2 +1,45 @@
-import { DashboardShell, PageFrame, Status } from '@/components/dashboard-shell'
-export default async function Page({params}:{params:Promise<{id:string}>}){const {id}=await params;return <DashboardShell><PageFrame title="Employee profile" description={`Employee record ${id} and continuity checklist.`}><div className="rounded-2xl border border-border/70 bg-card p-6"><h2 className="text-xl font-semibold">Sarah Ndlovu</h2><p className="mt-1 text-sm text-muted-foreground">Senior Lecturer · Computer Science · EMP-001</p><div className="mt-6 flex flex-wrap gap-3"><Status tone="blue">In clearance</Status><Status tone="amber">2 actions pending</Status></div><div className="mt-8 grid gap-4 md:grid-cols-3">{['Exit request','Clearance','Knowledge transfer'].map(x=><div key={x} className="rounded-xl border p-4"><p className="text-sm font-medium">{x}</p><p className="mt-2 text-xs text-muted-foreground">Review workflow details and history.</p></div>)}</div></div></PageFrame></DashboardShell>}
+import {
+  DashboardShell,
+  PageFrame,
+  Status,
+} from "@/components/dashboard-shell";
+import { resolveDashboardUserContext } from "@/lib/auth-role";
+
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { userName, userRole } = await resolveDashboardUserContext();
+  const { id } = await params;
+
+  return (
+    <DashboardShell userName={userName} userRole={userRole}>
+      <PageFrame
+        title="Employee profile"
+        description={`Employee record ${id} and continuity checklist.`}
+      >
+        <div className="rounded-2xl border border-border/70 bg-card p-6">
+          <h2 className="text-xl font-semibold">Sarah Ndlovu</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Senior Lecturer · Computer Science · EMP-001
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Status tone="blue">In clearance</Status>
+            <Status tone="amber">2 actions pending</Status>
+          </div>
+          <div className="mt-8 grid gap-4 md:grid-cols-3">
+            {["Exit request", "Clearance", "Knowledge transfer"].map((x) => (
+              <div key={x} className="rounded-xl border p-4">
+                <p className="text-sm font-medium">{x}</p>
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Review workflow details and history.
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </PageFrame>
+    </DashboardShell>
+  );
+}

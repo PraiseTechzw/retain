@@ -3,6 +3,7 @@ import {
   PageFrame,
   Status,
 } from "@/components/dashboard-shell";
+import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
 import { approveClearance } from "@/lib/supabase/actions";
 
@@ -20,6 +21,7 @@ export default async function Page({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const { userName, userRole } = await resolveDashboardUserContext();
   const { id } = await params;
   const supabase = await createClient();
 
@@ -31,7 +33,7 @@ export default async function Page({
     .order("step_order", { ascending: true });
 
   return (
-    <DashboardShell>
+    <DashboardShell userName={userName} userRole={userRole}>
       <PageFrame
         title="Clearance approval"
         description={`Clearance ${id} · Department actions and audit trail.`}

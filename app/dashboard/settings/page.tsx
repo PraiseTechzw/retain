@@ -15,10 +15,7 @@ import {
 
 export default async function Page() {
   const { userName, userRole } = await resolveDashboardUserContext();
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  await createClient();
 
   const [systemSettings, auditEvents] = await Promise.all([
     getSystemSettings(),

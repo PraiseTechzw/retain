@@ -3,6 +3,7 @@ import {
   PageFrame,
   Status,
 } from "@/components/dashboard-shell";
+import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
 import { checkExitBlockers, finalizeExit } from "@/lib/supabase/actions";
 
@@ -32,6 +33,7 @@ export default async function Page({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const { userName, userRole } = await resolveDashboardUserContext();
   const { id } = await params;
   const supabase = await createClient();
 
@@ -63,7 +65,7 @@ export default async function Page({
   const { blocked, blockers } = await checkExitBlockers(id);
 
   return (
-    <DashboardShell>
+    <DashboardShell userName={userName} userRole={userRole}>
       <PageFrame
         title="Exit request details"
         description={`Request ${id} · Review timeline, reason, and approvals.`}

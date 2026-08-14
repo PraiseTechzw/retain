@@ -3,6 +3,7 @@ import {
   PageFrame,
   Status,
 } from "@/components/dashboard-shell";
+import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
 import { verifyAsset, assignAsset } from "@/lib/supabase/actions";
 
@@ -13,6 +14,7 @@ export default async function Page({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const { userName, userRole } = await resolveDashboardUserContext();
   const { id } = await params;
   const supabase = await createClient();
   const { data: asset } = await supabase
@@ -29,7 +31,7 @@ export default async function Page({
     .order("full_name");
 
   return (
-    <DashboardShell>
+    <DashboardShell userName={userName} userRole={userRole}>
       <PageFrame
         title="Asset details"
         description={`Asset ${id} · Assignment and return history.`}

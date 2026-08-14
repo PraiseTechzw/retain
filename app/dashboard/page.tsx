@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { DashboardShell, PageFrame } from "@/components/dashboard-shell";
 import { DashboardOverview } from "@/components/dashboard/overview";
-import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function Page() {
@@ -155,9 +154,12 @@ export default async function Page() {
         title={`Good morning, ${userName}`}
         description="Here is what is happening across your institutional continuity workspace."
         action={
-          <Button render={<a href="/dashboard/reports" />} size="lg">
+          <a
+            href="/dashboard/reports"
+            className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
+          >
             View reports
-          </Button>
+          </a>
         }
       >
         <DashboardOverview
