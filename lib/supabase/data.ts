@@ -66,28 +66,67 @@ export function getAnalyticsDateWindow(filters: AnalyticsFilterState = {}) {
   };
 }
 
+function isMissingColumnError(errorMessage: string, columnName: string) {
+  const normalized = errorMessage.toLowerCase();
+  return (
+    normalized.includes("column") &&
+    normalized.includes("does not exist") &&
+    normalized.includes(columnName.toLowerCase())
+  );
+}
+
 export async function getEmployees() {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const baseQuery = supabase
     .from("employees")
     .select(
       "id, employee_number, full_name, email, job_title, employment_status, employment_category, joined_on, exit_date, department_id, departments(name)",
     )
     .order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
-  return data ?? [];
+
+  const { data, error } = await baseQuery;
+  if (!error) return data ?? [];
+
+  if (isMissingColumnError(error.message, "employment_category")) {
+    const fallback = await supabase
+      .from("employees")
+      .select(
+        "id, employee_number, full_name, email, job_title, employment_status, joined_on, exit_date, department_id, departments(name)",
+      )
+      .order("created_at", { ascending: false });
+
+    if (fallback.error) throw new Error(fallback.error.message);
+    return fallback.data ?? [];
+  }
+
+  throw new Error(error.message);
 }
 
 export async function getExitRequests() {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const baseQuery = supabase
     .from("exit_requests")
     .select(
       "id, status, reason, submitted_on, created_at, last_day, completed_at, employee_id, employees!employee_id(id, full_name, employee_number, department_id, employment_category, employment_status)",
     )
     .order("created_at", { ascending: false });
-  if (error) throw new Error(error.message);
-  return data ?? [];
+
+  const { data, error } = await baseQuery;
+  if (!error) return data ?? [];
+
+  if (isMissingColumnError(error.message, "employment_category")) {
+    const fallback = await supabase
+      .from("exit_requests")
+      .select(
+        "id, status, reason, submitted_on, created_at, last_day, completed_at, employee_id, employees!employee_id(id, full_name, employee_number, department_id)",
+      )
+      .order("created_at", { ascending: false });
+
+    if (fallback.error) throw new Error(fallback.error.message);
+    return fallback.data ?? [];
+  }
+
+  throw new Error(error.message);
 }
 
 export async function getAssets() {
