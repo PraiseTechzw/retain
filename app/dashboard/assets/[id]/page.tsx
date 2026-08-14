@@ -4,7 +4,9 @@ import {
   Status,
 } from "@/components/dashboard-shell";
 import { createClient } from "@/lib/supabase/server";
-import { verifyAsset } from "@/lib/supabase/actions";
+import { verifyAsset, assignAsset } from "@/lib/supabase/actions";
+
+type EmployeeRow = { id: string; full_name: string };
 
 export default async function Page({
   params,
@@ -20,6 +22,11 @@ export default async function Page({
     )
     .eq("id", id)
     .single();
+  const { data: employees } = await supabase
+    .from("employees")
+    .select("id,full_name")
+    .eq("employment_status", "active")
+    .order("full_name");
 
   return (
     <DashboardShell>
@@ -46,6 +53,24 @@ export default async function Page({
               <input type="hidden" name="status" value="returned" />
               <button className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
                 Verify return
+              </button>
+            </form>
+
+            <form action={assignAsset} className="flex items-center gap-2">
+              <input type="hidden" name="asset_id" value={id} />
+              <select
+                name="employee_id"
+                className="rounded-md border px-2 py-1"
+              >
+                <option value="">Assign to...</option>
+                {(employees ?? []).map((e: EmployeeRow) => (
+                  <option key={e.id} value={e.id}>
+                    {e.full_name}
+                  </option>
+                ))}
+              </select>
+              <button className="rounded-md bg-secondary px-3 py-1 text-sm font-medium text-secondary-foreground">
+                Assign
               </button>
             </form>
           </div>
