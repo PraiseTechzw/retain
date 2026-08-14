@@ -34,6 +34,12 @@ for all
 using (auth.uid() = id)
 with check (auth.uid() = id);
 
+drop policy if exists signed_in_users_access_departments on departments;
+create policy signed_in_users_access_departments on departments
+for all
+using (auth.uid() is not null)
+with check (auth.uid() is not null);
+
 drop policy if exists signed_in_users_access_employees on employees;
 create policy signed_in_users_access_employees on employees
 for select
