@@ -46,11 +46,17 @@ export default async function Page() {
         : Promise.resolve([]),
     ]);
 
-  const employeeOptions = employeeRows.map((employee) => ({
-    id: employee.id,
-    employee_number: employee.employee_number,
-    full_name: employee.full_name,
-  }));
+  const employeeOptions = employeeRows.flatMap((employee) => {
+    if (!employee.id || !employee.employee_number || !employee.full_name)
+      return [];
+    return [
+      {
+        id: employee.id,
+        employee_number: employee.employee_number,
+        full_name: employee.full_name,
+      },
+    ];
+  });
 
   const overview = employeeId
     ? await getKnowledgeOverviewForEmployee(employeeId)
@@ -176,23 +182,28 @@ export default async function Page() {
               <h2 className="text-lg font-semibold">Pending Review</h2>
               {isReviewer && reviewQueue.length ? (
                 <div className="mt-4 space-y-3">
-                  {reviewQueue.slice(0, 5).map((document) => (
-                    <Link
-                      href={`/dashboard/knowledge-hub/${document.id}`}
-                      key={document.id}
-                      className="block rounded-xl border border-border/70 bg-muted/20 p-3"
-                    >
-                      <p className="font-medium">{document.title}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        {document.employees?.full_name ?? "Unknown employee"}
-                      </p>
-                      <div className="mt-2">
-                        <Status tone={toneForStatus(document.status)}>
-                          {document.status}
-                        </Status>
-                      </div>
-                    </Link>
-                  ))}
+                  {reviewQueue.slice(0, 5).map((document) => {
+                    const reviewEmployee = Array.isArray(document.employees)
+                      ? (document.employees[0] ?? null)
+                      : (document.employees ?? null);
+                    return (
+                      <Link
+                        href={`/dashboard/knowledge-hub/${document.id}`}
+                        key={document.id}
+                        className="block rounded-xl border border-border/70 bg-muted/20 p-3"
+                      >
+                        <p className="font-medium">{document.title}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {reviewEmployee?.full_name ?? "Unknown employee"}
+                        </p>
+                        <div className="mt-2">
+                          <Status tone={toneForStatus(document.status)}>
+                            {document.status}
+                          </Status>
+                        </div>
+                      </Link>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="mt-4 text-sm text-muted-foreground">
@@ -216,25 +227,32 @@ export default async function Page() {
               <div className="mt-4 overflow-x-auto">
                 <DataTable
                   columns={["Document", "Requirement", "Status", "Updated"]}
-                  rows={myDocuments.map((document) => [
-                    <Link
-                      key={document.id}
-                      href={`/dashboard/knowledge-hub/${document.id}`}
-                      className="font-semibold text-foreground hover:text-primary"
-                    >
-                      {document.title}
-                    </Link>,
-                    document.knowledge_requirements?.name ?? "General",
-                    <Status
-                      key={`${document.id}-status`}
-                      tone={toneForStatus(document.status)}
-                    >
-                      {document.status ?? "submitted"}
-                    </Status>,
-                    new Date(
-                      document.updated_at ?? document.created_at,
-                    ).toLocaleDateString(),
-                  ])}
+                  rows={myDocuments.map((document) => {
+                    const requirement = Array.isArray(
+                      document.knowledge_requirements,
+                    )
+                      ? (document.knowledge_requirements[0] ?? null)
+                      : (document.knowledge_requirements ?? null);
+                    return [
+                      <Link
+                        key={document.id}
+                        href={`/dashboard/knowledge-hub/${document.id}`}
+                        className="font-semibold text-foreground hover:text-primary"
+                      >
+                        {document.title}
+                      </Link>,
+                      requirement?.name ?? "General",
+                      <Status
+                        key={`${document.id}-status`}
+                        tone={toneForStatus(document.status)}
+                      >
+                        {document.status ?? "submitted"}
+                      </Status>,
+                      new Date(
+                        document.updated_at ?? document.created_at,
+                      ).toLocaleDateString(),
+                    ];
+                  })}
                 />
               </div>
             ) : (

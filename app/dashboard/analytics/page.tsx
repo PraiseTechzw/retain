@@ -153,7 +153,10 @@ function renderAnalyticsPage({
   assignedAssets: Array<{
     asset_tag?: string | null;
     status?: string | null;
-    employees?: { full_name?: string | null } | null;
+    employees?:
+      | { full_name?: string | null }
+      | Array<{ full_name?: string | null }>
+      | null;
   }>;
   dataQuality: {
     departmentCoverage: number;
@@ -542,13 +545,16 @@ function renderAnalyticsPage({
                 <div className="mt-4 overflow-x-auto">
                   <DataTable
                     columns={["Asset tag", "Status", "Assigned to"]}
-                    rows={assignedAssets
-                      .slice(0, 6)
-                      .map((asset) => [
+                    rows={assignedAssets.slice(0, 6).map((asset) => {
+                      const assetEmployee = Array.isArray(asset.employees)
+                        ? (asset.employees[0] ?? null)
+                        : (asset.employees ?? null);
+                      return [
                         String(asset.asset_tag ?? "—"),
                         String(asset.status ?? "assigned"),
-                        String(asset.employees?.full_name ?? "Unassigned"),
-                      ])}
+                        String(assetEmployee?.full_name ?? "Unassigned"),
+                      ];
+                    })}
                   />
                 </div>
               ) : (
@@ -646,7 +652,15 @@ export default async function Page({
     }
 
     const departments = departmentsResult.data ?? [];
-    const employeeList = Array.isArray(employees) ? employees : [];
+    const employeeList = (Array.isArray(employees) ? employees : []).map(
+      (employee) => ({
+        id: String(employee.id ?? ""),
+        department_id: employee.department_id ?? null,
+        employment_category: employee.employment_category ?? null,
+        employment_status: employee.employment_status ?? null,
+        joined_on: employee.joined_on ?? null,
+      }),
+    );
     const exitList = Array.isArray(exitRequests) ? exitRequests : [];
     const assetList = Array.isArray(assets) ? assets : [];
     const documentList = Array.isArray(knowledgeDocuments)
@@ -658,15 +672,19 @@ export default async function Page({
     const clearanceList = Array.isArray(clearanceSteps) ? clearanceSteps : [];
 
     const scopeEmployees = employeeList.filter((employee) => {
+      const employeeRecord = Array.isArray(employee)
+        ? (employee[0] ?? null)
+        : employee;
       if (
         filters.department !== "all" &&
-        employee.department_id !== filters.department
+        employeeRecord?.department_id !== filters.department
       ) {
         return false;
       }
       if (
         filters.employmentCategory !== "all" &&
-        (employee.employment_category ?? "Other") !== filters.employmentCategory
+        (employeeRecord?.employment_category ?? "Other") !==
+          filters.employmentCategory
       ) {
         return false;
       }
@@ -692,18 +710,28 @@ export default async function Page({
     });
 
     const relevantExitRequests = exitList.filter((request) => {
+      const employeeRecord = Array.isArray(request.employees)
+        ? (request.employees[0] ?? null)
+        : (request.employees ?? null);
       const employee =
-        request.employees ??
-        employeeList.find((item) => item.id === request.employee_id);
+        employeeRecord ??
+        employeeList.find((item) => {
+          const candidate = Array.isArray(item) ? (item[0] ?? null) : item;
+          return candidate?.id === request.employee_id;
+        });
       if (
         filters.department !== "all" &&
-        employee?.department_id !== filters.department
+        (Array.isArray(employee)
+          ? employee[0]?.department_id
+          : employee?.department_id) !== filters.department
       ) {
         return false;
       }
       if (
         filters.employmentCategory !== "all" &&
-        (employee?.employment_category ?? "Other") !==
+        ((Array.isArray(employee)
+          ? employee[0]?.employment_category
+          : employee?.employment_category) ?? "Other") !==
           filters.employmentCategory
       ) {
         return false;
@@ -774,14 +802,27 @@ export default async function Page({
 
     const departmentRows = departments
       .map((department) => {
-        const departmentEmployees = scopeEmployees.filter(
-          (employee) => employee.department_id === department.id,
-        );
+        const departmentEmployees = scopeEmployees.filter((employee) => {
+          const employeeRecord = Array.isArray(employee)
+            ? (employee[0] ?? null)
+            : employee;
+          return employeeRecord?.department_id === department.id;
+        });
         const departmentExits = relevantExitRequests.filter((request) => {
+          const employeeRecord = Array.isArray(request.employees)
+            ? (request.employees[0] ?? null)
+            : (request.employees ?? null);
           const employee =
-            request.employees ??
-            employeeList.find((item) => item.id === request.employee_id);
-          return employee?.department_id === department.id;
+            employeeRecord ??
+            employeeList.find((item) => {
+              const candidate = Array.isArray(item) ? (item[0] ?? null) : item;
+              return candidate?.id === request.employee_id;
+            });
+          return (
+            (Array.isArray(employee)
+              ? employee[0]?.department_id
+              : employee?.department_id) === department.id
+          );
         }).length;
         const activeCount = departmentEmployees.filter(
           (employee) =>
@@ -816,20 +857,36 @@ export default async function Page({
 
     const categoryRows = Array.from(
       new Set(
-        scopeEmployees.map(
-          (employee) => employee.employment_category ?? "Other",
-        ),
+        scopeEmployees.map((employee) => {
+          const employeeRecord = Array.isArray(employee)
+            ? (employee[0] ?? null)
+            : employee;
+          return employeeRecord?.employment_category ?? "Other";
+        }),
       ),
     )
       .map((category) => {
-        const categoryEmployees = scopeEmployees.filter(
-          (employee) => (employee.employment_category ?? "Other") === category,
-        );
+        const categoryEmployees = scopeEmployees.filter((employee) => {
+          const employeeRecord = Array.isArray(employee)
+            ? (employee[0] ?? null)
+            : employee;
+          return (employeeRecord?.employment_category ?? "Other") === category;
+        });
         const exits = relevantExitRequests.filter((request) => {
+          const employeeRecord = Array.isArray(request.employees)
+            ? (request.employees[0] ?? null)
+            : (request.employees ?? null);
           const employee =
-            request.employees ??
-            employeeList.find((item) => item.id === request.employee_id);
-          return (employee?.employment_category ?? "Other") === category;
+            employeeRecord ??
+            employeeList.find((item) => {
+              const candidate = Array.isArray(item) ? (item[0] ?? null) : item;
+              return candidate?.id === request.employee_id;
+            });
+          return (
+            ((Array.isArray(employee)
+              ? employee[0]?.employment_category
+              : employee?.employment_category) ?? "Other") === category
+          );
         }).length;
         return {
           category,

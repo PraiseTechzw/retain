@@ -440,7 +440,7 @@ export function DataTable({
   rows,
 }: {
   columns: string[];
-  rows: string[][];
+  rows: Array<Array<string | React.ReactNode>>;
 }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-border/70 bg-card">

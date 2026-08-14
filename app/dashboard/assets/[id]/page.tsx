@@ -24,6 +24,9 @@ export default async function Page({
     )
     .eq("id", id)
     .single();
+  const assignedEmployee = Array.isArray(asset?.employees)
+    ? (asset.employees[0] ?? null)
+    : (asset?.employees ?? null);
   const { data: employees } = await supabase
     .from("employees")
     .select("id,full_name")
@@ -41,7 +44,7 @@ export default async function Page({
             {asset?.asset_type} · {asset?.asset_tag}
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Assigned to {asset?.employees?.full_name ?? "—"}
+            Assigned to {assignedEmployee?.full_name ?? "—"}
           </p>
           <div className="mt-6">
             <Status tone={asset?.status === "returned" ? "green" : "amber"}>

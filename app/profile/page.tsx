@@ -37,7 +37,9 @@ export default async function Page() {
 
   const departmentName = Array.isArray(employee?.departments)
     ? employee.departments[0]?.name
-    : employee?.departments?.name;
+    : typeof employee?.departments === "object" && employee.departments
+      ? (employee.departments as { name?: string | null }).name
+      : undefined;
 
   const userName =
     profile?.full_name ||

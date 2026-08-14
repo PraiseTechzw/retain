@@ -44,6 +44,9 @@ export default async function Page({
     )
     .eq("id", id)
     .single();
+  const employee = Array.isArray(exitReq?.employees)
+    ? (exitReq.employees[0] ?? null)
+    : (exitReq?.employees ?? null);
 
   const { data: steps } = await supabase
     .from("clearance_steps")
@@ -51,7 +54,7 @@ export default async function Page({
     .eq("exit_request_id", id)
     .order("step_order", { ascending: true });
 
-  const employeeId = exitReq?.employees?.id;
+  const employeeId = employee?.id;
   const { data: assets } = await supabase
     .from("assets")
     .select("id,asset_tag,asset_type,status")
@@ -74,10 +77,10 @@ export default async function Page({
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-semibold">
-                {exitReq?.employees?.full_name ?? "Unknown"}
+                {employee?.full_name ?? "Unknown"}
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                {exitReq?.employees?.employee_number ?? ""} · Last day{" "}
+                {employee?.employee_number ?? ""} · Last day{" "}
                 {exitReq?.last_day ?? "—"}
               </p>
             </div>

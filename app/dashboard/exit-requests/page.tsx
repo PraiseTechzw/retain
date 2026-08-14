@@ -16,11 +16,17 @@ export default async function Page() {
     getExitRequests(),
     getEmployees(),
   ]);
-  const employeeOptions = employeeRows.map((employee) => ({
-    id: employee.id,
-    employee_number: employee.employee_number,
-    full_name: employee.full_name,
-  }));
+  const employeeOptions = employeeRows.flatMap((employee) => {
+    if (!employee.id || !employee.employee_number || !employee.full_name)
+      return [];
+    return [
+      {
+        id: employee.id,
+        employee_number: employee.employee_number,
+        full_name: employee.full_name,
+      },
+    ];
+  });
   const rows = requests.map((request) => {
     const employee = Array.isArray(request.employees)
       ? request.employees[0]

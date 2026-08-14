@@ -32,6 +32,9 @@ export default async function Page({
   const employee = Array.isArray(document?.employees)
     ? document.employees[0]
     : document?.employees;
+  const requirement = Array.isArray(document?.knowledge_requirements)
+    ? (document.knowledge_requirements[0] ?? null)
+    : (document?.knowledge_requirements ?? null);
 
   return (
     <DashboardShell userName={userName} userRole={userRole}>
@@ -65,7 +68,7 @@ export default async function Page({
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">Requirement</dt>
-                <dd>{document?.knowledge_requirements?.name ?? "General"}</dd>
+                <dd>{requirement?.name ?? "General"}</dd>
               </div>
               <div className="flex justify-between gap-4">
                 <dt className="text-muted-foreground">File</dt>

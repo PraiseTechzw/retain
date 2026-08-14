@@ -10,6 +10,99 @@ export type AnalyticsFilterState = {
   to?: string;
 };
 
+export type DepartmentRecord = {
+  id?: string | null;
+  name?: string | null;
+};
+
+export type EmployeeRecord = {
+  id?: string | null;
+  employee_number?: string | null;
+  full_name?: string | null;
+  email?: string | null;
+  job_title?: string | null;
+  employment_status?: string | null;
+  employment_category?: string | null;
+  joined_on?: string | null;
+  exit_date?: string | null;
+  department_id?: string | null;
+  departments?: DepartmentRecord | DepartmentRecord[] | null;
+};
+
+export type ExitRequestRecord = {
+  id?: string | null;
+  status?: string | null;
+  reason?: string | null;
+  submitted_on?: string | null;
+  created_at?: string | null;
+  last_day?: string | null;
+  completed_at?: string | null;
+  employee_id?: string | null;
+  employees?: EmployeeRecord | EmployeeRecord[] | null;
+};
+
+export type AssetRecord = {
+  id?: string | null;
+  asset_tag?: string | null;
+  asset_type?: string | null;
+  description?: string | null;
+  status?: string | null;
+  returned_at?: string | null;
+  verified_at?: string | null;
+  assigned_to?: string | null;
+  employees?: EmployeeRecord | EmployeeRecord[] | null;
+};
+
+export type KnowledgeDocumentRecord = {
+  id?: string | null;
+  title?: string | null;
+  category?: string | null;
+  storage_path?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  file_name?: string | null;
+  mime_type?: string | null;
+  description?: string | null;
+  requirement_id?: string | null;
+  employee_id?: string | null;
+  employees?: EmployeeRecord | EmployeeRecord[] | null;
+  knowledge_requirements?:
+    | Array<{ name?: string | null; reviewer_role?: string | null }>
+    | { name?: string | null; reviewer_role?: string | null }
+    | null;
+  knowledge_categories?:
+    | Array<{ name?: string | null; description?: string | null }>
+    | { name?: string | null; description?: string | null }
+    | null;
+};
+
+export type KnowledgeRequirementRecord = {
+  id?: string | null;
+  name?: string | null;
+  description?: string | null;
+  is_required?: boolean | null;
+  active?: boolean | null;
+  reviewer_role?: string | null;
+  department_id?: string | null;
+  employment_category?: string | null;
+  category_id?: string | null;
+  knowledge_categories?:
+    | Array<{ name?: string | null; description?: string | null }>
+    | { name?: string | null; description?: string | null }
+    | null;
+};
+
+export type ClearanceStepRecord = {
+  id?: string | null;
+  department?: string | null;
+  status?: string | null;
+  step_order?: number | null;
+  comments?: string | null;
+  exit_request_id?: string | null;
+  exit_requests?: ExitRequestRecord | ExitRequestRecord[] | null;
+};
+
 export function getAnalyticsDateWindow(filters: AnalyticsFilterState = {}) {
   const end = new Date();
   end.setHours(23, 59, 59, 999);
@@ -75,7 +168,7 @@ function isMissingColumnError(errorMessage: string, columnName: string) {
   );
 }
 
-export async function getEmployees() {
+export async function getEmployees(): Promise<EmployeeRecord[]> {
   const supabase = await createClient();
   const baseQuery = supabase
     .from("employees")
@@ -102,7 +195,7 @@ export async function getEmployees() {
   throw new Error(error.message);
 }
 
-export async function getExitRequests() {
+export async function getExitRequests(): Promise<ExitRequestRecord[]> {
   const supabase = await createClient();
   const baseQuery = supabase
     .from("exit_requests")
@@ -156,7 +249,7 @@ export async function getExitRequests() {
   throw new Error(error.message);
 }
 
-export async function getAssets() {
+export async function getAssets(): Promise<AssetRecord[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("assets")
@@ -168,7 +261,9 @@ export async function getAssets() {
   return data ?? [];
 }
 
-export async function getKnowledgeDocuments() {
+export async function getKnowledgeDocuments(): Promise<
+  KnowledgeDocumentRecord[]
+> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("knowledge_documents")
@@ -180,7 +275,9 @@ export async function getKnowledgeDocuments() {
   return data ?? [];
 }
 
-export async function getKnowledgeRequirements() {
+export async function getKnowledgeRequirements(): Promise<
+  KnowledgeRequirementRecord[]
+> {
   const supabase = await createClient();
   const baseQuery = supabase
     .from("knowledge_requirements")
@@ -332,7 +429,7 @@ export async function getKnowledgeOverviewForEmployee(employeeId: string) {
   };
 }
 
-export async function getClearanceSteps() {
+export async function getClearanceSteps(): Promise<ClearanceStepRecord[]> {
   const supabase = await createClient();
   const baseQuery = supabase
     .from("clearance_steps")
@@ -414,6 +511,137 @@ export async function getAuditEvents(limit = 8) {
     created_at: string | null;
     metadata: Record<string, unknown> | null;
   }[];
+}
+
+export type ReportDashboardSnapshot = {
+  employees: Awaited<ReturnType<typeof getEmployees>>;
+  exitRequests: Awaited<ReturnType<typeof getExitRequests>>;
+  assets: Awaited<ReturnType<typeof getAssets>>;
+  knowledgeDocuments: Awaited<ReturnType<typeof getKnowledgeDocuments>>;
+  knowledgeRequirements: Awaited<ReturnType<typeof getKnowledgeRequirements>>;
+  clearanceSteps: Awaited<ReturnType<typeof getClearanceSteps>>;
+  totalEmployees: number;
+  activeEmployees: number;
+  exitingEmployees: number;
+  openExitRequests: number;
+  completedExits: number;
+  pendingClearanceSteps: number;
+  approvedClearanceSteps: number;
+  knowledgeCoverage: number;
+  assetRecoveryRate: number;
+  assetRecoveryCount: number;
+  currentYearAttritionRate: number;
+};
+
+export async function getReportDashboardSnapshot(): Promise<ReportDashboardSnapshot> {
+  const [
+    employees,
+    exitRequests,
+    assets,
+    knowledgeDocuments,
+    knowledgeRequirements,
+    clearanceSteps,
+  ] = await Promise.all([
+    getEmployees(),
+    getExitRequests(),
+    getAssets(),
+    getKnowledgeDocuments(),
+    getKnowledgeRequirements(),
+    getClearanceSteps(),
+  ]);
+
+  const activeEmployees = employees.filter(
+    (employee) =>
+      String(employee.employment_status ?? "").toLowerCase() === "active",
+  ).length;
+
+  const exitingEmployees = employees.filter((employee) => {
+    const status = String(employee.employment_status ?? "").toLowerCase();
+    return (
+      status === "exiting" || status === "resigned" || status === "departing"
+    );
+  }).length;
+
+  const openExitRequests = exitRequests.filter((request) => {
+    const status = String(request.status ?? "").toLowerCase();
+    return [
+      "draft",
+      "submitted",
+      "under_review",
+      "clearance",
+      "blocked",
+      "eligible_for_finalization",
+    ].includes(status);
+  }).length;
+
+  const completedExits = exitRequests.filter((request) => {
+    const status = String(request.status ?? "").toLowerCase();
+    return status === "completed" || status === "finalized";
+  }).length;
+
+  const pendingClearanceSteps = clearanceSteps.filter((step) => {
+    const status = String(step.status ?? "").toLowerCase();
+    return ["pending", "in_progress", "blocked"].includes(status);
+  }).length;
+
+  const approvedClearanceSteps = clearanceSteps.filter((step) => {
+    const status = String(step.status ?? "").toLowerCase();
+    return status === "approved";
+  }).length;
+
+  const approvedKnowledgeDocuments = knowledgeDocuments.filter((document) => {
+    const status = String(document.status ?? "").toLowerCase();
+    return status === "verified" || status === "approved";
+  }).length;
+
+  const knowledgeCoverage = knowledgeRequirements.length
+    ? Math.round(
+        (approvedKnowledgeDocuments / knowledgeRequirements.length) * 100,
+      )
+    : 0;
+
+  const returnedAssets = assets.filter((asset) => {
+    const status = String(asset.status ?? "").toLowerCase();
+    return status === "returned" || status === "verified";
+  }).length;
+
+  const assetRecoveryRate = assets.length
+    ? Math.round((returnedAssets / assets.length) * 100)
+    : 0;
+
+  const totalEmployees = employees.length;
+  const employeeExitTotal = exitRequests.filter((request) => {
+    const status = String(request.status ?? "").toLowerCase();
+    return (
+      status === "completed" ||
+      status === "rejected" ||
+      status === "cancelled" ||
+      status === "finalized"
+    );
+  }).length;
+  const currentYearAttritionRate = totalEmployees
+    ? Math.round((employeeExitTotal / totalEmployees) * 100)
+    : 0;
+
+  return {
+    employees,
+    exitRequests,
+    assets,
+    knowledgeDocuments,
+    knowledgeRequirements,
+    clearanceSteps,
+    totalEmployees,
+    activeEmployees,
+    exitingEmployees,
+    openExitRequests,
+    completedExits,
+    pendingClearanceSteps,
+    approvedClearanceSteps,
+    knowledgeCoverage,
+    assetRecoveryRate,
+    assetRecoveryCount: returnedAssets,
+    currentYearAttritionRate,
+  };
 }
 
 export function friendlyError(error: unknown) {

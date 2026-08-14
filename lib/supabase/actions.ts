@@ -285,7 +285,7 @@ export async function createExitRequest(formData: FormData) {
     } catch {
       const splitValue = configurationRow.value
         .split(/[\n,]+/)
-        .map((item) => item.trim())
+        .map((item: string) => item.trim())
         .filter(Boolean);
       if (splitValue.length) defaultDepartments = splitValue;
     }
@@ -478,11 +478,8 @@ export async function canFinalizeExit(exitRequestId: string) {
   };
 }
 
-export async function finalizeExit(formData: FormData | string) {
-  const isString = typeof formData === "string";
-  const exitRequestId = isString
-    ? (formData as string)
-    : String((formData as FormData).get("exit_request_id") ?? "");
+export async function finalizeExit(formData: FormData) {
+  const exitRequestId = String(formData.get("exit_request_id") ?? "");
   if (!exitRequestId) throw new Error("Exit request is required.");
   const { supabase, user } = await actor();
 
@@ -507,7 +504,10 @@ export async function finalizeExit(formData: FormData | string) {
       exitRequestId,
       { blockers: readiness.blockers },
     );
-    return { success: false, blockers: readiness.blockers };
+    throw new Error(
+      readiness.blockers.map((blocker) => blocker.message).join("; ") ||
+        "Exit request is blocked and cannot be finalized.",
+    );
   }
 
   const now = new Date().toISOString();
@@ -530,7 +530,6 @@ export async function finalizeExit(formData: FormData | string) {
   // Optionally trigger notifications here (left as an integration point)
   revalidatePath("/dashboard/exit-requests");
   revalidatePath("/dashboard");
-  return { success: true };
 }
 
 export async function uploadKnowledgeDocument(formData: FormData) {
