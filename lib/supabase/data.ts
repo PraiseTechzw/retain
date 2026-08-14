@@ -761,18 +761,19 @@ export type SystemUserRecord = {
   full_name?: string | null;
   role?: string | null;
   created_at?: string | null;
-  last_sign_in_at?: string | null;
-  user_metadata?: Record<string, unknown> | null;
+  active?: boolean | null;
 };
 
 export async function getSystemUsers(): Promise<SystemUserRecord[]> {
   const supabase = await createClient();
 
   try {
-    // Try to get users from profiles table with available columns
-    const { data: profiles, error } = await supabase
+    // Query profiles table for all user data
+    // profiles table is synced with auth.users via database triggers
+    const { data, error } = await supabase
       .from("profiles")
-      .select("id, email, full_name, role, created_at")
+      .select("id, email, full_name, role, created_at, active")
+      .not("id", "is", null)
       .order("created_at", { ascending: false });
 
     if (error) {
@@ -780,16 +781,7 @@ export async function getSystemUsers(): Promise<SystemUserRecord[]> {
       return [];
     }
 
-    // Map profiles to system user records
-    return (profiles ?? []).map((profile) => ({
-      id: profile.id,
-      email: profile.email,
-      full_name: profile.full_name,
-      role: profile.role,
-      created_at: profile.created_at,
-      last_sign_in_at: null, // Not available in profiles table
-      user_metadata: null,
-    })) as SystemUserRecord[];
+    return (data ?? []) as SystemUserRecord[];
   } catch (err) {
     console.error("Error in getSystemUsers:", err);
     return [];
