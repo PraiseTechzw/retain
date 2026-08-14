@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { signOut } from "@/lib/supabase/actions";
+import { completeOnboarding, signOut } from "@/lib/supabase/actions";
 import { createClient } from "@/lib/supabase/client";
 
 type Department = { id: string; name: string; code: string | null };
@@ -38,13 +38,16 @@ export default function OnboardingForm({
   defaultRole,
   departments,
 }: {
-  action: OnboardingAction;
-  appName: string;
-  nextPath: string;
-  userName: string;
-  defaultRole: string;
+  action?: OnboardingAction;
+  appName?: string;
+  nextPath?: string;
+  userName?: string;
+  defaultRole?: string;
   departments?: Department[];
 }) {
+  const activeAction = action ?? completeOnboarding;
+  const safeAppName = appName ?? "Retain";
+  const safeNextPath = nextPath ?? "/dashboard";
   const safeUserName = userName ?? "";
   const safeDefaultRole = defaultRole ?? "Employee";
   const safeDepartments = useMemo(() => departments ?? [], [departments]);
@@ -344,7 +347,7 @@ export default function OnboardingForm({
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
             <ShieldCheck className="h-5 w-5" />
           </div>
-          <p className="text-sm font-semibold">{appName}</p>
+          <p className="text-sm font-semibold">{safeAppName}</p>
         </div>
         <div className="mb-3 flex items-center justify-center gap-2 text-foreground">
           <UserRound className="h-5 w-5 text-primary" />
@@ -375,11 +378,11 @@ export default function OnboardingForm({
         </div>
 
         <form
-          action={action}
+          action={activeAction}
           onSubmit={() => setSubmitting(true)}
           className="mt-6 flex flex-col gap-4"
         >
-          <input type="hidden" name="next" value={nextPath} />
+          <input type="hidden" name="next" value={safeNextPath} />
 
           <label className="flex flex-col gap-1.5 text-sm font-medium">
             <span className="flex items-center gap-2">
