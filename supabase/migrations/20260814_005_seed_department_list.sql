@@ -10,6 +10,11 @@ using (auth.uid() is not null)
 with check (auth.uid() is not null);
 
 -- The onboarding flow also writes to profiles, so ensure the user can save it.
+-- `create table if not exists` does not add this column to deployments that
+-- already had a profiles table before the core schema migration.
+alter table public.profiles
+  add column if not exists department_id uuid references public.departments(id);
+
 alter table public.profiles enable row level security;
 
 drop policy if exists employee_self_profile on public.profiles;

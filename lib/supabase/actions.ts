@@ -609,17 +609,45 @@ export async function completeOnboarding(formData: FormData) {
     throw new Error("Please select a valid department.");
   }
 
-  const { error: profileError } = await supabase.from("profiles").upsert(
-    {
-      id: user.id,
-      full_name: fullName,
-      role: role || appConfig.defaultRole,
-      department_id: departmentRow.id,
-    },
-    { onConflict: "id" },
-  );
+  const profile = {
+    full_name: fullName,
+    role: role || appConfig.defaultRole,
+    department_id: departmentRow.id,
+  };
 
-  if (profileError) throw new Error("Unable to save your onboarding details.");
+  // Do not use upsert here. PostgREST evaluates an upsert against INSERT RLS
+  // policies even when it resolves to an update, while an onboarding user will
+  // normally already have a profile created during sign-in.
+  const { data: updatedProfile, error: profileUpdateError } = await supabase
+    .from("profiles")
+    .update(profile)
+    .eq("id", user.id)
+    .select("id")
+    .maybeSingle();
+
+  if (profileUpdateError) {
+    console.error("Unable to update onboarding profile", {
+      code: profileUpdateError.code,
+      message: profileUpdateError.message,
+      details: profileUpdateError.details,
+    });
+    throw new Error("Unable to save your onboarding details.");
+  }
+
+  if (!updatedProfile) {
+    const { error: profileInsertError } = await supabase
+      .from("profiles")
+      .insert({ id: user.id, ...profile });
+
+    if (profileInsertError) {
+      console.error("Unable to create onboarding profile", {
+        code: profileInsertError.code,
+        message: profileInsertError.message,
+        details: profileInsertError.details,
+      });
+      throw new Error("Unable to save your onboarding details.");
+    }
+  }
 
   const { data: existingEmployee } = await supabase
     .from("employees")
