@@ -175,14 +175,26 @@ export default async function Page({
 
           <div className="mt-6">
             <p className="text-sm font-medium">Blockers</p>
-            {blocked ? (
-              <div className="mt-3 rounded-md border p-4 bg-amber-50">
-                <pre className="whitespace-pre-wrap text-xs">
-                  {JSON.stringify(blockers, null, 2)}
-                </pre>
+            {blocked && Array.isArray(blockers) && blockers.length > 0 ? (
+              <div className="mt-3 space-y-3 rounded-md border border-amber-200 bg-amber-50 p-4">
+                {(blockers as Array<{ title: string; details: string }>).map(
+                  (blocker, index) => (
+                    <div
+                      key={`${blocker.title}-${index}`}
+                      className="rounded-md border border-amber-200 bg-white/60 p-3"
+                    >
+                      <p className="text-sm font-semibold text-amber-900">
+                        {blocker.title}
+                      </p>
+                      <p className="mt-1 text-xs text-amber-800">
+                        {blocker.details}
+                      </p>
+                    </div>
+                  ),
+                )}
               </div>
             ) : (
-              <div className="mt-3 rounded-md border p-4 bg-green-50 text-sm">
+              <div className="mt-3 rounded-md border border-emerald-200 bg-green-50 p-4 text-sm text-emerald-800">
                 No blockers — ready to finalize.
               </div>
             )}

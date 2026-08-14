@@ -616,7 +616,49 @@ export async function checkExitBlockers(exitRequestId: string) {
     }));
   if (!docs || docs.length === 0) blockers.knowledge = "no_documents";
 
-  return { blocked: Object.keys(blockers).length > 0, blockers };
+  const blockerList: Array<{ type: string; title: string; details: string }> =
+    [];
+
+  if (Array.isArray(blockers.clearance)) {
+    (blockers.clearance as Array<Record<string, unknown>>).forEach((block) => {
+      const department =
+        typeof block.department === "string" ? block.department : "Department";
+      const comments =
+        typeof block.comments === "string" && block.comments.trim();
+      blockerList.push({
+        type: "clearance",
+        title: `${department} clearance pending`,
+        details:
+          comments ||
+          `The ${department} clearance step is still awaiting approval.`,
+      });
+    });
+  }
+
+  if (Array.isArray(blockers.assets)) {
+    (blockers.assets as Array<Record<string, unknown>>).forEach((block) => {
+      const tag = typeof block.tag === "string" ? block.tag : "asset";
+      blockerList.push({
+        type: "asset",
+        title: `Asset not returned`,
+        details: `${tag} is still assigned and has not been returned or verified.`,
+      });
+    });
+  }
+
+  if (blockers.knowledge === "no_documents") {
+    blockerList.push({
+      type: "knowledge",
+      title: "Knowledge handover missing",
+      details:
+        "Required knowledge handover documents have not been uploaded or verified.",
+    });
+  }
+
+  return {
+    blocked: blockerList.length > 0,
+    blockers: blockerList.length > 0 ? blockerList : [],
+  };
 }
 
 export async function canFinalizeExit(exitRequestId: string) {
@@ -625,39 +667,17 @@ export async function canFinalizeExit(exitRequestId: string) {
   const reasons: Array<{ type: string; message: string; department?: string }> =
     [];
 
-  if (Array.isArray((blockers as Record<string, unknown>)?.clearance)) {
-    const clearanceBlocks = (blockers as Record<string, unknown>)
-      .clearance as Array<Record<string, unknown>>;
-    clearanceBlocks.forEach((block) => {
+  if (Array.isArray(blockers)) {
+    blockers.forEach((block) => {
+      const normalizedType = block.type.toLowerCase();
       reasons.push({
-        type: "clearance",
+        type: normalizedType,
         department:
-          typeof block.department === "string" ? block.department : undefined,
-        message:
-          typeof block.comments === "string" && block.comments.trim()
-            ? block.comments
-            : `Clearance for ${block.department ?? "department"} is still pending.`,
+          normalizedType === "clearance"
+            ? block.title.replace(/ clearance.*$/i, "")
+            : undefined,
+        message: block.details,
       });
-    });
-  }
-
-  if (Array.isArray((blockers as Record<string, unknown>)?.assets)) {
-    const assetBlocks = (blockers as Record<string, unknown>).assets as Array<
-      Record<string, unknown>
-    >;
-    assetBlocks.forEach((block) => {
-      reasons.push({
-        type: "asset",
-        department: "ICT",
-        message: `Asset ${String(block.tag ?? block.id ?? "unknown")} is not yet returned or verified.`,
-      });
-    });
-  }
-
-  if ((blockers as Record<string, unknown>)?.knowledge === "no_documents") {
-    reasons.push({
-      type: "knowledge",
-      message: "Required knowledge handover documents are missing.",
     });
   }
 
