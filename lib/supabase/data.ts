@@ -155,7 +155,7 @@ export async function getKnowledgeDocuments() {
 
 export async function getKnowledgeRequirements() {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const baseQuery = supabase
     .from("knowledge_requirements")
     .select(
       "id, name, description, is_required, active, reviewer_role, department_id, employment_category, category_id, knowledge_categories(name)",
@@ -163,13 +163,28 @@ export async function getKnowledgeRequirements() {
     .eq("active", true)
     .order("name");
 
-  if (error) throw new Error(error.message);
-  return data ?? [];
+  const { data, error } = await baseQuery;
+  if (!error) return data ?? [];
+
+  if (isMissingColumnError(error.message, "employment_category")) {
+    const fallback = await supabase
+      .from("knowledge_requirements")
+      .select(
+        "id, name, description, is_required, active, reviewer_role, department_id, category_id, knowledge_categories(name)",
+      )
+      .eq("active", true)
+      .order("name");
+
+    if (fallback.error) throw new Error(fallback.error.message);
+    return fallback.data ?? [];
+  }
+
+  throw new Error(error.message);
 }
 
 export async function getKnowledgeRequirementsForEmployee(employeeId: string) {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const baseQuery = supabase
     .from("knowledge_requirements")
     .select(
       "id, name, description, is_required, active, reviewer_role, allowed_file_types, max_file_size_mb, knowledge_categories(name, description), department_id, employment_category",
@@ -177,7 +192,40 @@ export async function getKnowledgeRequirementsForEmployee(employeeId: string) {
     .eq("active", true)
     .order("name");
 
-  if (error) throw new Error(error.message);
+  const { data, error } = await baseQuery;
+  if (error) {
+    if (isMissingColumnError(error.message, "employment_category")) {
+      const fallbackRequirements = await supabase
+        .from("knowledge_requirements")
+        .select(
+          "id, name, description, is_required, active, reviewer_role, allowed_file_types, max_file_size_mb, knowledge_categories(name, description), department_id",
+        )
+        .eq("active", true)
+        .order("name");
+
+      if (fallbackRequirements.error) {
+        throw new Error(fallbackRequirements.error.message);
+      }
+
+      const { data: employee } = await supabase
+        .from("employees")
+        .select("id, department_id")
+        .eq("id", employeeId)
+        .maybeSingle();
+
+      if (!employee) return fallbackRequirements.data ?? [];
+
+      const departmentId = employee.department_id;
+      return (fallbackRequirements.data ?? []).filter((requirement) => {
+        const matchesDepartment =
+          !requirement.department_id ||
+          requirement.department_id === departmentId;
+        return matchesDepartment;
+      });
+    }
+
+    throw new Error(error.message);
+  }
 
   const { data: employee } = await supabase
     .from("employees")
@@ -259,14 +307,29 @@ export async function getKnowledgeOverviewForEmployee(employeeId: string) {
 
 export async function getClearanceSteps() {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const baseQuery = supabase
     .from("clearance_steps")
     .select(
       "id, department, status, step_order, comments, exit_request_id, exit_requests!exit_request_id(id, employee_id, status, submitted_on, completed_at)",
     )
     .order("step_order", { ascending: true });
-  if (error) throw new Error(error.message);
-  return data ?? [];
+
+  const { data, error } = await baseQuery;
+  if (!error) return data ?? [];
+
+  if (isMissingColumnError(error.message, "completed_at")) {
+    const fallback = await supabase
+      .from("clearance_steps")
+      .select(
+        "id, department, status, step_order, comments, exit_request_id, exit_requests!exit_request_id(id, employee_id, status, submitted_on)",
+      )
+      .order("step_order", { ascending: true });
+
+    if (fallback.error) throw new Error(fallback.error.message);
+    return fallback.data ?? [];
+  }
+
+  throw new Error(error.message);
 }
 
 export async function getSystemSettings() {
