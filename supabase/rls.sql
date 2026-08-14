@@ -29,6 +29,8 @@ $$;
 -- Signed-in users can access core workflow tables. Privileged actions remain
 -- enforced in the server-side app logic, which is the actual authorization layer.
 drop policy if exists employee_self_profile on profiles;
+drop policy if exists "Profiles are editable by owner" on profiles;
+drop policy if exists "Profiles are viewable by owner or admins" on profiles;
 create policy employee_self_profile on profiles
 for all
 using (auth.uid() = id)
