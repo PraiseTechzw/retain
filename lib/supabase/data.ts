@@ -533,6 +533,117 @@ export type ReportDashboardSnapshot = {
   currentYearAttritionRate: number;
 };
 
+export type AdminOverviewSnapshot = {
+  totalEmployees: number;
+  activeEmployees: number;
+  openExitRequests: number;
+  pendingClearanceSteps: number;
+  assignedAssets: number;
+  knowledgeDocuments: number;
+  knowledgeCoverage: number;
+  assetRecoveryRate: number;
+  unreadNotifications: number;
+  recentAuditEvents: number;
+};
+
+export async function getAdminOverviewSnapshot(): Promise<AdminOverviewSnapshot> {
+  const [
+    employees,
+    exitRequests,
+    assets,
+    knowledgeDocuments,
+    knowledgeRequirements,
+    clearanceSteps,
+    notifications,
+    auditEvents,
+  ] = await Promise.all([
+    getEmployees(),
+    getExitRequests(),
+    getAssets(),
+    getKnowledgeDocuments(),
+    getKnowledgeRequirements(),
+    getClearanceSteps(),
+    (async () => {
+      const supabase = await createClient();
+      const { data, error } = await supabase
+        .from("notifications")
+        .select("id")
+        .is("read_at", null);
+      if (error) return 0;
+      return data?.length ?? 0;
+    })(),
+    (async () => {
+      const supabase = await createClient();
+      const { data, error } = await supabase
+        .from("audit_events")
+        .select("id")
+        .limit(10);
+      if (error) return 0;
+      return data?.length ?? 0;
+    })(),
+  ]);
+
+  const activeEmployees = employees.filter(
+    (employee) =>
+      String(employee.employment_status ?? "").toLowerCase() === "active",
+  ).length;
+
+  const openExitRequests = exitRequests.filter((request) => {
+    const status = String(request.status ?? "").toLowerCase();
+    return [
+      "draft",
+      "submitted",
+      "under_review",
+      "clearance",
+      "blocked",
+      "eligible_for_finalization",
+    ].includes(status);
+  }).length;
+
+  const pendingClearanceSteps = clearanceSteps.filter((step) => {
+    const status = String(step.status ?? "").toLowerCase();
+    return ["pending", "in_progress", "blocked"].includes(status);
+  }).length;
+
+  const assignedAssets = assets.filter((asset) => {
+    const status = String(asset.status ?? "").toLowerCase();
+    return status === "assigned" || status === "in_transit";
+  }).length;
+
+  const approvedKnowledgeDocuments = knowledgeDocuments.filter((document) => {
+    const status = String(document.status ?? "").toLowerCase();
+    return status === "verified" || status === "approved";
+  }).length;
+
+  const knowledgeCoverage = knowledgeRequirements.length
+    ? Math.round(
+        (approvedKnowledgeDocuments / knowledgeRequirements.length) * 100,
+      )
+    : 0;
+
+  const returnedAssets = assets.filter((asset) => {
+    const status = String(asset.status ?? "").toLowerCase();
+    return status === "returned" || status === "verified";
+  }).length;
+
+  const assetRecoveryRate = assets.length
+    ? Math.round((returnedAssets / assets.length) * 100)
+    : 0;
+
+  return {
+    totalEmployees: employees.length,
+    activeEmployees,
+    openExitRequests,
+    pendingClearanceSteps,
+    assignedAssets,
+    knowledgeDocuments: knowledgeDocuments.length,
+    knowledgeCoverage,
+    assetRecoveryRate,
+    unreadNotifications: notifications,
+    recentAuditEvents: auditEvents,
+  };
+}
+
 export async function getReportDashboardSnapshot(): Promise<ReportDashboardSnapshot> {
   const [
     employees,

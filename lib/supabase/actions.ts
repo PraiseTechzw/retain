@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { normalizeUserRole } from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
 import { appConfig } from "@/lib/system";
 
@@ -194,19 +195,51 @@ async function actor() {
   return { supabase, user };
 }
 
-function requireAdminRole(user: { user_metadata?: Record<string, unknown> }) {
-  const role =
+async function requireAdminRole(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  user: { id: string; user_metadata?: Record<string, unknown> },
+) {
+  const metadataRole =
     typeof user.user_metadata?.role === "string"
-      ? user.user_metadata.role.trim()
+      ? String(user.user_metadata.role).trim()
       : "";
 
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  const combinedRole = normalizeUserRole(
+    metadataRole || (typeof profile?.role === "string" ? profile.role : ""),
+  );
+
   if (
-    !role ||
-    (!role.toLowerCase().includes("admin") &&
-      !role.toLowerCase().includes("hr"))
+    !combinedRole.toLowerCase().includes("administrator") &&
+    !combinedRole.toLowerCase().includes("hr")
   ) {
     throw new Error("You are not authorized to change system settings.");
   }
+}
+
+async function resolveEffectiveUserRole(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  user: { id: string; user_metadata?: Record<string, unknown> },
+) {
+  const metadataRole =
+    typeof user.user_metadata?.role === "string"
+      ? String(user.user_metadata.role).trim()
+      : "";
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  return normalizeUserRole(
+    metadataRole || (typeof profile?.role === "string" ? profile.role : ""),
+  );
 }
 
 type ClearanceStep = { department: string; status: string; comments?: string };
@@ -346,13 +379,12 @@ export async function approveClearance(formData: FormData) {
     .eq("id", id)
     .single();
   const stepDept = stepData?.department ?? "";
-  const _meta = user.user_metadata as Record<string, unknown> | undefined;
-  const userRole =
-    typeof _meta?.role === "string" ? (_meta.role as string) : undefined;
+  const userRole = await resolveEffectiveUserRole(supabase, user);
   const allowed =
     userRole === appConfig.defaultRole ||
-    (userRole && userRole.toLowerCase().includes(stepDept.toLowerCase())) ||
-    userRole?.toLowerCase().includes("hr");
+    userRole.toLowerCase().includes(stepDept.toLowerCase()) ||
+    userRole.toLowerCase().includes("hr") ||
+    userRole.toLowerCase().includes("administrator");
   if (!allowed)
     throw new Error("You are not authorized to approve this clearance.");
 
@@ -483,13 +515,10 @@ export async function finalizeExit(formData: FormData) {
   if (!exitRequestId) throw new Error("Exit request is required.");
   const { supabase, user } = await actor();
 
-  const _meta2 = user.user_metadata as Record<string, unknown> | undefined;
-  const userRole =
-    typeof _meta2?.role === "string" ? (_meta2.role as string) : undefined;
+  const userRole = await resolveEffectiveUserRole(supabase, user);
   if (
-    !userRole ||
-    (!userRole.toLowerCase().includes("admin") &&
-      !userRole.toLowerCase().includes("hr"))
+    !userRole.toLowerCase().includes("administrator") &&
+    !userRole.toLowerCase().includes("hr")
   ) {
     throw new Error("You are not authorized to finalize exits.");
   }
@@ -856,7 +885,7 @@ export async function updateProfile(formData: FormData) {
 
 export async function saveSystemSetting(formData: FormData) {
   const { supabase, user } = await actor();
-  requireAdminRole(user);
+  await requireAdminRole(supabase, user);
 
   const key = String(formData.get("key") ?? "").trim();
   const value = String(formData.get("value") ?? "").trim();
@@ -879,7 +908,7 @@ export async function saveSystemSetting(formData: FormData) {
 
 export async function restoreDefaultWorkflow() {
   const { supabase, user } = await actor();
-  requireAdminRole(user);
+  await requireAdminRole(supabase, user);
 
   const defaults = [...DEFAULT_CLEARANCE_DEPARTMENTS];
   const { error } = await supabase

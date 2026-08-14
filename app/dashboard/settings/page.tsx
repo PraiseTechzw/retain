@@ -6,7 +6,11 @@ import {
   parseStoredList,
   resolveSystemSettingValue,
 } from "@/lib/system";
-import { getAuditEvents, getSystemSettings } from "@/lib/supabase/data";
+import {
+  getAdminOverviewSnapshot,
+  getAuditEvents,
+  getSystemSettings,
+} from "@/lib/supabase/data";
 import {
   restoreDefaultWorkflow,
   saveSystemSetting,
@@ -17,9 +21,10 @@ export default async function Page() {
   const { userName, userRole } = await resolveDashboardUserContext();
   await createClient();
 
-  const [systemSettings, auditEvents] = await Promise.all([
+  const [systemSettings, auditEvents, adminOverview] = await Promise.all([
     getSystemSettings(),
     getAuditEvents(6),
+    getAdminOverviewSnapshot(),
   ]);
 
   const settingsMap = Object.fromEntries(
@@ -32,6 +37,9 @@ export default async function Page() {
     settingsMap.default_clearance_departments ||
       defaultSystemSettings.default_clearance_departments.join(", "),
   );
+  const isAdminRole =
+    userRole.toLowerCase().includes("administrator") ||
+    userRole.toLowerCase().includes("hr");
 
   return (
     <DashboardShell userName={userName} userRole={userRole}>
@@ -226,10 +234,24 @@ export default async function Page() {
                 </div>
                 <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2">
                   <dt className="text-sm text-muted-foreground">
-                    Clearance steps
+                    Active employees
                   </dt>
                   <dd className="text-sm font-semibold">
-                    {departments.length}
+                    {adminOverview.activeEmployees}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2">
+                  <dt className="text-sm text-muted-foreground">Open exits</dt>
+                  <dd className="text-sm font-semibold">
+                    {adminOverview.openExitRequests}
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2">
+                  <dt className="text-sm text-muted-foreground">
+                    Pending clearances
+                  </dt>
+                  <dd className="text-sm font-semibold">
+                    {adminOverview.pendingClearanceSteps}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2">
