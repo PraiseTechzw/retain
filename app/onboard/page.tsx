@@ -1,7 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import {
+  BriefcaseBusiness,
+  CheckCircle2,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 type Department = { id: string; name: string; code: string | null };
 type OnboardingAction = (formData: FormData) => void | Promise<void>;
@@ -25,16 +33,101 @@ export default function OnboardingForm({
   nextPath: string;
   userName: string;
   defaultRole: string;
-  departments: Department[];
+  departments?: Department[];
 }) {
   const safeUserName = userName ?? "";
   const safeDefaultRole = defaultRole ?? "Employee";
-  const safeDepartments = departments ?? [];
+  const safeDepartments = useMemo(() => departments ?? [], [departments]);
 
+  const router = useRouter();
+  const [availableDepartments, setAvailableDepartments] =
+    useState<Department[]>(safeDepartments);
   const [fullName, setFullName] = useState(safeUserName);
   const [role, setRole] = useState(safeDefaultRole);
   const [departmentId, setDepartmentId] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadDepartments() {
+      if (safeDepartments.length) {
+        setAvailableDepartments(safeDepartments);
+        return;
+      }
+
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("departments")
+        .select("id, name, code")
+        .order("name");
+
+      if (!active) return;
+      if (!error && Array.isArray(data)) {
+        setAvailableDepartments(data as Department[]);
+      }
+    }
+
+    loadDepartments();
+
+    return () => {
+      active = false;
+    };
+  }, [safeDepartments]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function hydrateUser() {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!active || !user) return;
+
+      const authFullName =
+        (user.user_metadata?.full_name as string | undefined) ??
+        user.email?.split("@")[0] ??
+        safeUserName;
+      const authRole =
+        (user.user_metadata?.role as string | undefined) ?? safeDefaultRole;
+
+      setFullName(authFullName || safeUserName || "");
+      setRole(authRole || safeDefaultRole || "Employee");
+
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("id, full_name, role, department_id")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!active) return;
+
+      if (profile?.department_id) {
+        router.replace("/dashboard");
+        return;
+      }
+
+      if (profile?.full_name) setFullName(profile.full_name);
+      if (profile?.role) setRole(profile.role);
+
+      const { data: employee } = await supabase
+        .from("employees")
+        .select("id, department_id")
+        .eq("email", user.email ?? "")
+        .maybeSingle();
+
+      if (!active) return;
+      if (employee?.department_id) setDepartmentId(employee.department_id);
+    }
+
+    hydrateUser();
+
+    return () => {
+      active = false;
+    };
+  }, [router, safeDefaultRole, safeUserName]);
 
   const filled = useMemo(
     () => [
@@ -209,12 +302,18 @@ export default function OnboardingForm({
           </div>
         </div>
 
-        <p className="text-center text-sm font-semibold text-primary">
-          {appName}
-        </p>
-        <h1 className="mt-3 text-center text-3xl font-semibold">
-          Complete your onboarding
-        </h1>
+        <div className="mb-4 flex items-center justify-center gap-2 text-primary">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10">
+            <ShieldCheck className="h-5 w-5" />
+          </div>
+          <p className="text-sm font-semibold">{appName}</p>
+        </div>
+        <div className="mb-3 flex items-center justify-center gap-2 text-foreground">
+          <UserRound className="h-5 w-5 text-primary" />
+          <h1 className="text-center text-3xl font-semibold">
+            Complete your onboarding
+          </h1>
+        </div>
         <p className="mt-2 text-center text-sm text-muted-foreground">
           We need your base profile and department before you can access the
           workspace.
@@ -245,7 +344,10 @@ export default function OnboardingForm({
           <input type="hidden" name="next" value={nextPath} />
 
           <label className="flex flex-col gap-1.5 text-sm font-medium">
-            Full name
+            <span className="flex items-center gap-2">
+              <UserRound className="h-4 w-4 text-primary" />
+              Full name
+            </span>
             <input
               name="full_name"
               value={fullName}
@@ -256,7 +358,10 @@ export default function OnboardingForm({
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm font-medium">
-            Role
+            <span className="flex items-center gap-2">
+              <BriefcaseBusiness className="h-4 w-4 text-primary" />
+              Role
+            </span>
             <select
               name="role"
               value={role}
@@ -270,7 +375,10 @@ export default function OnboardingForm({
           </label>
 
           <label className="flex flex-col gap-1.5 text-sm font-medium">
-            Department
+            <span className="flex items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 text-primary" />
+              Department
+            </span>
             <select
               name="department_id"
               required
@@ -281,7 +389,7 @@ export default function OnboardingForm({
               <option value="" disabled>
                 Select your department
               </option>
-              {safeDepartments.map((department) => (
+              {availableDepartments.map((department) => (
                 <option key={department.id} value={department.id}>
                   {department.name}{" "}
                   {department.code ? `(${department.code})` : ""}

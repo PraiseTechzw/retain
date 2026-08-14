@@ -50,6 +50,7 @@ export default function LoginMascotForm({
   const eyesCovered = focusedField === "password" && !showPassword;
   const isErrorMessage =
     !!message && /invalid|error|required|failed|denied/i.test(message);
+  const isSuccessMessage = !!message && !isErrorMessage;
 
   return (
     <>
@@ -60,12 +61,14 @@ export default function LoginMascotForm({
         @keyframes lm-hand-down { from { transform: translateY(0); opacity: 1; } to { transform: translateY(28px); opacity: 0; } }
         @keyframes lm-blob { 0%, 100% { border-radius: 42% 58% 65% 35% / 45% 40% 60% 55%; } 50% { border-radius: 60% 40% 35% 65% / 55% 65% 35% 45%; } }
         @keyframes lm-error-shake { 0%, 100% { transform: translateX(0); } 15% { transform: translateX(-8px); } 30% { transform: translateX(8px); } 45% { transform: translateX(-6px); } 60% { transform: translateX(6px); } 75% { transform: translateX(-4px); } 90% { transform: translateX(4px); } }
+        @keyframes lm-success-glass { 0% { transform: scale(1); opacity: 1; filter: blur(0px); box-shadow: 0 0 0 rgba(16,185,129,0.15); } 30% { transform: scale(1.01); opacity: 1; filter: blur(0.5px); box-shadow: 0 0 18px rgba(16,185,129,0.26); } 62% { transform: scale(1.03); opacity: 0.96; filter: blur(1.2px); box-shadow: 0 0 26px rgba(16,185,129,0.22); } 100% { transform: scale(1); opacity: 1; filter: blur(0); box-shadow: 0 0 0 rgba(16,185,129,0); } }
         .lm-float { animation: lm-float 4s ease-in-out infinite; }
         .lm-blink { animation: lm-blink 4.5s ease-in-out infinite; transform-origin: center; }
         .lm-hand-shown { animation: lm-hand-up 0.35s ease-out forwards; }
         .lm-hand-hidden { animation: lm-hand-down 0.3s ease-in forwards; }
         .lm-blob { animation: lm-blob 8s ease-in-out infinite; }
         .lm-error-shake { animation: lm-error-shake 0.4s ease-in-out 1; }
+        .lm-success-glass { animation: lm-success-glass 0.7s ease-out 1; }
       `}</style>
 
       {/* mascot */}
@@ -152,7 +155,9 @@ export default function LoginMascotForm({
           className={
             isErrorMessage
               ? "lm-error-shake mt-4 max-w-full break-words rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
-              : "mt-4 max-w-full break-words rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700"
+              : isSuccessMessage
+                ? "lm-success-glass mt-4 max-w-full break-words rounded-xl border border-emerald-200 bg-emerald-50/90 px-3 py-2 text-sm text-emerald-700 backdrop-blur-sm"
+                : "mt-4 max-w-full break-words rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700"
           }
         >
           {message}
@@ -164,7 +169,9 @@ export default function LoginMascotForm({
         className={
           isErrorMessage
             ? "lm-error-shake mt-8 flex flex-col gap-4"
-            : "mt-8 flex flex-col gap-4"
+            : isSuccessMessage
+              ? "lm-success-glass mt-8 flex flex-col gap-4"
+              : "mt-8 flex flex-col gap-4"
         }
       >
         <input
