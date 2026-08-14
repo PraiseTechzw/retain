@@ -49,6 +49,21 @@ export default async function Page() {
       >
         <div className="grid gap-6 xl:grid-cols-[1.4fr_0.6fr]">
           <div className="space-y-6">
+            {!isAdminRole && (
+              <section className="rounded-2xl border border-dashed border-amber-300 bg-amber-50 p-6 dark:border-amber-700 dark:bg-amber-950/30">
+                <div className="flex items-start gap-4">
+                  <div className="mt-1 flex size-6 shrink-0 items-center justify-center rounded-full bg-amber-200 text-sm font-bold text-amber-900 dark:bg-amber-800 dark:text-amber-100">⚠</div>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-900 dark:text-amber-100">
+                      Limited access
+                    </p>
+                    <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
+                      Your current role is <strong>{userRole}</strong>. Only administrators and HR managers can edit institutional settings and workflow configuration. Contact your administrator if you need access.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            )}
             <section className="rounded-2xl border border-border/70 bg-card p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -87,6 +102,7 @@ export default async function Page() {
               </form>
             </section>
 
+            {isAdminRole && (
             <section className="rounded-2xl border border-border/70 bg-card p-6">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Organization
@@ -114,7 +130,9 @@ export default async function Page() {
                 </div>
               </form>
             </section>
+            )}
 
+            {isAdminRole && (
             <section className="rounded-2xl border border-border/70 bg-card p-6">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Workflow
@@ -161,7 +179,9 @@ export default async function Page() {
                 </button>
               </form>
             </section>
+            )}
 
+            {isAdminRole && (
             <section className="rounded-2xl border border-border/70 bg-card p-6">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Controls
@@ -217,6 +237,7 @@ export default async function Page() {
                 </form>
               </div>
             </section>
+            )}
           </div>
 
           <aside className="space-y-6">
