@@ -114,11 +114,38 @@ export async function getExitRequests() {
   const { data, error } = await baseQuery;
   if (!error) return data ?? [];
 
+  // Fallback for missing employment_category
   if (isMissingColumnError(error.message, "employment_category")) {
     const fallback = await supabase
       .from("exit_requests")
       .select(
         "id, status, reason, submitted_on, created_at, last_day, completed_at, employee_id, employees!employee_id(id, full_name, employee_number, department_id)",
+      )
+      .order("created_at", { ascending: false });
+
+    if (fallback.error) {
+      // Fallback for missing completed_at
+      if (isMissingColumnError(fallback.error.message, "completed_at")) {
+        const fallback2 = await supabase
+          .from("exit_requests")
+          .select(
+            "id, status, reason, submitted_on, created_at, last_day, employee_id, employees!employee_id(id, full_name, employee_number, department_id)",
+          )
+          .order("created_at", { ascending: false });
+        if (fallback2.error) throw new Error(fallback2.error.message);
+        return fallback2.data ?? [];
+      }
+      throw new Error(fallback.error.message);
+    }
+    return fallback.data ?? [];
+  }
+
+  // Fallback for missing completed_at
+  if (isMissingColumnError(error.message, "completed_at")) {
+    const fallback = await supabase
+      .from("exit_requests")
+      .select(
+        "id, status, reason, submitted_on, created_at, last_day, employee_id, employees!employee_id(id, full_name, employee_number, department_id, employment_category, employment_status)",
       )
       .order("created_at", { ascending: false });
 
