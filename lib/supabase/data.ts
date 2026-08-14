@@ -755,6 +755,47 @@ export async function getReportDashboardSnapshot(): Promise<ReportDashboardSnaps
   };
 }
 
+export type SystemUserRecord = {
+  id?: string | null;
+  email?: string | null;
+  full_name?: string | null;
+  role?: string | null;
+  created_at?: string | null;
+  last_sign_in_at?: string | null;
+  user_metadata?: Record<string, unknown> | null;
+};
+
+export async function getSystemUsers(): Promise<SystemUserRecord[]> {
+  const supabase = await createClient();
+
+  try {
+    // Try to get users from profiles table with available columns
+    const { data: profiles, error } = await supabase
+      .from("profiles")
+      .select("id, email, full_name, role, created_at")
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("Error fetching system users:", error);
+      return [];
+    }
+
+    // Map profiles to system user records
+    return (profiles ?? []).map((profile) => ({
+      id: profile.id,
+      email: profile.email,
+      full_name: profile.full_name,
+      role: profile.role,
+      created_at: profile.created_at,
+      last_sign_in_at: null, // Not available in profiles table
+      user_metadata: null,
+    })) as SystemUserRecord[];
+  } catch (err) {
+    console.error("Error in getSystemUsers:", err);
+    return [];
+  }
+}
+
 export function friendlyError(error: unknown) {
   return error instanceof Error
     ? error.message

@@ -67,6 +67,7 @@ const navItems = [
     LayoutDashboard,
     ["employee", "hr", "administrator", "management"],
   ],
+  ["Users", "/dashboard/user-management", Users, ["administrator", "hr"]],
   [
     "Employees",
     "/dashboard/employees",

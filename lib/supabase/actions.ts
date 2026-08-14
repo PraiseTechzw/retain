@@ -1047,3 +1047,74 @@ export async function createHandover(formData: FormData) {
   revalidatePath("/dashboard/employees");
   revalidatePath("/dashboard/assets");
 }
+
+export async function updateUserRole(formData: FormData) {
+  const { supabase, user } = await actor();
+
+  // Verify admin role
+  await requireAdminRole(supabase, user);
+
+  const userId = String(formData.get("user_id") ?? "");
+  const newRole = String(formData.get("role") ?? "");
+
+  if (!userId || !newRole) {
+    throw new Error("User ID and role are required.");
+  }
+
+  // Update profile role
+  const { error: profileError } = await supabase
+    .from("profiles")
+    .update({ role: newRole })
+    .eq("id", userId);
+
+  if (profileError) {
+    throw new Error("Unable to update user role.");
+  }
+
+  // Log audit event
+  await audit(supabase, user.id, "updated_user_role", "system_user", userId, {
+    new_role: newRole,
+  });
+
+  revalidatePath("/dashboard/user-management");
+}
+
+export async function disableUserAccount(formData: FormData) {
+  const { supabase, user } = await actor();
+
+  // Verify admin role
+  await requireAdminRole(supabase, user);
+
+  const userId = String(formData.get("user_id") ?? "");
+
+  if (!userId) {
+    throw new Error("User ID is required.");
+  }
+
+  // Prevent self-disable
+  if (userId === user.id) {
+    throw new Error("You cannot disable your own account.");
+  }
+
+  // Mark as disabled in profile
+  const { error } = await supabase
+    .from("profiles")
+    .update({ active: false })
+    .eq("id", userId);
+
+  if (error) {
+    throw new Error("Unable to disable user account.");
+  }
+
+  // Log audit event
+  await audit(
+    supabase,
+    user.id,
+    "disabled_user_account",
+    "system_user",
+    userId,
+    {},
+  );
+
+  revalidatePath("/dashboard/user-management");
+}
