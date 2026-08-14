@@ -1,4 +1,5 @@
 import { DashboardShell, PageFrame } from "@/components/dashboard-shell";
+import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
 import {
   defaultSystemSettings,
@@ -13,17 +14,11 @@ import {
 } from "@/lib/supabase/actions";
 
 export default async function Page() {
+  const { userName, userRole } = await resolveDashboardUserContext();
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
-  const userName =
-    (user?.user_metadata?.full_name as string | undefined) ||
-    user?.email?.split("@")[0] ||
-    "User";
-  const userRole =
-    (user?.user_metadata?.role as string | undefined) || "Employee";
 
   const [systemSettings, auditEvents] = await Promise.all([
     getSystemSettings(),

@@ -25,17 +25,97 @@ import {
 import { signOut } from "@/lib/supabase/actions";
 import { appConfig, getInitials } from "@/lib/system";
 
-const items = [
-  ["Overview", "/dashboard", LayoutDashboard],
-  ["Employees", "/dashboard/employees", Users],
-  ["Exit Requests", "/dashboard/exit-requests", ClipboardCheck],
-  ["Clearances", "/dashboard/clearances", ShieldCheck],
-  ["Assets", "/dashboard/assets", PackageCheck],
-  ["Knowledge Hub", "/dashboard/knowledge-hub", BookOpen],
-  ["Analytics", "/dashboard/analytics", BarChart3],
-  ["Reports", "/dashboard/reports", FileText],
-  ["Settings", "/dashboard/settings", Settings2],
+function resolveDisplayRole(userRole?: string | null) {
+  if (!userRole) {
+    return appConfig.defaultRole;
+  }
+
+  const value = userRole.trim();
+  if (!value) {
+    return appConfig.defaultRole;
+  }
+
+  const lower = value.toLowerCase();
+
+  if (lower === "admin" || lower.includes("administrator")) {
+    return "Administrator";
+  }
+
+  if (lower.includes("hr")) {
+    return "HR";
+  }
+
+  if (lower.includes("ict")) {
+    return "ICT";
+  }
+
+  if (lower.includes("library")) {
+    return "Library";
+  }
+
+  if (lower.includes("management") || lower.includes("operations")) {
+    return "Management";
+  }
+
+  return value;
+}
+
+const navItems = [
+  [
+    "Overview",
+    "/dashboard",
+    LayoutDashboard,
+    ["employee", "hr", "administrator", "management"],
+  ],
+  [
+    "Employees",
+    "/dashboard/employees",
+    Users,
+    ["hr", "administrator", "management"],
+  ],
+  [
+    "Exit Requests",
+    "/dashboard/exit-requests",
+    ClipboardCheck,
+    ["employee", "hr", "administrator", "management"],
+  ],
+  [
+    "Clearances",
+    "/dashboard/clearances",
+    ShieldCheck,
+    ["employee", "hr", "administrator", "management"],
+  ],
+  [
+    "Assets",
+    "/dashboard/assets",
+    PackageCheck,
+    ["hr", "administrator", "management"],
+  ],
+  [
+    "Knowledge Hub",
+    "/dashboard/knowledge-hub",
+    BookOpen,
+    ["employee", "hr", "administrator", "management"],
+  ],
+  [
+    "Analytics",
+    "/dashboard/analytics",
+    BarChart3,
+    ["hr", "administrator", "management"],
+  ],
+  [
+    "Reports",
+    "/dashboard/reports",
+    FileText,
+    ["hr", "administrator", "management"],
+  ],
+  ["Settings", "/dashboard/settings", Settings2, ["hr", "administrator"]],
 ] as const;
+
+function canAccessNavItem(userRole: string, allowedRoles: readonly string[]) {
+  const normalizedRole = userRole.toLowerCase();
+  return allowedRoles.some((role) => normalizedRole.includes(role));
+}
 
 function SidebarNav({
   pathname,
@@ -91,8 +171,12 @@ function SidebarNav({
           </button>
         </div>
 
-        <div className={`mt-9 flex items-center justify-between px-3 ${collapsed ? "lg:justify-center" : ""}`}>
-          <p className={`text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground ${collapsed ? "lg:hidden" : ""}`}>
+        <div
+          className={`mt-9 flex items-center justify-between px-3 ${collapsed ? "lg:justify-center" : ""}`}
+        >
+          <p
+            className={`text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground ${collapsed ? "lg:hidden" : ""}`}
+          >
             Workspace
           </p>
           <span className="inline-flex items-center gap-1.5 rounded-full border border-sidebar-border bg-sidebar-accent/50 px-2 py-1 text-[10px] font-semibold text-muted-foreground">
@@ -105,29 +189,42 @@ function SidebarNav({
           aria-label="Workspace navigation"
           className={`mt-4 flex flex-1 flex-col gap-1 ${collapsed ? "lg:items-center" : ""}`}
         >
-          {items.map(([label, href, Icon]) => {
-            const active =
-              href === "/dashboard"
-                ? pathname === "/dashboard"
-                : pathname.startsWith(href);
+          {navItems
+            .filter(([, , , allowedRoles]) =>
+              canAccessNavItem(userRole, allowedRoles),
+            )
+            .map(([label, href, Icon]) => {
+              const active =
+                href === "/dashboard"
+                  ? pathname === "/dashboard"
+                  : pathname.startsWith(href);
 
-            return (
-              <Link
-                key={href}
-                href={href}
-                onClick={onClose}
-                aria-current={active ? "page" : undefined}
-                title={collapsed ? label : undefined}
-                className={`group relative flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition ${collapsed ? "lg:justify-center lg:px-2" : "gap-3"} ${active ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-md shadow-primary/10" : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"}`}
-              >
-                <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg transition ${active ? "bg-primary-foreground/15" : "bg-sidebar-accent/60 group-hover:bg-sidebar-accent"}`}>
-                  <Icon className="size-[17px]" strokeWidth={active ? 2.35 : 2} />
-                </span>
-                <span className={collapsed ? "lg:hidden" : ""}>{label}</span>
-                {active && <span className={`absolute right-3 size-1.5 rounded-full bg-primary-foreground ${collapsed ? "lg:hidden" : ""}`} />}
-              </Link>
-            );
-          })}
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  onClick={onClose}
+                  aria-current={active ? "page" : undefined}
+                  title={collapsed ? label : undefined}
+                  className={`group relative flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition ${collapsed ? "lg:justify-center lg:px-2" : "gap-3"} ${active ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-md shadow-primary/10" : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"}`}
+                >
+                  <span
+                    className={`flex size-8 shrink-0 items-center justify-center rounded-lg transition ${active ? "bg-primary-foreground/15" : "bg-sidebar-accent/60 group-hover:bg-sidebar-accent"}`}
+                  >
+                    <Icon
+                      className="size-[17px]"
+                      strokeWidth={active ? 2.35 : 2}
+                    />
+                  </span>
+                  <span className={collapsed ? "lg:hidden" : ""}>{label}</span>
+                  {active && (
+                    <span
+                      className={`absolute right-3 size-1.5 rounded-full bg-primary-foreground ${collapsed ? "lg:hidden" : ""}`}
+                    />
+                  )}
+                </Link>
+              );
+            })}
         </nav>
 
         <div className="border-t border-sidebar-border pt-4">
@@ -141,10 +238,20 @@ function SidebarNav({
               <span className="absolute bottom-0 right-0 size-2.5 rounded-full border-2 border-sidebar bg-emerald-500" />
             </div>
             <div className="min-w-0">
-              <p className={`truncate text-sm font-semibold ${collapsed ? "lg:hidden" : ""}`}>{userName}</p>
-              <p className={`truncate text-xs text-muted-foreground ${collapsed ? "lg:hidden" : ""}`}>{userRole} · Online</p>
+              <p
+                className={`truncate text-sm font-semibold ${collapsed ? "lg:hidden" : ""}`}
+              >
+                {userName}
+              </p>
+              <p
+                className={`truncate text-xs text-muted-foreground ${collapsed ? "lg:hidden" : ""}`}
+              >
+                {userRole} · Online
+              </p>
             </div>
-            <ChevronDown className={`ml-auto size-4 text-muted-foreground transition group-hover:text-foreground ${collapsed ? "lg:hidden" : ""}`} />
+            <ChevronDown
+              className={`ml-auto size-4 text-muted-foreground transition group-hover:text-foreground ${collapsed ? "lg:hidden" : ""}`}
+            />
           </Link>
         </div>
       </aside>
@@ -168,7 +275,7 @@ export function DashboardShell({
   const [collapsed, setCollapsed] = useState(false);
   const [notice, setNotice] = useState(false);
   const displayName = userName || appConfig.defaultUserName;
-  const displayRole = userRole || appConfig.defaultRole;
+  const displayRole = resolveDisplayRole(userRole);
   const headerWorkspaceLabel = workspaceLabel || appConfig.workspaceLabel;
 
   return (

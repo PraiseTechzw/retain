@@ -39,9 +39,21 @@ async function ensureUserProfile(
   // so the same user is not shown as (for example) both Employee and
   // Administrator in different areas of the app.
   const assignedRole = String(
-    preferredRole ?? user.user_metadata?.role ?? existingProfile?.role ?? appConfig.defaultRole,
+    preferredRole ??
+      user.user_metadata?.role ??
+      existingProfile?.role ??
+      appConfig.defaultRole,
   ).trim();
   const role = assignedRole || appConfig.defaultRole;
+
+  console.log("[profile-role-debug]", {
+    userId: user.id,
+    preferredRole,
+    authRole: user.user_metadata?.role ?? null,
+    existingProfileRole: existingProfile?.role ?? null,
+    assignedRole,
+    resolvedRole: role,
+  });
 
   if (!existingProfile) {
     const { error } = await supabase.from("profiles").insert({
@@ -621,9 +633,12 @@ export async function completeOnboarding(formData: FormData) {
 
   // The assigned role is never accepted from onboarding form data. This stops
   // a user from creating a conflicting or elevated role for themselves.
-  const role = String(
-    user.user_metadata?.role ?? existingProfile?.role ?? appConfig.defaultRole,
-  ).trim() || appConfig.defaultRole;
+  const role =
+    String(
+      user.user_metadata?.role ??
+        existingProfile?.role ??
+        appConfig.defaultRole,
+    ).trim() || appConfig.defaultRole;
 
   const profile = {
     full_name: fullName,

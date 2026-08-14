@@ -26,26 +26,40 @@ as $$
   );
 $$;
 
--- Signed-in users can access core workflow tables. Privileged actions remain
--- enforced in the server-side app logic, which is the actual authorization layer.
+create or replace function public.is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select coalesce((auth.jwt() ->> 'role'), 'employee') = 'Administrator';
+$$;
+
+-- Administrators have full access across the schema. Signed-in users retain the
+-- normal app access needed for onboarding and workflow tasks.
 drop policy if exists employee_self_profile on profiles;
 drop policy if exists "Profiles are editable by owner" on profiles;
 drop policy if exists "Profiles are viewable by owner or admins" on profiles;
 create policy employee_self_profile on profiles
 for all
-using (auth.uid() = id)
-with check (auth.uid() = id);
+using (public.is_admin() or auth.uid() = id)
+with check (public.is_admin() or auth.uid() = id);
 
 drop policy if exists signed_in_users_access_departments on departments;
 create policy signed_in_users_access_departments on departments
 for all
-using (auth.uid() is not null)
-with check (auth.uid() is not null);
+using (public.is_admin() or auth.uid() is not null)
+with check (public.is_admin() or auth.uid() is not null);
 
 drop policy if exists signed_in_users_access_employees on employees;
+drop policy if exists deny_all_other_access on public.employees;
+drop policy if exists managers_read_all on public.employees;
+drop policy if exists employee_self_records on public.employees;
 create policy signed_in_users_access_employees on employees
-for select
-using (auth.uid() is not null);
+for all
+using (public.is_admin() or auth.uid() is not null)
+with check (public.is_admin() or auth.uid() is not null);
 
 drop policy if exists signed_in_users_access_exit_requests on exit_requests;
 create policy signed_in_users_access_exit_requests on exit_requests

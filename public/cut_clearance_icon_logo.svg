@@ -1,0 +1,61 @@
+<svg viewBox="0 0 500 500" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0E8A5F"/>
+      <stop offset="100%" stop-color="#063D28"/>
+    </linearGradient>
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#12A56E"/>
+      <stop offset="55%" stop-color="#0B6E4F"/>
+      <stop offset="100%" stop-color="#063D28"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FBE08A"/>
+      <stop offset="50%" stop-color="#F2C94C"/>
+      <stop offset="100%" stop-color="#C99A2E"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#000000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <!-- Outer circular badge -->
+  <circle cx="250" cy="250" r="235" fill="url(#bgGrad)"/>
+  <circle cx="250" cy="250" r="235" fill="none" stroke="url(#goldGrad)" stroke-width="7"/>
+  <circle cx="250" cy="250" r="212" fill="none" stroke="url(#goldGrad)" stroke-width="2" opacity="0.7"/>
+
+  <!-- Shield -->
+  <g filter="url(#softShadow)">
+    <path d="M250 95
+             L360 138
+             L360 255
+             C360 340 312 398 250 428
+             C188 398 140 340 140 255
+             L140 138
+             Z"
+          fill="url(#shieldGrad)" stroke="url(#goldGrad)" stroke-width="6"/>
+  </g>
+
+  <!-- subtle inner highlight -->
+  <path d="M250 95 L360 138 L360 255 C360 340 312 398 250 428 C188 398 140 340 140 255 L140 138 Z"
+        fill="url(#glow)"/>
+
+  <!-- Circuit / digital motif, symmetric, tucked behind checkmark -->
+  <g stroke="url(#goldGrad)" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.9">
+    <path d="M188 210 h26 v-24 h20"/>
+    <path d="M312 300 h-26 v24 h-20"/>
+    <circle cx="188" cy="210" r="5" fill="url(#goldGrad)" stroke="none"/>
+    <circle cx="234" cy="186" r="5" fill="url(#goldGrad)" stroke="none"/>
+    <circle cx="312" cy="300" r="5" fill="url(#goldGrad)" stroke="none"/>
+    <circle cx="266" cy="324" r="5" fill="url(#goldGrad)" stroke="none"/>
+  </g>
+
+  <!-- Checkmark -->
+  <path d="M182 262 L228 308 L322 198"
+        fill="none" stroke="#FFFFFF" stroke-width="26"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

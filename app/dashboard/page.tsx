@@ -20,6 +20,17 @@ export default async function Page() {
     .eq("id", user.id)
     .maybeSingle();
 
+  const authRole = user?.user_metadata?.role as string | undefined;
+  const profileRole = profile?.role as string | undefined;
+
+  console.log("[dashboard-role-debug]", {
+    userId: user.id,
+    authRole,
+    profileRole,
+    rawMetadata: user?.user_metadata ?? null,
+    defaultRole: "Employee",
+  });
+
   if (!profile?.department_id) {
     redirect("/onboard?next=/dashboard");
   }
@@ -39,7 +50,14 @@ export default async function Page() {
     supabase
       .from("exit_requests")
       .select("*", { count: "exact", head: true })
-      .in("status", ["draft", "submitted", "under_review", "clearance", "blocked", "eligible_for_finalization"]),
+      .in("status", [
+        "draft",
+        "submitted",
+        "under_review",
+        "clearance",
+        "blocked",
+        "eligible_for_finalization",
+      ]),
     supabase
       .from("clearance_steps")
       .select("*", { count: "exact", head: true })
@@ -51,7 +69,14 @@ export default async function Page() {
     supabase
       .from("exit_requests")
       .select("id, status, last_day, employees(full_name, employee_number)")
-      .in("status", ["draft", "submitted", "under_review", "clearance", "blocked", "eligible_for_finalization"])
+      .in("status", [
+        "draft",
+        "submitted",
+        "under_review",
+        "clearance",
+        "blocked",
+        "eligible_for_finalization",
+      ])
       .order("last_day", { ascending: true, nullsFirst: false })
       .limit(5),
   ]);
@@ -62,20 +87,53 @@ export default async function Page() {
     user?.email?.split("@")[0] ||
     "User";
   const userRole =
-    (user?.user_metadata?.role as string | undefined) || profile?.role || "Employee";
+    (user?.user_metadata?.role as string | undefined) ||
+    profile?.role ||
+    "Employee";
 
   const completedClearances = (clearanceSteps ?? []).filter(
     (step) => step.status === "approved",
   ).length;
   const pendingClearances = (clearanceSteps ?? []).filter(
-    (step) => step.status === "pending" || step.status === "in_progress" || step.status === "blocked",
+    (step) =>
+      step.status === "pending" ||
+      step.status === "in_progress" ||
+      step.status === "blocked",
   ).length;
 
   const metrics = [
-    { label: "Active employees", value: employeeCount ?? 0, description: "Current workforce records", href: "/dashboard/employees", icon: "employees", tone: "blue" },
-    { label: "Open exit requests", value: exitCount ?? 0, description: "Transitions in progress", href: "/dashboard/exit-requests", icon: "exits", tone: "amber" },
-    { label: "Clearances to review", value: clearanceCount ?? 0, description: "Pending department actions", href: "/dashboard/clearances", icon: "clearances", tone: "violet" },
-    { label: "Knowledge records", value: documentCount ?? 0, description: "Documents retained", href: "/dashboard/knowledge-hub", icon: "knowledge", tone: "emerald" },
+    {
+      label: "Active employees",
+      value: employeeCount ?? 0,
+      description: "Current workforce records",
+      href: "/dashboard/employees",
+      icon: "employees",
+      tone: "blue",
+    },
+    {
+      label: "Open exit requests",
+      value: exitCount ?? 0,
+      description: "Transitions in progress",
+      href: "/dashboard/exit-requests",
+      icon: "exits",
+      tone: "amber",
+    },
+    {
+      label: "Clearances to review",
+      value: clearanceCount ?? 0,
+      description: "Pending department actions",
+      href: "/dashboard/clearances",
+      icon: "clearances",
+      tone: "violet",
+    },
+    {
+      label: "Knowledge records",
+      value: documentCount ?? 0,
+      description: "Documents retained",
+      href: "/dashboard/knowledge-hub",
+      icon: "knowledge",
+      tone: "emerald",
+    },
   ] as const;
 
   const departures = (recentRequests ?? []).map((request) => {
@@ -96,9 +154,19 @@ export default async function Page() {
       <PageFrame
         title={`Good morning, ${userName}`}
         description="Here is what is happening across your institutional continuity workspace."
-        action={<Button render={<a href="/dashboard/reports" />} size="lg">View reports</Button>}
+        action={
+          <Button render={<a href="/dashboard/reports" />} size="lg">
+            View reports
+          </Button>
+        }
       >
-        <DashboardOverview metrics={[...metrics]} departures={departures} clearanceTotal={(clearanceSteps ?? []).length} clearanceApproved={completedClearances} clearancePending={pendingClearances} />
+        <DashboardOverview
+          metrics={[...metrics]}
+          departures={departures}
+          clearanceTotal={(clearanceSteps ?? []).length}
+          clearanceApproved={completedClearances}
+          clearancePending={pendingClearances}
+        />
       </PageFrame>
     </DashboardShell>
   );
