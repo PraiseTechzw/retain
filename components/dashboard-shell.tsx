@@ -212,7 +212,7 @@ function SidebarNav({
                     className={`flex size-8 shrink-0 items-center justify-center rounded-lg transition ${active ? "bg-primary-foreground/15" : "bg-sidebar-accent/60 group-hover:bg-sidebar-accent"}`}
                   >
                     <Icon
-                      className="size-[17px]"
+                      className="size-4.25"
                       strokeWidth={active ? 2.35 : 2}
                     />
                   </span>
@@ -291,7 +291,7 @@ export function DashboardShell({
         />
 
         <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <header className="relative flex min-h-[76px] items-center gap-3 border-b border-border/70 bg-background/90 px-4 shadow-[0_8px_24px_-24px_hsl(var(--foreground)/0.5)] backdrop-blur-xl md:gap-5 md:px-8">
+          <header className="relative flex min-h-19 items-center gap-3 border-b border-border/70 bg-background/90 px-4 shadow-[0_8px_24px_-24px_hsl(var(--foreground)/0.5)] backdrop-blur-xl md:gap-5 md:px-8">
             <button
               aria-label="Open navigation"
               className="rounded-xl border border-border/70 bg-card p-2.5 text-muted-foreground shadow-sm transition hover:border-primary/30 hover:bg-muted hover:text-foreground lg:hidden"
@@ -314,7 +314,7 @@ export function DashboardShell({
               )}
             </button>
 
-            <div className="hidden min-w-[180px] lg:block">
+            <div className="hidden min-w-45 lg:block">
               <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 <LayoutDashboard className="size-3" />
                 Workspace
@@ -401,7 +401,7 @@ export function PageFrame({
   children: React.ReactNode;
 }) {
   return (
-    <div className="mx-auto max-w-[1500px] p-5 md:p-8">
+    <div className="mx-auto max-w-375 p-5 md:p-8">
       <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
         <div>
           <p className="text-sm font-medium text-primary">
@@ -444,7 +444,7 @@ export function DataTable({
 }) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-border/70 bg-card">
-      <table className="w-full min-w-[680px] text-left text-sm">
+      <table className="w-full min-w-170 text-left text-sm">
         <thead>
           <tr className="border-b border-border/70 text-xs uppercase tracking-wide text-muted-foreground">
             {columns.map((c) => (
