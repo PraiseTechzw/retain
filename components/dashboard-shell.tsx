@@ -172,29 +172,29 @@ function SidebarNav({
               </defs>
               <rect width="64" height="64" rx="18" fill="#edf3ff" />
               <path
-                d="M32 6.5c-9.6 5.3-17 6.1-17 6.1v16.7c0 9.7 6.4 18.5 17 24.1 10.6-5.6 17-14.4 17-24.1V12.6s-7.4-.8-17-6.1Z"
+                d="M32 0c-14 7.5-24 8.5-24 8.5v23c0 14 9 26 24 33 15-7 24-19 24-33v-23s-10-1-24-8.5Z"
                 fill="url(#sidebar-retain-brand)"
               />
               <path
-                d="M32 13.5c-6.6 3.7-12.2 4.3-12.2 4.3v11.4c0 6.7 4.4 12.8 12.2 16.8 7.8-4 12.2-10.1 12.2-16.8V17.8s-5.6-.6-12.2-4.3Z"
+                d="M32 9c-9.5 5-16 5.5-16 5.5v15c0 9 6 17 16 23 10-6 16-14 16-23v-15s-6.5-.5-16-5.5Z"
                 fill="#ffffff"
                 opacity="0.18"
               />
-              <circle cx="32" cy="24.5" r="7" fill="#ffffff" />
+              <circle cx="32" cy="27" r="10" fill="#ffffff" />
               <path
-                d="M25.5 33.8c2.2 3 5.2 4.5 6.5 4.5 1.2 0 4.1-1.5 6.5-4.5"
+                d="M22 38.5c3 4 7 6 10 6 3 0 7-2 10-6"
                 fill="none"
                 stroke="#ffffff"
-                strokeWidth="2.6"
+                strokeWidth="3"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
-              <circle cx="48" cy="14" r="7" fill="#2ec27e" />
+              <circle cx="52" cy="10" r="9" fill="#2ec27e" />
               <path
-                d="M45 14.2l2.2 2.2 4.7-5.1"
+                d="M47.5 10.5l3 3 6-6.5"
                 fill="none"
                 stroke="#ffffff"
-                strokeWidth="2"
+                strokeWidth="2.4"
                 strokeLinecap="round"
                 strokeLinejoin="round"
               />
