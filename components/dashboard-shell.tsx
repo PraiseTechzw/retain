@@ -472,13 +472,25 @@ export function DataTable({
     </div>
   );
 }
+import { type LucideIcon, Inbox } from "lucide-react";
 
-export function EmptyState({ label }: { label: string }) {
+export function EmptyState({
+  label,
+  icon: Icon = Inbox,
+  description,
+}: {
+  label: string;
+  icon?: LucideIcon;
+  description?: string;
+}) {
   return (
-    <div className="rounded-2xl border border-dashed border-border bg-card p-12 text-center">
-      <p className="font-semibold">No {label} yet</p>
-      <p className="mt-2 text-sm text-muted-foreground">
-        Connected Supabase records will appear here when available.
+    <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-card px-12 py-16 text-center">
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+        <Icon className="h-6 w-6 text-muted-foreground" aria-hidden="true" />
+      </div>
+      <p className="text-sm font-semibold text-foreground">No {label} yet</p>
+      <p className="mt-1.5 max-w-sm text-sm text-muted-foreground">
+        {description ?? `${label} will show up here once they're available.`}
       </p>
     </div>
   );

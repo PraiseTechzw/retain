@@ -588,6 +588,105 @@ export async function getKnowledgeDownloadUrl(id: string) {
   return data.signedUrl;
 }
 
+export async function createKnowledgeCategory(formData: FormData) {
+  const { supabase, user } = await actor();
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  if (!name) throw new Error("Category name is required.");
+
+  const { error } = await supabase.from("knowledge_categories").insert({
+    name,
+    description,
+    created_by: user.id,
+  });
+
+  if (error) throw new Error("Unable to create category.");
+  await audit(supabase, user.id, "created", "knowledge_category", name, {
+    name,
+    description,
+  });
+  revalidatePath("/dashboard/knowledge-hub");
+}
+
+export async function createKnowledgeRequirement(formData: FormData) {
+  const { supabase, user } = await actor();
+  const name = String(formData.get("name") ?? "").trim();
+  const description = String(formData.get("description") ?? "").trim();
+  const category = String(formData.get("category_id") ?? "").trim();
+  const departmentId = String(formData.get("department_id") ?? "").trim();
+  const reviewerRole = String(formData.get("reviewer_role") ?? "HR").trim();
+  if (!name) throw new Error("Requirement name is required.");
+
+  const { error } = await supabase.from("knowledge_requirements").insert({
+    name,
+    description,
+    category_id: category || null,
+    department_id: departmentId || null,
+    reviewer_role: reviewerRole || "HR",
+    created_by: user.id,
+  });
+
+  if (error) throw new Error("Unable to create requirement.");
+  await audit(supabase, user.id, "created", "knowledge_requirement", name, {
+    name,
+    category,
+    departmentId,
+    reviewerRole,
+  });
+  revalidatePath("/dashboard/knowledge-hub");
+}
+
+export async function reviewKnowledgeDocument(formData: FormData) {
+  const { supabase, user } = await actor();
+  const documentId = String(formData.get("document_id") ?? "").trim();
+  const action = String(formData.get("action") ?? "").trim();
+  const rejectionReason = String(formData.get("rejection_reason") ?? "").trim();
+  if (!documentId || !action)
+    throw new Error("Document and decision are required.");
+
+  const { data: doc } = await supabase
+    .from("knowledge_documents")
+    .select("id, employee_id, status")
+    .eq("id", documentId)
+    .single();
+
+  if (!doc) throw new Error("Document not found.");
+
+  if (doc.employee_id === user.id) {
+    throw new Error(
+      "Employees cannot approve their own knowledge submissions.",
+    );
+  }
+
+  const nextStatus =
+    action === "approved"
+      ? "approved"
+      : action === "rejected"
+        ? "rejected"
+        : "revision_required";
+
+  const { error } = await supabase
+    .from("knowledge_documents")
+    .update({
+      status: nextStatus,
+      reviewed_by: user.id,
+      reviewed_at: new Date().toISOString(),
+      rejection_reason:
+        action === "rejected" ? rejectionReason || "No reason provided." : null,
+    })
+    .eq("id", documentId);
+
+  if (error) throw new Error("Unable to update document review.");
+
+  await audit(supabase, user.id, action, "knowledge_document", documentId, {
+    employee_id: doc.employee_id,
+    rejection_reason: rejectionReason || null,
+  });
+
+  revalidatePath("/dashboard/knowledge-hub");
+  revalidatePath(`/dashboard/knowledge-hub/${documentId}`);
+}
+
 export async function getEmployeeOptions() {
   const { supabase } = await actor();
   const { data, error } = await supabase
