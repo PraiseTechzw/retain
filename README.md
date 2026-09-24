@@ -98,6 +98,29 @@ Create a .env.local file with the Supabase variables required by the app:
 - SUPABASE_SERVICE_ROLE_KEY
 - NEXT_PUBLIC_APP_URL
 
+Daily email notifications also require a Resend account and these Supabase
+Edge Function secrets:
+
+- `RESEND_API_KEY`
+- `NOTIFICATION_FROM_EMAIL` (a verified Resend sender)
+
+The migration `20260924_008_daily_email_notifications.sql` enables `pg_cron`
+and `pg_net`, schedules the daily job for 07:00 UTC, and stores delivery state
+so retries do not send duplicate digests. Before applying it, store the
+following in Supabase Vault:
+
+- `supabase_url`
+- `supabase_service_role_key`
+
+Deploy the function with `supabase functions deploy daily-notifications`, set
+the Edge Function secrets with `supabase secrets set RESEND_API_KEY=... NOTIFICATION_FROM_EMAIL=...`,
+store the two Vault secrets in the Supabase SQL editor, and then apply the
+migrations. The scheduler runs inside Supabase, so it remains active when the
+Next.js app and all user browsers are closed.
+
+The service-role key currently present in local environment configuration must
+be rotated in Supabase if it has been shared outside the project.
+
 ## Admin features
 
 The system includes admin controls for:
