@@ -8,17 +8,17 @@ export const metadata: Metadata = {
   description: `Secure employee exit, clearance, and institutional knowledge preservation for ${appConfig.organization}.`,
   generator: "v0.app",
   icons: {
-    icon: "/icon.svg",
-    shortcut: "/icon.svg",
-    apple: "/icon.svg",
+    icon: "/cut-logo.png",
+    shortcut: "/cut-logo.png",
+    apple: "/cut-logo.png",
   },
 };
 
 export const viewport: Viewport = {
   colorScheme: "light dark",
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f7f9fc" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b1320" },
+    { media: "(prefers-color-scheme: light)", color: "#f8fafc" },
+    { media: "(prefers-color-scheme: dark)", color: "#172b43" },
   ],
 };
 

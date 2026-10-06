@@ -29,6 +29,8 @@ export type EmployeeRecord = {
   employment_category?: string | null;
   joined_on?: string | null;
   exit_date?: string | null;
+  home_area?: string | null;
+  commute_distance_km?: number | null;
   department_id?: string | null;
   departments?: DepartmentRecord | DepartmentRecord[] | null;
 };
@@ -53,8 +55,70 @@ export type AssetRecord = {
   status?: string | null;
   returned_at?: string | null;
   verified_at?: string | null;
+  current_location?: string | null;
   assigned_to?: string | null;
   employees?: EmployeeRecord | EmployeeRecord[] | null;
+};
+
+export type LeaveRequestRecord = {
+  id: string;
+  employee_id: string;
+  leave_type: string;
+  starts_on: string;
+  ends_on: string;
+  requested_days: number;
+  reason: string | null;
+  status: string;
+  reviewed_at: string | null;
+  review_notes: string | null;
+  created_at: string;
+  employees?:
+    | { full_name?: string | null; employee_number?: string | null; department_id?: string | null }
+    | Array<{ full_name?: string | null; employee_number?: string | null; department_id?: string | null }>
+    | null;
+};
+
+export type LeaveBalanceRecord = {
+  id: string;
+  employee_id: string;
+  leave_year: number;
+  leave_type: string;
+  entitled_days: number;
+  carried_over_days: number;
+  updated_at: string;
+};
+
+export type AssetDailyLogRecord = {
+  id: string;
+  asset_id: string;
+  employee_id: string | null;
+  event_type: string;
+  logged_on: string;
+  location: string | null;
+  notes: string | null;
+  created_at: string;
+  assets?: { asset_tag?: string | null; asset_type?: string | null } | null;
+  employees?: { full_name?: string | null } | null;
+};
+
+export type RecruitmentOpeningRecord = {
+  id: string;
+  job_title: string;
+  employment_category: string;
+  status: string;
+  positions: number;
+  target_start_date: string | null;
+  notes: string | null;
+  created_at: string;
+  departments?: { name?: string | null } | null;
+};
+
+export type QuarterlyTurnoverRecord = {
+  quarter_start: string;
+  department: string;
+  exits: number;
+  active_headcount: number;
+  attrition_rate_pct: number | null;
 };
 
 export type KnowledgeDocumentRecord = {
@@ -177,7 +241,7 @@ export async function getEmployees(): Promise<EmployeeRecord[]> {
   const baseQuery = supabase
     .from("employees")
     .select(
-      "id, employee_number, full_name, email, job_title, employment_status, employment_category, joined_on, exit_date, department_id, departments(name)",
+      "id, employee_number, full_name, email, job_title, employment_status, employment_category, joined_on, exit_date, home_area, commute_distance_km, department_id, departments(name)",
     )
     .order("created_at", { ascending: false });
 
@@ -275,11 +339,72 @@ export async function getAssets(): Promise<AssetRecord[]> {
   const { data, error } = await supabase
     .from("assets")
     .select(
-      "id, asset_tag, asset_type, description, status, returned_at, verified_at, assigned_to, employees!assigned_to(full_name, employee_number, department_id)",
+      "id, asset_tag, asset_type, description, status, returned_at, verified_at, current_location, assigned_to, employees!assigned_to(full_name, employee_number, department_id)",
     )
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   return data ?? [];
+}
+
+export async function getLeaveRequests(): Promise<LeaveRequestRecord[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("leave_requests")
+    .select(
+      "id, employee_id, leave_type, starts_on, ends_on, requested_days, reason, status, reviewed_at, review_notes, created_at, employees!employee_id(full_name, employee_number, department_id)",
+    )
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as LeaveRequestRecord[];
+}
+
+export async function getLeaveBalances(): Promise<LeaveBalanceRecord[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("leave_balances")
+    .select("id, employee_id, leave_year, leave_type, entitled_days, carried_over_days, updated_at")
+    .order("leave_year", { ascending: false })
+    .order("leave_type");
+  if (error) throw new Error(error.message);
+  return (data ?? []) as LeaveBalanceRecord[];
+}
+
+export async function getAssetDailyLogs(limit = 50): Promise<AssetDailyLogRecord[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("asset_daily_logs")
+    .select(
+      "id, asset_id, employee_id, event_type, logged_on, location, notes, created_at, assets!asset_id(asset_tag, asset_type), employees!employee_id(full_name)",
+    )
+    .order("logged_on", { ascending: false })
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as AssetDailyLogRecord[];
+}
+
+export async function getRecruitmentOpenings(): Promise<RecruitmentOpeningRecord[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("recruitment_openings")
+    .select(
+      "id, job_title, employment_category, status, positions, target_start_date, notes, created_at, departments(name)",
+    )
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as RecruitmentOpeningRecord[];
+}
+
+export async function getQuarterlyTurnoverSummary(): Promise<QuarterlyTurnoverRecord[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("quarterly_turnover_summary")
+    .select("quarter_start, department, exits, active_headcount, attrition_rate_pct")
+    .order("quarter_start", { ascending: false })
+    .order("department", { ascending: true })
+    .limit(48);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as QuarterlyTurnoverRecord[];
 }
 
 export async function getKnowledgeDocuments(): Promise<

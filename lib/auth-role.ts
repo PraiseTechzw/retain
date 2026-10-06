@@ -7,6 +7,8 @@ export type UserRole =
   | "ICT"
   | "Library"
   | "Management"
+  | "Academic Attaché"
+  | "Support Staff"
   | "Employee";
 
 export function normalizeUserRole(role: string | null | undefined): string {
@@ -32,6 +34,14 @@ export function normalizeUserRole(role: string | null | undefined): string {
 
   if (normalized.includes("library")) {
     return "Library";
+  }
+
+  if (normalized.includes("attache") || normalized.includes("attaché")) {
+    return "Academic Attaché";
+  }
+
+  if (normalized.includes("support")) {
+    return "Support Staff";
   }
 
   if (normalized.includes("management") || normalized.includes("operations")) {

@@ -8,6 +8,7 @@ import {
 import { resolveDashboardUserContext } from "@/lib/auth-role";
 import {
   getAuditEvents,
+  getQuarterlyTurnoverSummary,
   getReportDashboardSnapshot,
 } from "@/lib/supabase/data";
 import { createClient } from "@/lib/supabase/server";
@@ -32,6 +33,11 @@ const reportCatalog = [
     key: "assets",
     label: "Asset recovery",
     description: "Assigned and recovered asset status",
+  },
+  {
+    key: "quarterly-attrition",
+    label: "Quarterly attrition",
+    description: "Automatically grouped exits, current headcount, and quarterly rate by department",
   },
 ] as const;
 
@@ -82,8 +88,9 @@ export default async function Page({
   const exportFormat = params.format === "csv" ? "csv" : "preview";
 
   const { userName, userRole } = await resolveDashboardUserContext();
-  const snapshot = await getReportDashboardSnapshot();
-  const [auditEvents] = await Promise.all([
+  const [snapshot, quarterlyTurnover, auditEvents] = await Promise.all([
+    getReportDashboardSnapshot(),
+    getQuarterlyTurnoverSummary(),
     getAuditEvents(5),
     recordReportActivity(reportKey ?? "workforce"),
   ]);
@@ -138,6 +145,11 @@ export default async function Page({
             ).length,
           ],
         ];
+      case "quarterly-attrition":
+        return quarterlyTurnover.map((quarter) => [
+          `${new Date(`${quarter.quarter_start}T12:00:00`).toLocaleDateString("en", { month: "short", year: "numeric" })} · ${quarter.department}`,
+          `${quarter.exits} exits / ${quarter.active_headcount} current staff · ${quarter.attrition_rate_pct ?? "N/A"}%`,
+        ]);
       case "workforce":
       default:
         return [

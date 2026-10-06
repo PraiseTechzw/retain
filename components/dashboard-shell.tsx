@@ -1,12 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
+  Activity,
   BarChart3,
   Bell,
   BookOpen,
+  BriefcaseBusiness,
+  CalendarDays,
   ChevronDown,
   ClipboardCheck,
   FileText,
@@ -53,6 +57,14 @@ function resolveDisplayRole(userRole?: string | null) {
     return "Library";
   }
 
+  if (lower.includes("attache") || lower.includes("attaché")) {
+    return "Academic Attaché";
+  }
+
+  if (lower.includes("support")) {
+    return "Support Staff";
+  }
+
   if (lower.includes("management") || lower.includes("operations")) {
     return "Management";
   }
@@ -81,6 +93,12 @@ const navItems = [
     ["employee", "hr", "administrator", "management"],
   ],
   [
+    "Leave",
+    "/dashboard/leave",
+    CalendarDays,
+    ["employee", "academic attaché", "support staff", "hr", "administrator"],
+  ],
+  [
     "Clearances",
     "/dashboard/clearances",
     ShieldCheck,
@@ -90,7 +108,13 @@ const navItems = [
     "Assets",
     "/dashboard/assets",
     PackageCheck,
-    ["hr", "administrator", "management"],
+    ["hr", "administrator", "management", "ict", "library"],
+  ],
+  [
+    "Asset Activity",
+    "/dashboard/assets/activity",
+    Activity,
+    ["hr", "administrator", "management", "ict", "library"],
   ],
   [
     "Knowledge Hub",
@@ -105,6 +129,18 @@ const navItems = [
     ["hr", "administrator", "management"],
   ],
   [
+    "Talent Risk",
+    "/dashboard/talent-risk",
+    Activity,
+    ["hr", "administrator", "management"],
+  ],
+  [
+    "Recruitment",
+    "/dashboard/recruitment",
+    BriefcaseBusiness,
+    ["hr", "administrator", "management"],
+  ],
+  [
     "Reports",
     "/dashboard/reports",
     FileText,
@@ -115,7 +151,13 @@ const navItems = [
 
 function canAccessNavItem(userRole: string, allowedRoles: readonly string[]) {
   const normalizedRole = userRole.toLowerCase();
-  return allowedRoles.some((role) => normalizedRole.includes(role));
+  return allowedRoles.some(
+    (role) =>
+      normalizedRole.includes(role) ||
+      (role === "employee" &&
+        (normalizedRole.includes("academic attaché") ||
+          normalizedRole.includes("support staff"))),
+  );
 }
 
 function SidebarNav({
@@ -151,60 +193,19 @@ function SidebarNav({
         <div
           className={`flex items-center gap-3 ${collapsed ? "lg:justify-center" : "px-3"}`}
         >
-          <div className="relative flex size-14 shrink-0 items-center justify-center rounded-2xl bg-[#edf3ff] shadow-lg shadow-primary/10 dark:bg-[#1d2f5e]">
-            <svg
-              viewBox="0 0 64 64"
-              className="size-8"
-              aria-label="Retain brand icon"
-              role="img"
-            >
-              <defs>
-                <linearGradient
-                  id="sidebar-retain-brand"
-                  x1="0"
-                  x2="1"
-                  y1="0"
-                  y2="1"
-                >
-                  <stop offset="0%" stopColor="#3b5bdb" />
-                  <stop offset="100%" stopColor="#2b3fb3" />
-                </linearGradient>
-              </defs>
-              <rect width="64" height="64" rx="18" fill="#edf3ff" />
-              <path
-                d="M32 0c-14 7.5-24 8.5-24 8.5v23c0 14 9 26 24 33 15-7 24-19 24-33v-23s-10-1-24-8.5Z"
-                fill="url(#sidebar-retain-brand)"
-              />
-              <path
-                d="M32 9c-9.5 5-16 5.5-16 5.5v15c0 9 6 17 16 23 10-6 16-14 16-23v-15s-6.5-.5-16-5.5Z"
-                fill="#ffffff"
-                opacity="0.18"
-              />
-              <circle cx="32" cy="27" r="10" fill="#ffffff" />
-              <path
-                d="M22 38.5c3 4 7 6 10 6 3 0 7-2 10-6"
-                fill="none"
-                stroke="#ffffff"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-              <circle cx="52" cy="10" r="9" fill="#2ec27e" />
-              <path
-                d="M47.5 10.5l3 3 6-6.5"
-                fill="none"
-                stroke="#ffffff"
-                strokeWidth="2.4"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-            <span className="absolute -bottom-1 -right-1 size-3 rounded-full border-2 border-sidebar bg-emerald-500" />
+          <div
+            className={`relative flex h-12 shrink-0 items-center overflow-hidden rounded-lg bg-white ${collapsed ? "w-[212px] lg:w-12" : "w-[212px]"}`}
+          >
+            <Image
+              src="/cut-logo.png"
+              alt="Chinhoyi University of Technology"
+              width={450}
+              height={67}
+              priority
+              className={`h-auto w-[212px] max-w-none ${collapsed ? "lg:h-12 lg:w-[322px] lg:object-cover lg:object-left" : ""}`}
+            />
           </div>
           <div className={`min-w-0 ${collapsed ? "lg:hidden" : ""}`}>
-            <p className="text-lg font-semibold tracking-tight">
-              {appConfig.appName}
-            </p>
             <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               {appConfig.subtitle}
             </p>

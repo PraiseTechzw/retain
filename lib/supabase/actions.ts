@@ -400,6 +400,17 @@ async function resolveEffectiveUserRole(
   );
 }
 
+async function requireAnyRole(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  user: { id: string; user_metadata?: Record<string, unknown> },
+  allowedRoles: string[],
+) {
+  const role = (await resolveEffectiveUserRole(supabase, user)).toLowerCase();
+  if (!allowedRoles.some((allowedRole) => role.includes(allowedRole.toLowerCase()))) {
+    throw new Error("You are not authorized to perform this action.");
+  }
+}
+
 type ClearanceStep = { department: string; status: string; comments?: string };
 type AssetRow = {
   id: string;
@@ -428,15 +439,33 @@ async function audit(
 
 export async function createEmployee(formData: FormData) {
   const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, ["administrator", "hr"]);
+  const commuteDistanceValue = String(
+    formData.get("commute_distance_km") ?? "",
+  ).trim();
+  const commuteDistance = commuteDistanceValue
+    ? Number(commuteDistanceValue)
+    : null;
   const employee = {
     employee_number: String(formData.get("employee_number") ?? "").trim(),
     full_name: String(formData.get("full_name") ?? "").trim(),
     email: String(formData.get("email") ?? "").trim() || null,
     job_title: String(formData.get("job_title") ?? "").trim() || null,
+    employment_category:
+      String(formData.get("employment_category") ?? "").trim() || "support",
+    joined_on: String(formData.get("joined_on") ?? "").trim() || null,
+    home_area: String(formData.get("home_area") ?? "").trim() || null,
+    commute_distance_km: commuteDistance,
     employment_status: "active",
   };
   if (!employee.employee_number || !employee.full_name)
     throw new Error("Employee number and full name are required.");
+  if (
+    commuteDistance !== null &&
+    (!Number.isFinite(commuteDistance) || commuteDistance < 0)
+  ) {
+    throw new Error("Commute distance must be a non-negative number.");
+  }
   const { data, error } = await supabase
     .from("employees")
     .insert(employee)
@@ -524,6 +553,271 @@ export async function updateAssetStatus(formData: FormData) {
   await audit(supabase, user.id, "updated", "asset", id, { status });
   revalidatePath("/dashboard/assets");
   revalidatePath("/dashboard/assets/returns");
+}
+
+export async function submitLeaveRequest(formData: FormData) {
+  const { supabase, user } = await actor();
+  const leaveType = String(formData.get("leave_type") ?? "").trim();
+  const startsOn = String(formData.get("starts_on") ?? "").trim();
+  const endsOn = String(formData.get("ends_on") ?? "").trim();
+  const reason = String(formData.get("reason") ?? "").trim() || null;
+  if (!leaveType || !startsOn || !endsOn) {
+    throw new Error("Leave type and date range are required.");
+  }
+  const start = new Date(`${startsOn}T12:00:00`);
+  const end = new Date(`${endsOn}T12:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+    throw new Error("Enter a valid leave date range.");
+  }
+
+  const employeeEmail = String(user.email ?? "").trim();
+  if (!employeeEmail) throw new Error("Your account has no employee email.");
+  const { data: employee, error: employeeError } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("email", employeeEmail)
+    .maybeSingle();
+  if (employeeError) throw new Error("Unable to find your employee record.");
+  if (!employee) throw new Error("Your account is not linked to an employee record.");
+
+  const { data: conflicts, error: conflictError } = await supabase
+    .from("leave_requests")
+    .select("id")
+    .eq("employee_id", employee.id)
+    .in("status", ["pending", "approved"])
+    .lte("starts_on", endsOn)
+    .gte("ends_on", startsOn)
+    .limit(1);
+  if (conflictError) throw new Error("Unable to check for overlapping leave.");
+  if (conflicts?.length) throw new Error("You already have a pending or approved leave request for these dates.");
+
+  let requestedDays = 0;
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    const day = cursor.getDay();
+    if (day !== 0 && day !== 6) requestedDays += 1;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  if (!requestedDays) throw new Error("Leave must include at least one weekday.");
+
+  const { data, error } = await supabase
+    .from("leave_requests")
+    .insert({
+      employee_id: employee.id,
+      leave_type: leaveType,
+      starts_on: startsOn,
+      ends_on: endsOn,
+      requested_days: requestedDays,
+      reason,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error("Unable to submit leave request.");
+  await audit(supabase, user.id, "submitted", "leave_request", data.id, {
+    starts_on: startsOn,
+    ends_on: endsOn,
+    requested_days: requestedDays,
+  });
+  revalidatePath("/dashboard/leave");
+  revalidatePath("/dashboard/analytics");
+}
+
+export async function reviewLeaveRequest(formData: FormData) {
+  const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, ["administrator", "hr"]);
+  const requestId = String(formData.get("request_id") ?? "").trim();
+  const decision = String(formData.get("decision") ?? "").trim();
+  const reviewNotes = String(formData.get("review_notes") ?? "").trim() || null;
+  if (!requestId || !["approved", "rejected"].includes(decision)) {
+    throw new Error("A leave request and valid decision are required.");
+  }
+  const { data: request, error: requestError } = await supabase
+    .from("leave_requests")
+    .select("id, employee_id, status")
+    .eq("id", requestId)
+    .single();
+  if (requestError || !request) throw new Error("Leave request not found.");
+  if (request.status !== "pending") throw new Error("Only pending leave requests can be reviewed.");
+  const { data: employee, error: employeeError } = await supabase
+    .from("employees")
+    .select("email")
+    .eq("id", request.employee_id)
+    .maybeSingle();
+  if (employeeError) throw new Error("Unable to verify the employee record.");
+  if (employee?.email && employee.email.toLowerCase() === String(user.email ?? "").toLowerCase()) {
+    throw new Error("You cannot review your own leave request.");
+  }
+  const { error } = await supabase
+    .from("leave_requests")
+    .update({
+      status: decision,
+      reviewed_by: user.id,
+      reviewed_at: new Date().toISOString(),
+      review_notes: reviewNotes,
+    })
+    .eq("id", requestId)
+    .eq("status", "pending");
+  if (error) throw new Error("Unable to update the leave request.");
+  await audit(supabase, user.id, decision, "leave_request", requestId);
+  revalidatePath("/dashboard/leave");
+  revalidatePath("/dashboard/analytics");
+}
+
+export async function setLeaveBalance(formData: FormData) {
+  const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, ["administrator", "hr"]);
+  const employeeId = String(formData.get("employee_id") ?? "").trim();
+  const leaveType = String(formData.get("leave_type") ?? "").trim();
+  const leaveYear = Number(formData.get("leave_year") ?? new Date().getFullYear());
+  const entitledDays = Number(formData.get("entitled_days") ?? "");
+  const carriedOverDays = Number(formData.get("carried_over_days") ?? "0");
+  if (
+    !employeeId ||
+    !leaveType ||
+    !Number.isInteger(leaveYear) ||
+    leaveYear < 2000 ||
+    leaveYear > 2200 ||
+    !Number.isFinite(entitledDays) ||
+    entitledDays < 0 ||
+    !Number.isFinite(carriedOverDays) ||
+    carriedOverDays < 0
+  ) {
+    throw new Error("Enter a valid employee, year, leave type, and non-negative balance.");
+  }
+  const { error } = await supabase.from("leave_balances").upsert(
+    {
+      employee_id: employeeId,
+      leave_year: leaveYear,
+      leave_type: leaveType,
+      entitled_days: entitledDays,
+      carried_over_days: carriedOverDays,
+      updated_by: user.id,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "employee_id,leave_year,leave_type" },
+  );
+  if (error) throw new Error("Unable to save leave balance.");
+  await audit(supabase, user.id, "updated", "leave_balance", employeeId, {
+    leave_year: leaveYear,
+    leave_type: leaveType,
+    entitled_days: entitledDays,
+    carried_over_days: carriedOverDays,
+  });
+  revalidatePath("/dashboard/leave");
+}
+
+export async function recordAssetDailyLog(formData: FormData) {
+  const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, ["administrator", "hr", "management", "ict", "library"]);
+  const assetId = String(formData.get("asset_id") ?? "").trim();
+  const eventType = String(formData.get("event_type") ?? "").trim();
+  const loggedOn = String(formData.get("logged_on") ?? "").trim();
+  const location = String(formData.get("location") ?? "").trim() || null;
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+  if (!assetId || !["daily_check", "movement", "maintenance", "issue", "return"].includes(eventType)) {
+    throw new Error("An asset and valid activity type are required.");
+  }
+  if (eventType === "movement" && !location) {
+    throw new Error("A destination is required when recording asset movement.");
+  }
+  const dateValue = loggedOn || new Date().toISOString().slice(0, 10);
+  if (Number.isNaN(new Date(`${dateValue}T12:00:00`).getTime())) {
+    throw new Error("Enter a valid activity date.");
+  }
+  const { data: asset, error: assetError } = await supabase
+    .from("assets")
+    .select("id, assigned_to")
+    .eq("id", assetId)
+    .single();
+  if (assetError || !asset) throw new Error("Asset not found.");
+  const { data, error } = await supabase
+    .from("asset_daily_logs")
+    .insert({
+      asset_id: assetId,
+      employee_id: asset.assigned_to,
+      event_type: eventType,
+      logged_on: dateValue,
+      location,
+      notes,
+      created_by: user.id,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error("Unable to record asset activity.");
+  if (location) {
+    const { error: locationError } = await supabase
+      .from("assets")
+      .update({ current_location: location })
+      .eq("id", assetId);
+    if (locationError) throw new Error("Activity was logged, but the asset's current location could not be updated.");
+  }
+  await audit(supabase, user.id, eventType, "asset", assetId, {
+    activity_id: data.id,
+    location,
+    logged_on: dateValue,
+  });
+  revalidatePath("/dashboard/assets");
+  revalidatePath("/dashboard/assets/activity");
+}
+
+export async function createRecruitmentOpening(formData: FormData) {
+  const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, ["administrator", "hr", "management"]);
+  const jobTitle = String(formData.get("job_title") ?? "").trim();
+  const employmentCategory = String(formData.get("employment_category") ?? "").trim();
+  const departmentId = String(formData.get("department_id") ?? "").trim() || null;
+  const status = String(formData.get("status") ?? "planned").trim();
+  const positions = Number(formData.get("positions") ?? 1);
+  const targetStartDate = String(formData.get("target_start_date") ?? "").trim() || null;
+  const notes = String(formData.get("notes") ?? "").trim() || null;
+  if (!jobTitle || !employmentCategory || !Number.isInteger(positions) || positions < 1) {
+    throw new Error("Job title, employment category, and a positive position count are required.");
+  }
+  if (!["planned", "open", "shortlisting", "interviewing", "offered", "filled", "cancelled"].includes(status)) {
+    throw new Error("Select a valid recruitment stage.");
+  }
+  const { data, error } = await supabase
+    .from("recruitment_openings")
+    .insert({
+      job_title: jobTitle,
+      employment_category: employmentCategory,
+      department_id: departmentId,
+      status,
+      positions,
+      target_start_date: targetStartDate,
+      notes,
+      created_by: user.id,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error("Unable to save recruitment opening.");
+  await audit(supabase, user.id, "created", "recruitment_opening", data.id, {
+    job_title: jobTitle,
+    status,
+  });
+  revalidatePath("/dashboard/recruitment");
+}
+
+export async function updateRecruitmentStage(formData: FormData) {
+  const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, ["administrator", "hr", "management"]);
+  const openingId = String(formData.get("opening_id") ?? "").trim();
+  const status = String(formData.get("status") ?? "").trim();
+  if (
+    !openingId ||
+    !["planned", "open", "shortlisting", "interviewing", "offered", "filled", "cancelled"].includes(status)
+  ) {
+    throw new Error("Select a recruitment opening and valid stage.");
+  }
+  const { error } = await supabase
+    .from("recruitment_openings")
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq("id", openingId);
+  if (error) throw new Error("Unable to update recruitment stage.");
+  await audit(supabase, user.id, "stage_changed", "recruitment_opening", openingId, {
+    status,
+  });
+  revalidatePath("/dashboard/recruitment");
 }
 
 export async function approveClearance(formData: FormData) {
@@ -1268,6 +1562,7 @@ export async function createInterview(formData: FormData) {
 
 export async function createAsset(formData: FormData) {
   const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, ["administrator", "hr", "ict", "library"]);
   const asset = {
     asset_tag: String(formData.get("asset_tag") ?? "").trim(),
     asset_type: String(formData.get("asset_type") ?? "").trim(),
@@ -1290,6 +1585,7 @@ export async function createAsset(formData: FormData) {
 
 export async function assignAsset(formData: FormData) {
   const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, ["administrator", "hr", "ict", "library"]);
   const assetId = String(formData.get("asset_id") ?? "");
   const employeeId = String(formData.get("employee_id") ?? "");
   if (!assetId || !employeeId)
@@ -1314,6 +1610,7 @@ export async function assignAsset(formData: FormData) {
 
 export async function verifyAsset(formData: FormData) {
   const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, ["administrator", "hr", "ict", "library"]);
   const assetId = String(formData.get("asset_id") ?? "");
   const status = String(formData.get("status") ?? "returned");
   const notes = String(formData.get("notes") ?? "");
