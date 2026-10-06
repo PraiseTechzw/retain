@@ -479,6 +479,36 @@ export async function createEmployee(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
+export async function updateEmployeeCommute(formData: FormData) {
+  const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, ["administrator", "hr"]);
+  const employeeId = String(formData.get("employee_id") ?? "").trim();
+  const homeArea = String(formData.get("home_area") ?? "").trim() || null;
+  const commuteValue = String(formData.get("commute_distance_km") ?? "").trim();
+  const commuteDistance = commuteValue ? Number(commuteValue) : null;
+  if (
+    !employeeId ||
+    (commuteDistance !== null &&
+      (!Number.isFinite(commuteDistance) || commuteDistance < 0))
+  ) {
+    throw new Error("Enter a valid employee and non-negative commute distance.");
+  }
+  const { error } = await supabase
+    .from("employees")
+    .update({
+      home_area: homeArea,
+      commute_distance_km: commuteDistance,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", employeeId);
+  if (error) throw new Error("Unable to update commute details.");
+  await audit(supabase, user.id, "updated_commute", "employee", employeeId, {
+    commute_distance_km: commuteDistance,
+  });
+  revalidatePath(`/dashboard/employees/${employeeId}`);
+  revalidatePath("/dashboard/talent-risk");
+}
+
 export async function createExitRequest(formData: FormData) {
   const { supabase, user } = await actor();
   const employeeId = String(formData.get("employee_id") ?? "");
@@ -1666,6 +1696,20 @@ export async function updateUserRole(formData: FormData) {
 
   if (!userId || !newRole) {
     throw new Error("User ID and role are required.");
+  }
+  if (
+    ![
+      "Employee",
+      "HR",
+      "Administrator",
+      "ICT",
+      "Library",
+      "Management",
+      "Academic Attaché",
+      "Support Staff",
+    ].includes(newRole)
+  ) {
+    throw new Error("Select a supported user role.");
   }
 
   // Update profile role

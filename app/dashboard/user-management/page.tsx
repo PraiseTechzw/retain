@@ -77,6 +77,8 @@ export default async function Page() {
           <option value="ICT">ICT</option>
           <option value="Library">Library</option>
           <option value="Management">Management</option>
+          <option value="Academic Attaché">Academic Attaché</option>
+          <option value="Support Staff">Support Staff</option>
         </select>
         <button
           type="submit"

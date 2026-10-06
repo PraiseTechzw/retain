@@ -92,8 +92,8 @@ export default async function Page({
     getReportDashboardSnapshot(),
     getQuarterlyTurnoverSummary(),
     getAuditEvents(5),
-    recordReportActivity(reportKey ?? "workforce"),
   ]);
+  await recordReportActivity(reportKey ?? "workforce");
 
   const selectedReport =
     reportCatalog.find((report) => report.key === reportKey) ??

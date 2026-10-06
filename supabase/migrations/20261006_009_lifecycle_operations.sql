@@ -94,6 +94,16 @@ create table if not exists public.recruitment_openings (
 create index if not exists recruitment_openings_status_idx
   on public.recruitment_openings(status);
 
+insert into public.role_permissions (role_name, permission_name)
+values
+  ('Academic Attaché', 'view_own_profile'),
+  ('Academic Attaché', 'apply_for_leave'),
+  ('Academic Attaché', 'view_own_leave'),
+  ('Support Staff', 'view_own_profile'),
+  ('Support Staff', 'apply_for_leave'),
+  ('Support Staff', 'view_own_leave')
+on conflict (role_name, permission_name) do nothing;
+
 alter table public.leave_requests enable row level security;
 alter table public.leave_balances enable row level security;
 alter table public.asset_daily_logs enable row level security;
