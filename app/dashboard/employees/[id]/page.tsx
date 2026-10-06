@@ -5,6 +5,7 @@ import {
 } from "@/components/dashboard-shell";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
+import { updateEmployeeCommute } from "@/lib/supabase/actions";
 
 export default async function Page({
   params,
@@ -12,6 +13,9 @@ export default async function Page({
   params: Promise<{ id: string }>;
 }) {
   const { userName, userRole } = await resolveDashboardUserContext();
+  const canManageEmployee = ["hr", "administrator"].some((role) =>
+    userRole.toLowerCase().includes(role),
+  );
   const { id } = await params;
   const supabase = await createClient();
 
@@ -19,7 +23,7 @@ export default async function Page({
   const { data: employee, error } = await supabase
     .from("employees")
     .select(
-      "id, employee_number, full_name, email, job_title, employment_status, employment_category, joined_on, exit_date, department_id, departments(name)",
+      "id, employee_number, full_name, email, job_title, employment_status, employment_category, joined_on, exit_date, home_area, commute_distance_km, department_id, departments(name)",
     )
     .or(
       `id.eq.${lookupValue},employee_number.eq.${lookupValue},email.eq.${lookupValue}`,
@@ -45,6 +49,8 @@ export default async function Page({
           employment_category: null,
           joined_on: null,
           exit_date: null,
+          home_area: null,
+          commute_distance_km: null,
           department_id: profileFallback.department_id,
           departments: null,
         }
@@ -124,6 +130,30 @@ export default async function Page({
                     {fallbackEmployee.employment_category || "Not specified"}
                   </p>
                 </div>
+                {canManageEmployee && fallbackEmployee.id && (
+                  <section className="rounded-2xl border border-border/70 bg-card p-6">
+                    <h2 className="text-lg font-semibold">Commute details for risk review</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Optional HR-maintained indicators. Access is restricted to HR and administrators.
+                    </p>
+                    <form action={updateEmployeeCommute} className="mt-4 grid gap-3 md:grid-cols-3">
+                      <input type="hidden" name="employee_id" value={fallbackEmployee.id} />
+                      <label className="text-sm font-medium">
+                        Home area
+                        <input name="home_area" defaultValue={fallbackEmployee.home_area ?? ""} className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal" />
+                      </label>
+                      <label className="text-sm font-medium">
+                        One-way commute (km)
+                        <input name="commute_distance_km" type="number" min="0" step="any" defaultValue={fallbackEmployee.commute_distance_km ?? ""} className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal" />
+                      </label>
+                      <div className="flex items-end">
+                        <button className="h-10 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground">
+                          Save commute details
+                        </button>
+                      </div>
+                    </form>
+                  </section>
+                )}
               </div>
             </div>
 
