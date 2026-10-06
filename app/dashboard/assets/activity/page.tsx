@@ -56,7 +56,7 @@ export default async function Page() {
                 <select name="asset_id" required className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal">
                   <option value="">Choose asset</option>
                   {assets.map((asset) => (
-                    <option key={asset.id} value={asset.id}>
+                    <option key={asset.id} value={asset.id ?? ""}>
                       {asset.asset_tag} · {asset.asset_type}
                     </option>
                   ))}

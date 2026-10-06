@@ -1,6 +1,31 @@
 alter table public.employees
   add column if not exists home_area text,
-  add column if not exists commute_distance_km numeric(7, 2);
+  add column if not exists commute_distance_km numeric(7, 2),
+  add column if not exists is_technical boolean not null default false,
+  add column if not exists user_id uuid references auth.users(id);
+
+alter table public.profiles
+  add column if not exists active boolean not null default true;
+
+alter table public.exit_requests
+  add column if not exists submitted_on timestamptz,
+  add column if not exists completed_at timestamptz,
+  add column if not exists finalized_by uuid references auth.users(id);
+
+update public.employees e
+set user_id = u.id
+from auth.users u
+where e.user_id is null
+  and lower(e.email) = lower(u.email)
+  and (
+    select count(*)
+    from public.employees same_email
+    where lower(same_email.email) = lower(e.email)
+  ) = 1;
+
+create unique index if not exists employees_user_id_idx
+  on public.employees(user_id)
+  where user_id is not null;
 
 alter table public.employees
   drop constraint if exists employees_commute_distance_nonnegative;
@@ -11,6 +36,13 @@ alter table public.employees
 
 alter table public.assets
   add column if not exists current_location text;
+
+alter table public.knowledge_documents
+  drop constraint if exists knowledge_documents_status_chk;
+
+alter table public.knowledge_documents
+  add constraint knowledge_documents_status_chk
+  check (status in ('pending', 'submitted', 'pending_review', 'revision_required', 'approved', 'verified', 'rejected'));
 
 create table if not exists public.leave_requests (
   id uuid primary key default gen_random_uuid(),
@@ -94,6 +126,26 @@ create table if not exists public.recruitment_openings (
 create index if not exists recruitment_openings_status_idx
   on public.recruitment_openings(status);
 
+create table if not exists public.quarterly_turnover_reports (
+  quarter_start date not null,
+  department text not null,
+  exits integer not null,
+  active_headcount integer not null,
+  top_exit_reason text,
+  attrition_rate_pct numeric(5, 1),
+  generated_at timestamptz not null default now(),
+  primary key (quarter_start, department)
+);
+
+alter table public.quarterly_turnover_reports
+  add column if not exists top_exit_reason text;
+
+alter table public.quarterly_turnover_reports enable row level security;
+drop policy if exists authenticated_users_read_quarterly_reports on public.quarterly_turnover_reports;
+create policy authenticated_users_read_quarterly_reports
+  on public.quarterly_turnover_reports for select
+  using (auth.uid() is not null);
+
 insert into public.role_permissions (role_name, permission_name)
 values
   ('Academic Attaché', 'view_own_profile'),
@@ -155,19 +207,320 @@ quarter_exits as (
   from exit_events
   group by 1, 2
 ),
-current_workforce as (
+quarter_reason_counts as (
   select
+    date_trunc('quarter', coalesce(e.exit_date, er.completed_at, er.submitted_on, er.created_at))::date as quarter_start,
     coalesce(d.name, 'Unassigned') as department,
-    count(*) filter (where e.employment_status = 'active') as active_headcount
+    coalesce(nullif(trim(er.reason), ''), 'Not specified') as exit_reason,
+    count(*) as reason_count
+  from public.exit_requests er
+  join public.employees e on e.id = er.employee_id
+  left join public.departments d on d.id = e.department_id
+  where (er.status = 'completed' or e.employment_status = 'exited')
+    and coalesce(e.exit_date, er.completed_at, er.submitted_on, er.created_at) is not null
+  group by 1, 2, 3
+),
+quarter_top_reason as (
+  select quarter_start, department, exit_reason
+  from (
+    select
+      quarter_start,
+      department,
+      exit_reason,
+      row_number() over (
+        partition by quarter_start, department
+        order by reason_count desc, exit_reason
+      ) as reason_rank
+    from quarter_reason_counts
+  ) ranked_reasons
+  where reason_rank = 1
+),
+quarter_series as (
+  select generate_series(
+    date_trunc('quarter', current_date) - interval '21 months',
+    date_trunc('quarter', current_date),
+    interval '3 months'
+  )::date as quarter_start
+),
+department_scope as (
+  select distinct e.department_id, coalesce(d.name, 'Unassigned') as department
   from public.employees e
   left join public.departments d on d.id = e.department_id
-  group by 1
+),
+quarter_workforce as (
+  select
+    qs.quarter_start,
+    ds.department,
+    round((
+      count(e.id) filter (
+        where coalesce(e.joined_on::date, e.created_at::date) <= qs.quarter_start
+          and (e.exit_date is null or e.exit_date::date >= qs.quarter_start)
+      )
+      +
+      count(e.id) filter (
+        where coalesce(e.joined_on::date, e.created_at::date)
+            <= (qs.quarter_start + interval '3 months' - interval '1 day')::date
+          and (
+            e.exit_date is null
+            or e.exit_date::date >= (qs.quarter_start + interval '3 months' - interval '1 day')::date
+          )
+      )
+    ) / 2.0)::integer as active_headcount
+  from quarter_series qs
+  cross join department_scope ds
+  left join public.employees e on e.department_id is not distinct from ds.department_id
+  group by qs.quarter_start, ds.department
 )
 select
-  q.quarter_start,
-  q.department,
-  q.exits,
+  qs.quarter_start,
+  w.department,
+  coalesce(q.exits, 0) as exits,
   w.active_headcount,
-  round((q.exits * 100.0 / nullif(w.active_headcount, 0))::numeric, 1) as attrition_rate_pct
-from quarter_exits q
-left join current_workforce w on w.department = q.department;
+  r.exit_reason as top_exit_reason,
+  round((coalesce(q.exits, 0) * 100.0 / nullif(w.active_headcount, 0))::numeric, 1) as attrition_rate_pct
+from quarter_series qs
+join quarter_workforce w on w.quarter_start = qs.quarter_start
+left join quarter_exits q
+  on q.quarter_start = qs.quarter_start
+  and q.department = w.department
+left join quarter_top_reason r
+  on r.quarter_start = qs.quarter_start
+  and r.department = w.department;
+
+create or replace function public.capture_quarterly_turnover_report()
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_quarter_start date := (date_trunc('quarter', current_date) - interval '3 months')::date;
+begin
+  insert into public.quarterly_turnover_reports (
+    quarter_start,
+    department,
+    exits,
+    active_headcount,
+    top_exit_reason,
+    attrition_rate_pct,
+    generated_at
+  )
+  select
+    quarter_start,
+    department,
+    exits::integer,
+    active_headcount::integer,
+    top_exit_reason,
+    attrition_rate_pct,
+    now()
+  from public.quarterly_turnover_summary
+  where quarter_start = v_quarter_start
+  on conflict (quarter_start, department) do update
+  set exits = excluded.exits,
+      active_headcount = excluded.active_headcount,
+  top_exit_reason = excluded.top_exit_reason,
+      attrition_rate_pct = excluded.attrition_rate_pct,
+      generated_at = excluded.generated_at;
+end;
+$$;
+
+revoke execute on function public.capture_quarterly_turnover_report() from public, anon, authenticated;
+
+do $schedule$
+begin
+  if exists (select 1 from cron.job where jobname = 'quarterly-turnover-report') then
+    perform cron.unschedule('quarterly-turnover-report');
+  end if;
+
+  perform cron.schedule(
+    'quarterly-turnover-report',
+    '0 6 1 1,4,7,10 *',
+    $job$select public.capture_quarterly_turnover_report();$job$
+  );
+end;
+$schedule$;
+
+create or replace function public.can_finalize_exit(p_exit_request_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_blockers jsonb := '[]'::jsonb;
+  v_exit record;
+  v_step record;
+  v_asset record;
+  v_requirement record;
+  v_requirement_count integer := 0;
+  v_approved_document_count integer := 0;
+begin
+  select er.id, er.employee_id, e.department_id, e.employment_category, e.is_technical
+  into v_exit
+  from public.exit_requests er
+  join public.employees e on e.id = er.employee_id
+  where er.id = p_exit_request_id;
+
+  if not found then
+    raise exception 'Exit request or employee not found';
+  end if;
+
+  for v_step in
+    select department, status, comments
+    from public.clearance_steps
+    where exit_request_id = p_exit_request_id
+      and status <> 'approved'
+  loop
+    v_blockers := v_blockers || jsonb_build_object(
+      'type', 'clearance',
+      'department', v_step.department,
+      'message', coalesce(v_step.comments, 'Clearance pending for ' || v_step.department)
+    );
+  end loop;
+
+  for v_asset in
+    select id, asset_tag
+    from public.assets
+    where assigned_to = v_exit.employee_id
+      and (status <> 'verified' or returned_at is null or verified_at is null)
+  loop
+    v_blockers := v_blockers || jsonb_build_object(
+      'type', 'asset',
+      'asset_id', v_asset.id,
+      'asset_tag', v_asset.asset_tag,
+      'message', 'Asset ' || v_asset.asset_tag || ' must be received and return-verified.'
+    );
+  end loop;
+
+  for v_requirement in
+    select kr.id, kr.name
+    from public.knowledge_requirements kr
+    where kr.active = true
+      and kr.is_required = true
+      and (kr.department_id is null or kr.department_id = v_exit.department_id)
+      and (kr.employment_category is null or kr.employment_category = v_exit.employment_category)
+  loop
+    v_requirement_count := v_requirement_count + 1;
+    if not exists (
+      select 1
+      from public.knowledge_documents kd
+      where kd.employee_id = v_exit.employee_id
+        and kd.requirement_id = v_requirement.id
+        and kd.status in ('approved', 'verified')
+    ) then
+      v_blockers := v_blockers || jsonb_build_object(
+        'type', 'knowledge',
+        'requirement_id', v_requirement.id,
+        'message', 'Required knowledge handover is missing or unapproved: ' || v_requirement.name
+      );
+    end if;
+  end loop;
+
+  if v_exit.is_technical then
+    select count(*)
+    into v_approved_document_count
+    from public.knowledge_documents kd
+    where kd.employee_id = v_exit.employee_id
+      and kd.status in ('approved', 'verified');
+
+    if v_requirement_count = 0 then
+      v_blockers := v_blockers || jsonb_build_object(
+        'type', 'knowledge',
+        'message', 'No mandatory knowledge requirements are configured for this technical employee.'
+      );
+    end if;
+    if v_approved_document_count = 0 then
+      v_blockers := v_blockers || jsonb_build_object(
+        'type', 'knowledge',
+        'message', 'Technical staff must upload at least one approved knowledge handover document.'
+      );
+    end if;
+  end if;
+
+  return jsonb_build_object(
+    'eligible', jsonb_array_length(v_blockers) = 0,
+    'blocked', jsonb_array_length(v_blockers) > 0,
+    'blockers', v_blockers
+  );
+end;
+$$;
+
+create or replace function public.finalize_exit(p_exit_request_id uuid, p_actor_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  v_check jsonb;
+  v_employee_id uuid;
+begin
+  if auth.uid() is null or p_actor_id <> auth.uid() then
+    raise exception 'Authenticated actor does not match the requested actor';
+  end if;
+  if not exists (
+    select 1
+    from public.profiles
+    where id = auth.uid()
+      and lower(coalesce(role, '')) in ('administrator', 'hr')
+      and active = true
+  ) then
+    raise exception 'Only active HR users or administrators can finalize exits';
+  end if;
+
+  select employee_id
+  into v_employee_id
+  from public.exit_requests
+  where id = p_exit_request_id
+  for update;
+  if not found then
+    raise exception 'Exit request not found';
+  end if;
+
+  v_check := public.can_finalize_exit(p_exit_request_id);
+  if v_check->>'eligible' <> 'true' then
+    insert into public.audit_events(actor_id, action, entity_type, entity_id, metadata)
+    values (
+      p_actor_id,
+      'finalization_blocked',
+      'exit_request',
+      p_exit_request_id::text,
+      jsonb_build_object('blockers', v_check->'blockers')
+    );
+    return jsonb_build_object('success', false, 'blockers', v_check->'blockers');
+  end if;
+
+  update public.exit_requests
+  set status = 'completed',
+      completed_at = now(),
+      finalized_by = p_actor_id,
+      updated_at = now()
+  where id = p_exit_request_id;
+
+  update public.employees
+  set employment_status = 'exited',
+      exit_date = now(),
+      updated_at = now()
+  where id = v_employee_id;
+
+  insert into public.audit_events(actor_id, action, entity_type, entity_id, metadata)
+  values (
+    p_actor_id,
+    'finalized',
+    'exit_request',
+    p_exit_request_id::text,
+    jsonb_build_object('employee_id', v_employee_id)
+  );
+
+  perform public.create_notification(
+    p_actor_id,
+    'success',
+    'Exit finalized',
+    'The exit request has been completed and the employee status updated.',
+    'exit_request',
+    p_exit_request_id::text
+  );
+
+  return jsonb_build_object('success', true, 'exit_request_id', p_exit_request_id);
+end;
+$$;

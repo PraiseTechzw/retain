@@ -29,6 +29,7 @@ import {
   getKnowledgeRequirements,
 } from "@/lib/supabase/data";
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
 const rangeOptions = [
   { value: "30d", label: "Last 30 days" },
@@ -610,6 +611,9 @@ export default async function Page({
 }) {
   const params = (await searchParams) ?? {};
   const { userName, userRole } = await resolveDashboardUserContext();
+  if (!["hr", "administrator", "management"].some((role) => userRole.toLowerCase().includes(role))) {
+    redirect("/dashboard");
+  }
   const supabase = await createClient();
 
   const filters = {

@@ -12,6 +12,7 @@ import {
   getEmployees,
   getKnowledgeDocuments,
   getKnowledgeDocumentsForEmployee,
+  getKnowledgeRequirements,
   getKnowledgeOverviewForEmployee,
   getKnowledgeRequirementsForEmployee,
   getKnowledgeReviewQueue,
@@ -26,27 +27,40 @@ function toneForStatus(status?: string | null) {
 
 export default async function Page() {
   const { userName, userRole, user } = await resolveDashboardUserContext();
-  const employeeId = user?.id;
   const isReviewer =
     userRole === "Administrator" ||
     userRole === "HR" ||
     userRole === "ICT" ||
+    userRole === "Library" ||
     userRole === "Management";
 
-  const [documents, employeeRows, reviewQueue, requirements, myDocuments] =
+  const [documents, employeeRows, reviewQueue, allRequirements] =
     await Promise.all([
       getKnowledgeDocuments(),
       getEmployees(),
       isReviewer ? getKnowledgeReviewQueue() : Promise.resolve([]),
-      employeeId
-        ? getKnowledgeRequirementsForEmployee(employeeId)
-        : Promise.resolve([]),
-      employeeId
-        ? getKnowledgeDocumentsForEmployee(employeeId)
-        : Promise.resolve([]),
+      getKnowledgeRequirements(),
     ]);
+  const ownEmployee = employeeRows.find(
+    (employee) =>
+      employee.user_id === user?.id ||
+      (employee.email &&
+        employee.email.toLowerCase() === user?.email?.toLowerCase()),
+  );
+  const employeeId = ownEmployee?.id ?? null;
+  const [requirements, myDocuments] = employeeId
+    ? await Promise.all([
+        getKnowledgeRequirementsForEmployee(employeeId),
+        getKnowledgeDocumentsForEmployee(employeeId),
+      ])
+    : [[], []];
 
-  const employeeOptions = employeeRows.flatMap((employee) => {
+  const employeeOptions = (isReviewer
+    ? employeeRows
+    : ownEmployee
+      ? [ownEmployee]
+      : []
+  ).flatMap((employee) => {
     if (!employee.id || !employee.employee_number || !employee.full_name)
       return [];
     return [
@@ -74,7 +88,15 @@ export default async function Page() {
         title="Knowledge Hub"
         description="Capture and verify the knowledge required to preserve continuity and protect institutional memory."
         action={
-          <OperationsPanel mode="knowledge" employees={employeeOptions} />
+          <OperationsPanel
+            mode="knowledge"
+            employees={employeeOptions}
+            knowledgeRequirements={allRequirements.flatMap((requirement) =>
+              requirement.id && requirement.name
+                ? [{ id: requirement.id, name: requirement.name }]
+                : [],
+            )}
+          />
         }
       >
         <div className="space-y-6">

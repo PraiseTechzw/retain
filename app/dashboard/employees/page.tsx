@@ -9,9 +9,13 @@ import {
 import { OperationsPanel } from "@/components/operations-panel";
 import { getEmployees } from "@/lib/supabase/data";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
+import { redirect } from "next/navigation";
 
 export default async function Page() {
   const { userName, userRole } = await resolveDashboardUserContext();
+  if (!["hr", "administrator", "management"].some((role) => userRole.toLowerCase().includes(role))) {
+    redirect("/dashboard");
+  }
   const employees = await getEmployees();
   const rows = employees.map((employee) => {
     const department = Array.isArray(employee.departments)

@@ -47,9 +47,9 @@ export default async function Page() {
         description="Track institutional equipment, assignments, daily activity, and return verification."
         action={
           <div className="flex items-center gap-2">
-            <a href="/dashboard/assets/activity" className="rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold hover:bg-muted">
+            <Link href="/dashboard/assets/activity" className="rounded-xl border border-border bg-card px-4 py-2.5 text-sm font-semibold hover:bg-muted">
               Daily activity
-            </a>
+            </Link>
             {["hr", "administrator", "ict", "library"].some((role) => userRole.toLowerCase().includes(role)) && <OperationsPanel mode="asset" />}
           </div>
         }

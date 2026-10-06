@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { normalizeUserRole } from "@/lib/auth-role";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { appConfig } from "@/lib/system";
 
@@ -80,7 +81,7 @@ async function ensureUserProfile(
 
   const { data: existingProfile } = await supabase
     .from("profiles")
-    .select("id, full_name, role, department_id")
+    .select("id, full_name, role, department_id, active")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -116,6 +117,12 @@ async function ensureUserProfile(
       throw new Error("Unable to create profile for this user.");
     }
   } else {
+    if (existingProfile.active === false) {
+      redirect(
+        "/auth/login?message=" +
+          encodeURIComponent("This account has been deactivated. Contact HR or an administrator."),
+      );
+    }
     const updates: Record<string, string | null> = {};
     if (!existingProfile.full_name) updates.full_name = fullName;
     if (existingProfile.role !== role) updates.role = role;
@@ -160,12 +167,35 @@ async function ensureEmployeeRecord(
   const { data: existingEmployee } = await supabase
     .from("employees")
     .select(
-      "id, employee_number, full_name, email, department_id, job_title, employment_status",
+      "id, employee_number, full_name, email, department_id, job_title, employment_status, user_id",
     )
     .eq("email", email)
     .maybeSingle();
 
   if (existingEmployee) {
+    if (existingEmployee.user_id && existingEmployee.user_id !== user.id) {
+      throw new Error("This employee email is already linked to another account.");
+    }
+    if (!existingEmployee.user_id) {
+      const { data: linkedEmployee, error } = await supabase
+        .from("employees")
+        .update({ user_id: user.id })
+        .eq("id", existingEmployee.id)
+        .is("user_id", null)
+        .select("id,user_id")
+        .maybeSingle();
+      if (error) throw new Error("Unable to link your employee record to this account.");
+      if (!linkedEmployee) {
+        const { data: verifiedLink, error: linkError } = await supabase
+          .from("employees")
+          .select("user_id")
+          .eq("id", existingEmployee.id)
+          .single();
+        if (linkError || verifiedLink?.user_id !== user.id) {
+          throw new Error("Employee record link changed while signing in.");
+        }
+      }
+    }
     return existingEmployee;
   }
 
@@ -174,6 +204,7 @@ async function ensureEmployeeRecord(
     .from("employees")
     .insert({
       employee_number: employeeNumber,
+      user_id: user.id,
       full_name: fullName,
       email: email || `${user.id}@local.invalid`,
       department_id: overrides.departmentId ?? null,
@@ -350,6 +381,15 @@ async function actor() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) throw new Error("You must be signed in to continue.");
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("active")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (error) throw new Error("Unable to verify account status.");
+  if (profile?.active === false) {
+    throw new Error("This account has been deactivated.");
+  }
   return { supabase, user };
 }
 
@@ -418,6 +458,7 @@ type AssetRow = {
   asset_type: string;
   status: string;
   returned_at?: string | null;
+  verified_at?: string | null;
 };
 
 async function audit(
@@ -456,6 +497,7 @@ export async function createEmployee(formData: FormData) {
     joined_on: String(formData.get("joined_on") ?? "").trim() || null,
     home_area: String(formData.get("home_area") ?? "").trim() || null,
     commute_distance_km: commuteDistance,
+    is_technical: formData.get("is_technical") === "on",
     employment_status: "active",
   };
   if (!employee.employee_number || !employee.full_name)
@@ -479,13 +521,14 @@ export async function createEmployee(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
-export async function updateEmployeeCommute(formData: FormData) {
+export async function updateEmployeeRiskProfile(formData: FormData) {
   const { supabase, user } = await actor();
   await requireAnyRole(supabase, user, ["administrator", "hr"]);
   const employeeId = String(formData.get("employee_id") ?? "").trim();
   const homeArea = String(formData.get("home_area") ?? "").trim() || null;
   const commuteValue = String(formData.get("commute_distance_km") ?? "").trim();
   const commuteDistance = commuteValue ? Number(commuteValue) : null;
+  const isTechnical = formData.get("is_technical") === "on";
   if (
     !employeeId ||
     (commuteDistance !== null &&
@@ -498,12 +541,14 @@ export async function updateEmployeeCommute(formData: FormData) {
     .update({
       home_area: homeArea,
       commute_distance_km: commuteDistance,
+      is_technical: isTechnical,
       updated_at: new Date().toISOString(),
     })
     .eq("id", employeeId);
   if (error) throw new Error("Unable to update commute details.");
   await audit(supabase, user.id, "updated_commute", "employee", employeeId, {
     commute_distance_km: commuteDistance,
+    is_technical: isTechnical,
   });
   revalidatePath(`/dashboard/employees/${employeeId}`);
   revalidatePath("/dashboard/talent-risk");
@@ -516,6 +561,19 @@ export async function createExitRequest(formData: FormData) {
   const lastDay = String(formData.get("last_day") ?? "") || null;
   if (!employeeId || !reason)
     throw new Error("Employee and reason are required.");
+  const role = await resolveEffectiveUserRole(supabase, user);
+  if (!["administrator", "hr"].some((allowed) => role.toLowerCase().includes(allowed))) {
+    const { data: ownEmployee, error: ownEmployeeError } = await supabase
+      .from("employees")
+      .select("id")
+      .eq("id", employeeId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (ownEmployeeError) throw new Error("Unable to verify the employee record.");
+    if (!ownEmployee) {
+      throw new Error("You can only start an exit request for your own employee record.");
+    }
+  }
 
   const { data: configurationRow } = await supabase
     .from("system_settings")
@@ -863,10 +921,11 @@ export async function approveClearance(formData: FormData) {
   const stepDept = stepData?.department ?? "";
   const userRole = await resolveEffectiveUserRole(supabase, user);
   const allowed =
-    userRole === appConfig.defaultRole ||
     userRole.toLowerCase().includes(stepDept.toLowerCase()) ||
     userRole.toLowerCase().includes("hr") ||
-    userRole.toLowerCase().includes("administrator");
+    userRole.toLowerCase().includes("administrator") ||
+    (stepDept.toLowerCase().includes("department head") &&
+      userRole.toLowerCase().includes("management"));
   if (!allowed)
     throw new Error("You are not authorized to approve this clearance.");
 
@@ -888,7 +947,6 @@ export async function approveClearance(formData: FormData) {
 // Helper: check blockers for an exit request
 export async function checkExitBlockers(exitRequestId: string) {
   const supabase = await createClient();
-  // Get exit request and employee
   const { data: exitReq, error: exitErr } = await supabase
     .from("exit_requests")
     .select("id, employee_id, status")
@@ -896,33 +954,69 @@ export async function checkExitBlockers(exitRequestId: string) {
     .single();
   if (exitErr || !exitReq) throw new Error("Exit request not found.");
 
-  const employeeId = exitReq.employee_id;
+  const { data: employee, error: employeeError } = await supabase
+    .from("employees")
+    .select("id, department_id, employment_category, is_technical")
+    .eq("id", exitReq.employee_id)
+    .single();
+  if (employeeError || !employee) throw new Error("Employee record not found.");
 
-  // Clearance steps pending/rejected
-  const { data: steps } = await supabase
+  const { data: steps, error: stepsError } = await supabase
     .from("clearance_steps")
     .select("department,status,comments")
     .eq("exit_request_id", exitRequestId)
     .order("step_order", { ascending: true });
+  if (stepsError) throw new Error("Unable to verify clearance steps.");
 
   const pending = (steps ?? []).filter(
     (s: ClearanceStep) => s.status !== "approved",
   );
 
-  // Outstanding assets assigned to employee (not returned)
-  const { data: assets } = await supabase
+  const { data: assets, error: assetsError } = await supabase
     .from("assets")
-    .select("id,asset_tag,asset_type,status,returned_at")
-    .eq("assigned_to", employeeId);
+    .select("id,asset_tag,asset_type,status,returned_at,verified_at")
+    .eq("assigned_to", employee.id);
+  if (assetsError) throw new Error("Unable to verify assigned assets.");
   const outstandingAssets = (assets ?? []).filter(
-    (a: AssetRow) => a.status !== "returned" || !a.returned_at,
+    (a: AssetRow) => a.status !== "verified" || !a.returned_at || !a.verified_at,
   );
 
-  // Knowledge documents count
-  const { data: docs } = await supabase
+  const { data: requirements, error: requirementsError } = await supabase
+    .from("knowledge_requirements")
+    .select("id,name,department_id,employment_category")
+    .eq("active", true)
+    .eq("is_required", true);
+  if (requirementsError) throw new Error("Unable to verify mandatory knowledge requirements.");
+  const applicableRequirements = (requirements ?? []).filter((requirement) => {
+    const matchesDepartment =
+      !requirement.department_id ||
+      requirement.department_id === employee.department_id;
+    const matchesCategory =
+      !requirement.employment_category ||
+      requirement.employment_category === employee.employment_category;
+    return matchesDepartment && matchesCategory;
+  });
+
+  const { data: docs, error: docsError } = await supabase
     .from("knowledge_documents")
-    .select("id")
-    .eq("employee_id", employeeId);
+    .select("id,requirement_id,status")
+    .eq("employee_id", employee.id);
+  if (docsError) throw new Error("Unable to verify knowledge handover documents.");
+  const approvedDocs = (docs ?? []).filter((document) =>
+    ["approved", "verified"].includes(String(document.status).toLowerCase()),
+  );
+  const missingKnowledge = applicableRequirements
+    .filter(
+      (requirement) =>
+        !approvedDocs.some((document) => document.requirement_id === requirement.id),
+    )
+    .map((requirement) => `Required knowledge handover is missing or unapproved: ${requirement.name}.`);
+  if (employee.is_technical && approvedDocs.length === 0) {
+    missingKnowledge.push("Technical staff must upload at least one approved knowledge handover document.");
+  }
+  if (employee.is_technical && applicableRequirements.length === 0) {
+    missingKnowledge.push("No mandatory knowledge requirements are configured for this technical employee.");
+  }
 
   const blockers: Record<string, unknown> = {};
   if (pending.length)
@@ -938,7 +1032,7 @@ export async function checkExitBlockers(exitRequestId: string) {
       type: a.asset_type,
       status: a.status,
     }));
-  if (!docs || docs.length === 0) blockers.knowledge = "no_documents";
+  if (missingKnowledge.length) blockers.knowledge = missingKnowledge;
 
   const blockerList: Array<{ type: string; title: string; details: string }> =
     [];
@@ -970,12 +1064,13 @@ export async function checkExitBlockers(exitRequestId: string) {
     });
   }
 
-  if (blockers.knowledge === "no_documents") {
-    blockerList.push({
-      type: "knowledge",
-      title: "Knowledge handover missing",
-      details:
-        "Required knowledge handover documents have not been uploaded or verified.",
+  if (Array.isArray(blockers.knowledge)) {
+    (blockers.knowledge as string[]).forEach((message) => {
+      blockerList.push({
+        type: "knowledge",
+        title: "Knowledge handover incomplete",
+        details: message,
+      });
     });
   }
 
@@ -1018,47 +1113,26 @@ export async function finalizeExit(formData: FormData) {
   const { supabase, user } = await actor();
 
   const userRole = await resolveEffectiveUserRole(supabase, user);
-  if (
-    !userRole.toLowerCase().includes("administrator") &&
-    !userRole.toLowerCase().includes("hr")
-  ) {
+  if (!["administrator", "hr"].some((role) => userRole.toLowerCase().includes(role))) {
     throw new Error("You are not authorized to finalize exits.");
   }
-
-  const readiness = await canFinalizeExit(exitRequestId);
-  if (!readiness.eligible) {
-    await audit(
-      supabase,
-      user.id,
-      "finalization_blocked",
-      "exit_request",
-      exitRequestId,
-      { blockers: readiness.blockers },
-    );
+  const { data, error } = await supabase.rpc("finalize_exit", {
+    p_exit_request_id: exitRequestId,
+    p_actor_id: user.id,
+  });
+  if (error) throw new Error(`Unable to finalize exit request: ${error.message}`);
+  const result = data as {
+    success?: boolean;
+    blockers?: Array<{ message?: string }>;
+  } | null;
+  if (!result?.success) {
+    const blockerMessages = result?.blockers
+      ?.map((blocker) => blocker.message)
+      .filter((message): message is string => !!message);
     throw new Error(
-      readiness.blockers.map((blocker) => blocker.message).join("; ") ||
-        "Exit request is blocked and cannot be finalized.",
+      blockerMessages?.join("; ") || "Exit request is blocked and cannot be finalized.",
     );
   }
-
-  const now = new Date().toISOString();
-  const { data: exitReq, error: exitErr } = await supabase
-    .from("exit_requests")
-    .update({ status: "completed", completed_at: now, finalized_by: user.id })
-    .eq("id", exitRequestId)
-    .select("id,employee_id")
-    .single();
-  if (exitErr || !exitReq) throw new Error("Unable to finalize exit request.");
-
-  // Update employee status
-  const { error: empErr } = await supabase
-    .from("employees")
-    .update({ employment_status: "exited", exit_date: now })
-    .eq("id", exitReq.employee_id);
-  if (empErr) throw new Error("Unable to update employee status.");
-
-  await audit(supabase, user.id, "finalized", "exit_request", exitRequestId);
-  // Optionally trigger notifications here (left as an integration point)
   revalidatePath("/dashboard/exit-requests");
   revalidatePath("/dashboard");
 }
@@ -1067,11 +1141,53 @@ export async function uploadKnowledgeDocument(formData: FormData) {
   const { supabase, user } = await actor();
   const file = formData.get("file");
   const title = String(formData.get("title") ?? "").trim();
-  const employeeId = String(formData.get("employee_id") ?? "");
+  const employeeId = String(formData.get("employee_id") ?? "").trim();
+  const requirementId = String(formData.get("requirement_id") ?? "").trim() || null;
   if (!(file instanceof File) || file.size === 0 || !title || !employeeId)
     throw new Error("Title, employee, and a file are required.");
   if (file.size > 10 * 1024 * 1024)
     throw new Error("Files must be smaller than 10 MB.");
+  const role = await resolveEffectiveUserRole(supabase, user);
+  if (!["administrator", "hr"].some((allowed) => role.toLowerCase().includes(allowed))) {
+    const { data: ownEmployee, error: ownEmployeeError } = await supabase
+      .from("employees")
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (ownEmployeeError) throw new Error("Unable to verify your employee record.");
+    if (ownEmployee?.id !== employeeId) {
+      throw new Error("You can only upload knowledge documents for your own employee record.");
+    }
+  }
+  const { data: employee, error: employeeError } = await supabase
+    .from("employees")
+    .select("department_id,employment_category")
+    .eq("id", employeeId)
+    .single();
+  if (employeeError || !employee) throw new Error("Employee record not found.");
+  let requirement: {
+    id: string;
+    department_id: string | null;
+    employment_category: string | null;
+    category_id: string | null;
+  } | null = null;
+  if (requirementId) {
+    const { data, error } = await supabase
+      .from("knowledge_requirements")
+      .select("id,department_id,employment_category,category_id")
+      .eq("id", requirementId)
+      .eq("active", true)
+      .single();
+    if (error || !data) throw new Error("Knowledge requirement not found or inactive.");
+    requirement = data;
+    if (
+      (requirement.department_id && requirement.department_id !== employee.department_id) ||
+      (requirement.employment_category &&
+        requirement.employment_category !== employee.employment_category)
+    ) {
+      throw new Error("This knowledge requirement does not apply to the selected employee.");
+    }
+  }
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
   const path = `private/${employeeId}/${crypto.randomUUID()}-${safeName}`;
   const { error: uploadError } = await supabase.storage
@@ -1085,9 +1201,14 @@ export async function uploadKnowledgeDocument(formData: FormData) {
     .from("knowledge_documents")
     .insert({
       employee_id: employeeId,
+      requirement_id: requirement?.id ?? null,
+      category_id: requirement?.category_id ?? null,
       title,
       storage_path: path,
       category: String(formData.get("category") ?? "").trim() || null,
+      file_name: file.name,
+      mime_type: file.type || null,
+      file_size: file.size,
       created_by: user.id,
     })
     .select("id")
@@ -1098,6 +1219,7 @@ export async function uploadKnowledgeDocument(formData: FormData) {
   }
   await audit(supabase, user.id, "uploaded", "knowledge_document", data.id, {
     title,
+    requirement_id: requirement?.id ?? null,
   });
   revalidatePath("/dashboard/knowledge-hub");
 }
@@ -1171,29 +1293,50 @@ export async function reviewKnowledgeDocument(formData: FormData) {
   const documentId = String(formData.get("document_id") ?? "").trim();
   const action = String(formData.get("action") ?? "").trim();
   const rejectionReason = String(formData.get("rejection_reason") ?? "").trim();
-  if (!documentId || !action)
+  if (!documentId || !["approved", "rejected", "revision_required"].includes(action))
     throw new Error("Document and decision are required.");
 
-  const { data: doc } = await supabase
+  const { data: doc, error: documentError } = await supabase
     .from("knowledge_documents")
-    .select("id, employee_id, status")
+    .select("id, employee_id, requirement_id, status")
     .eq("id", documentId)
     .single();
-
-  if (!doc) throw new Error("Document not found.");
-
-  if (doc.employee_id === user.id) {
+  if (documentError || !doc) throw new Error("Document not found.");
+  const { data: employee, error: employeeError } = await supabase
+    .from("employees")
+    .select("user_id,email")
+    .eq("id", doc.employee_id)
+    .single();
+  if (employeeError || !employee) throw new Error("Employee record not found.");
+  if (
+    employee.user_id === user.id ||
+    (employee.email &&
+      employee.email.toLowerCase() === String(user.email ?? "").toLowerCase())
+  ) {
     throw new Error(
       "Employees cannot approve their own knowledge submissions.",
     );
   }
+  const role = await resolveEffectiveUserRole(supabase, user);
+  let reviewerRole: string | null = null;
+  if (doc.requirement_id) {
+    const { data: requirement, error: requirementError } = await supabase
+      .from("knowledge_requirements")
+      .select("reviewer_role")
+      .eq("id", doc.requirement_id)
+      .maybeSingle();
+    if (requirementError) throw new Error("Unable to verify the document reviewer role.");
+    reviewerRole = requirement?.reviewer_role ?? null;
+  }
+  const roleLower = role.toLowerCase();
+  const canReview =
+    ["administrator", "hr", "management"].some((allowed) =>
+      roleLower.includes(allowed),
+    ) ||
+    (reviewerRole !== null && roleLower.includes(reviewerRole.toLowerCase()));
+  if (!canReview) throw new Error("You are not authorized to review this knowledge document.");
 
-  const nextStatus =
-    action === "approved"
-      ? "approved"
-      : action === "rejected"
-        ? "rejected"
-        : "revision_required";
+  const nextStatus = action;
 
   const { error } = await supabase
     .from("knowledge_documents")
@@ -1620,17 +1763,30 @@ export async function assignAsset(formData: FormData) {
   const employeeId = String(formData.get("employee_id") ?? "");
   if (!assetId || !employeeId)
     throw new Error("Asset and employee are required.");
-  const { error } = await supabase
+  const { data: employee, error: employeeError } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("id", employeeId)
+    .eq("employment_status", "active")
+    .maybeSingle();
+  if (employeeError) throw new Error("Unable to verify the employee.");
+  if (!employee) throw new Error("Assets may only be assigned to an active employee.");
+  const { data: updated, error } = await supabase
     .from("assets")
     .update({ assigned_to: employeeId, status: "assigned" })
-    .eq("id", assetId);
+    .eq("id", assetId)
+    .eq("status", "available")
+    .select("id")
+    .maybeSingle();
   if (error) throw new Error("Unable to assign asset.");
-  await supabase.from("asset_history").insert({
+  if (!updated) throw new Error("Only available assets can be assigned.");
+  const { error: historyError } = await supabase.from("asset_history").insert({
     asset_id: assetId,
     action: "assigned",
     actor_id: user.id,
     notes: `Assigned to ${employeeId}`,
   });
+  if (historyError) throw new Error("Asset was assigned, but its history could not be recorded.");
   await audit(supabase, user.id, "assigned", "asset", assetId, {
     assigned_to: employeeId,
   });
@@ -1638,25 +1794,73 @@ export async function assignAsset(formData: FormData) {
   revalidatePath(`/dashboard/assets/${assetId}`);
 }
 
+export async function receiveAssetReturn(formData: FormData) {
+  const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, ["administrator", "hr", "ict", "library"]);
+  const assetId = String(formData.get("asset_id") ?? "").trim();
+  if (!assetId) throw new Error("Asset is required.");
+  const { data: asset, error: assetError } = await supabase
+    .from("assets")
+    .select("id, status")
+    .eq("id", assetId)
+    .single();
+  if (assetError || !asset) throw new Error("Asset not found.");
+  if (asset.status !== "assigned") {
+    throw new Error("Only currently assigned assets can be marked as received.");
+  }
+  const receivedAt = new Date().toISOString();
+  const { data: updated, error } = await supabase
+    .from("assets")
+    .update({ status: "returned", returned_at: receivedAt, verified_at: null })
+    .eq("id", assetId)
+    .eq("status", "assigned")
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error("Unable to record asset return.");
+  if (!updated) throw new Error("The asset's state changed before the return could be recorded.");
+  const { error: historyError } = await supabase.from("asset_history").insert({
+    asset_id: assetId,
+    action: "returned",
+    actor_id: user.id,
+    notes: String(formData.get("notes") ?? "").trim() || "Return received for inspection.",
+  });
+  if (historyError) throw new Error("Return was recorded, but the asset history could not be saved.");
+  await audit(supabase, user.id, "returned", "asset", assetId);
+  revalidatePath("/dashboard/assets");
+  revalidatePath(`/dashboard/assets/${assetId}`);
+  revalidatePath("/dashboard/exit-requests");
+}
+
 export async function verifyAsset(formData: FormData) {
   const { supabase, user } = await actor();
   await requireAnyRole(supabase, user, ["administrator", "hr", "ict", "library"]);
-  const assetId = String(formData.get("asset_id") ?? "");
-  const status = String(formData.get("status") ?? "returned");
-  const notes = String(formData.get("notes") ?? "");
+  const assetId = String(formData.get("asset_id") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim();
   if (!assetId) throw new Error("Asset is required.");
-  const update: Record<string, unknown> = { status };
-  if (status === "returned") update["returned_at"] = new Date().toISOString();
-  const { error } = await supabase
+  const { data: asset, error: assetError } = await supabase
     .from("assets")
-    .update(update)
-    .eq("id", assetId);
+    .select("id,status,returned_at")
+    .eq("id", assetId)
+    .single();
+  if (assetError || !asset) throw new Error("Asset not found.");
+  if (asset.status !== "returned" || !asset.returned_at) {
+    throw new Error("The asset must be received before its return can be verified.");
+  }
+  const verifiedAt = new Date().toISOString();
+  const { data: updated, error } = await supabase
+    .from("assets")
+    .update({ status: "verified", verified_at: verifiedAt })
+    .eq("id", assetId)
+    .eq("status", "returned")
+    .select("id")
+    .maybeSingle();
   if (error) throw new Error("Unable to update asset verification.");
-  await supabase
+  if (!updated) throw new Error("The asset's state changed before the return could be verified.");
+  const { error: historyError } = await supabase
     .from("asset_history")
-    .insert({ asset_id: assetId, action: status, actor_id: user.id, notes });
+    .insert({ asset_id: assetId, action: "verified", actor_id: user.id, notes });
+  if (historyError) throw new Error("Asset verification was saved, but its history could not be recorded.");
   await audit(supabase, user.id, "verified", "asset", assetId, {
-    status,
     notes,
   });
   revalidatePath("/dashboard/assets");
@@ -1712,8 +1916,25 @@ export async function updateUserRole(formData: FormData) {
     throw new Error("Select a supported user role.");
   }
 
+  const adminClient = createAdminClient();
+  const { data: targetUser, error: targetUserError } =
+    await adminClient.auth.admin.getUserById(userId);
+  if (targetUserError || !targetUser.user) {
+    throw new Error("Unable to load the account to update.");
+  }
+  const { error: authRoleError } = await adminClient.auth.admin.updateUserById(
+    userId,
+    {
+      user_metadata: {
+        ...targetUser.user.user_metadata,
+        role: newRole,
+      },
+    },
+  );
+  if (authRoleError) throw new Error("Unable to update the account role.");
+
   // Update profile role
-  const { error: profileError } = await supabase
+  const { error: profileError } = await adminClient
     .from("profiles")
     .update({ role: newRole })
     .eq("id", userId);
@@ -1747,8 +1968,45 @@ export async function disableUserAccount(formData: FormData) {
     throw new Error("You cannot disable your own account.");
   }
 
-  // Mark as disabled in profile
-  const { error } = await supabase
+  const { data: employee, error: employeeError } = await supabase
+    .from("employees")
+    .select("id, employment_status")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (employeeError) throw new Error("Unable to verify the employee's exit status.");
+  if (employee) {
+    if (employee.employment_status !== "exited") {
+      throw new Error("An employee account can only be deactivated after its digital exit is finalized.");
+    }
+    const { data: completedExit, error: exitError } = await supabase
+      .from("exit_requests")
+      .select("id")
+      .eq("employee_id", employee.id)
+      .eq("status", "completed")
+      .order("completed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (exitError) throw new Error("Unable to verify the completed exit.");
+    if (!completedExit) {
+      throw new Error("A completed digital exit is required before account deactivation.");
+    }
+    const readiness = await canFinalizeExit(completedExit.id);
+    if (!readiness.eligible) {
+      throw new Error(
+        readiness.blockers.map((blocker) => blocker.message).join("; ") ||
+          "Exit clearance is incomplete.",
+      );
+    }
+  }
+
+  const adminClient = createAdminClient();
+  const { error: authError } = await adminClient.auth.admin.updateUserById(
+    userId,
+    { ban_duration: "876000h" },
+  );
+  if (authError) throw new Error("Unable to disable authentication for this account.");
+
+  const { error } = await adminClient
     .from("profiles")
     .update({ active: false })
     .eq("id", userId);
@@ -1782,8 +2040,24 @@ export async function activateUserAccount(formData: FormData) {
     throw new Error("User ID is required.");
   }
 
-  // Mark as active in profile
-  const { error } = await supabase
+  const { data: employee, error: employeeError } = await supabase
+    .from("employees")
+    .select("employment_status")
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (employeeError) throw new Error("Unable to verify employee status.");
+  if (employee?.employment_status === "exited") {
+    throw new Error("A finalized former employee account cannot be reactivated.");
+  }
+
+  const adminClient = createAdminClient();
+  const { error: authError } = await adminClient.auth.admin.updateUserById(
+    userId,
+    { ban_duration: "none" },
+  );
+  if (authError) throw new Error("Unable to reactivate authentication for this account.");
+
+  const { error } = await adminClient
     .from("profiles")
     .update({ active: true })
     .eq("id", userId);

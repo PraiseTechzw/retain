@@ -1,6 +1,6 @@
-# Retain
+# CUT-ELAMS
 
-Retain is a continuity and workforce operations platform for institutions that need secure employee records, department management, knowledge retention, and structured clearance workflows.
+CUT-ELAMS (the Retain application) is Chinhoyi University of Technology's employee lifecycle and asset management platform for secure employee records, recruitment mapping, leave, asset accountability, knowledge retention, and structured clearance workflows.
 
 ## Overview
 
@@ -18,6 +18,40 @@ The application helps organizations manage:
 - reduce risk during staff transitions
 - make department assignment and access control manageable for administrators
 - provide a clean operational dashboard for HR, management, and admin teams
+
+## CUT-ELAMS lifecycle capabilities
+
+The platform covers employee records, mapped recruitment openings, employee
+self-service leave requests and HR-configured balances, asset assignment and
+daily activity logging, and digital exit clearance. Return receipt and ICT or
+Library verification are separate asset states; exit finalization is blocked
+until each assigned asset is verified, each applicable mandatory knowledge
+requirement is approved, and all clearance steps are approved. HR or an
+administrator can deactivate an account only after the employee's digital exit
+is complete. The application enforces this at both its server action and
+database finalization function. Account administration requires the private
+`SUPABASE_SERVICE_ROLE_KEY`; it must never be exposed to a browser.
+
+HR and management can review quarterly turnover reports. A Postgres scheduled
+job snapshots the previous quarter's exits, leading recorded reason, average
+workforce, and attrition rate at 06:00 UTC on January 1, April 1, July 1, and
+October 1. The reports page also shows a live view and supports CSV export.
+The commute heatmap groups recorded one-way commute distances by employee home
+area.
+
+The flight-risk dashboard uses a documented, provisional rule-based indicator:
+approved leave days and request frequency in the prior 12 months, tenure
+milestones within six months, and one-way commute distance. It is an early
+warning prompt for HR review, not a statistically validated prediction or a
+basis for employment decisions. CUT HR should validate the initial weights
+and thresholds before operational use. The 35% turnaround improvement,
+deployment windows, and 100% coverage targets are institutional goals to be
+measured after deployment; they are not asserted as achieved by this code.
+
+Academic Attaché and Support Staff are available as explicit account roles and
+employee categories. Their self-service permissions include their own leave
+and knowledge-document workflows; HR/admin-only reporting and management
+capabilities remain restricted.
 
 ## Tech stack
 
@@ -144,6 +178,11 @@ This project is for internal institutional use and is managed by the product own
 ## Database reference
 
 The project uses Supabase Postgres and includes the schema definitions under the supabase/migrations folder. These migrations define the core institutional tables, workflow controls, analytics, and demo data used by the application.
+
+Apply `supabase/migrations/20261006_009_lifecycle_operations.sql` after the
+existing migrations to add leave balances and requests, recruitment openings,
+daily asset activity, employee commute and technical-staff fields, account
+status enforcement, quarterly report snapshots, and the scheduled report job.
 
 | Policy                                      | Command | Roles  | Action     | USING                                                                                                                              | WITH CHECK                              |
 | ------------------------------------------- | ------- | ------ | ---------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |

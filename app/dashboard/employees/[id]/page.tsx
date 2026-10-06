@@ -5,14 +5,15 @@ import {
 } from "@/components/dashboard-shell";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
-import { updateEmployeeCommute } from "@/lib/supabase/actions";
+import { updateEmployeeRiskProfile } from "@/lib/supabase/actions";
+import { redirect } from "next/navigation";
 
 export default async function Page({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { userName, userRole } = await resolveDashboardUserContext();
+  const { user, userName, userRole } = await resolveDashboardUserContext();
   const canManageEmployee = ["hr", "administrator"].some((role) =>
     userRole.toLowerCase().includes(role),
   );
@@ -23,7 +24,7 @@ export default async function Page({
   const { data: employee, error } = await supabase
     .from("employees")
     .select(
-      "id, employee_number, full_name, email, job_title, employment_status, employment_category, joined_on, exit_date, home_area, commute_distance_km, department_id, departments(name)",
+      "id, user_id, employee_number, full_name, email, job_title, employment_status, employment_category, joined_on, exit_date, home_area, commute_distance_km, is_technical, department_id, departments(name)",
     )
     .or(
       `id.eq.${lookupValue},employee_number.eq.${lookupValue},email.eq.${lookupValue}`,
@@ -41,6 +42,7 @@ export default async function Page({
     (profileFallback
       ? {
           id: profileFallback.id,
+          user_id: profileFallback.id,
           employee_number: "Profile only",
           full_name: profileFallback.full_name ?? "Profile user",
           email: null,
@@ -51,10 +53,22 @@ export default async function Page({
           exit_date: null,
           home_area: null,
           commute_distance_km: null,
+          is_technical: false,
           department_id: profileFallback.department_id,
           departments: null,
         }
       : null);
+  const hasStaffDirectoryAccess = ["hr", "administrator", "management"].some(
+    (role) => userRole.toLowerCase().includes(role),
+  );
+  const isOwnEmployeeRecord =
+    fallbackEmployee?.id === user?.id ||
+    fallbackEmployee?.user_id === user?.id ||
+    (!!fallbackEmployee?.email &&
+      fallbackEmployee.email.toLowerCase() === user?.email?.toLowerCase());
+  if (fallbackEmployee && !hasStaffDirectoryAccess && !isOwnEmployeeRecord) {
+    redirect("/dashboard");
+  }
 
   const departmentName =
     typeof fallbackEmployee?.departments === "object" &&
@@ -130,32 +144,36 @@ export default async function Page({
                     {fallbackEmployee.employment_category || "Not specified"}
                   </p>
                 </div>
-                {canManageEmployee && fallbackEmployee.id && (
-                  <section className="rounded-2xl border border-border/70 bg-card p-6">
-                    <h2 className="text-lg font-semibold">Commute details for risk review</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Optional HR-maintained indicators. Access is restricted to HR and administrators.
-                    </p>
-                    <form action={updateEmployeeCommute} className="mt-4 grid gap-3 md:grid-cols-3">
-                      <input type="hidden" name="employee_id" value={fallbackEmployee.id} />
-                      <label className="text-sm font-medium">
-                        Home area
-                        <input name="home_area" defaultValue={fallbackEmployee.home_area ?? ""} className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal" />
-                      </label>
-                      <label className="text-sm font-medium">
-                        One-way commute (km)
-                        <input name="commute_distance_km" type="number" min="0" step="any" defaultValue={fallbackEmployee.commute_distance_km ?? ""} className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal" />
-                      </label>
-                      <div className="flex items-end">
-                        <button className="h-10 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground">
-                          Save commute details
-                        </button>
-                      </div>
-                    </form>
-                  </section>
-                )}
               </div>
             </div>
+            {canManageEmployee && fallbackEmployee.id && (
+              <section className="rounded-2xl border border-border/70 bg-card p-6">
+                <h2 className="text-lg font-semibold">Commute details for risk review</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Optional HR-maintained indicators. Access is restricted to HR and administrators.
+                </p>
+                <form action={updateEmployeeRiskProfile} className="mt-4 grid gap-3 md:grid-cols-3">
+                  <input type="hidden" name="employee_id" value={fallbackEmployee.id} />
+                  <label className="text-sm font-medium">
+                    Home area
+                    <input name="home_area" defaultValue={fallbackEmployee.home_area ?? ""} className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal" />
+                  </label>
+                  <label className="text-sm font-medium">
+                    One-way commute (km)
+                    <input name="commute_distance_km" type="number" min="0" step="any" defaultValue={fallbackEmployee.commute_distance_km ?? ""} className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal" />
+                  </label>
+                  <label className="flex items-center gap-2 text-sm font-medium">
+                    <input name="is_technical" type="checkbox" defaultChecked={fallbackEmployee.is_technical ?? false} className="size-4 accent-primary" />
+                    Technical staff
+                  </label>
+                  <div className="flex items-end">
+                    <button className="h-10 rounded-xl bg-primary px-4 text-sm font-semibold text-primary-foreground">
+                      Save commute details
+                    </button>
+                  </div>
+                </form>
+              </section>
+            )}
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-2xl border border-border/70 bg-card p-6">

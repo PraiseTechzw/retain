@@ -5,7 +5,12 @@ import {
 } from "@/components/dashboard-shell";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
-import { verifyAsset, assignAsset } from "@/lib/supabase/actions";
+import { redirect } from "next/navigation";
+import {
+  assignAsset,
+  receiveAssetReturn,
+  verifyAsset,
+} from "@/lib/supabase/actions";
 
 type EmployeeRow = { id: string; full_name: string };
 
@@ -15,12 +20,15 @@ export default async function Page({
   params: Promise<{ id: string }>;
 }) {
   const { userName, userRole } = await resolveDashboardUserContext();
+  if (!["hr", "administrator", "management", "ict", "library"].some((role) => userRole.toLowerCase().includes(role))) {
+    redirect("/dashboard");
+  }
   const { id } = await params;
   const supabase = await createClient();
   const { data: asset } = await supabase
     .from("assets")
     .select(
-      "id,asset_tag,asset_type,description,status,assigned_to,returned_at,employees!assigned_to(full_name,employee_number)",
+      "id,asset_tag,asset_type,description,status,assigned_to,returned_at,verified_at,current_location,employees!assigned_to(full_name,employee_number)",
     )
     .eq("id", id)
     .single();
@@ -50,21 +58,38 @@ export default async function Page({
             <Status tone={asset?.status === "returned" ? "green" : "amber"}>
               {asset?.status}
             </Status>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Current location: {asset?.current_location ?? "Not recorded"}
+            </p>
           </div>
 
           <div className="mt-8 flex gap-3">
-            <form action={verifyAsset}>
-              <input type="hidden" name="asset_id" value={id} />
-              <input type="hidden" name="status" value="returned" />
-              <button className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
-                Verify return
-              </button>
-            </form>
+            {asset?.status === "assigned" && (
+              <form action={receiveAssetReturn}>
+                <input type="hidden" name="asset_id" value={id} />
+                <button className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+                  Mark return received
+                </button>
+              </form>
+            )}
+            {asset?.status === "returned" && (
+              <form action={verifyAsset}>
+                <input type="hidden" name="asset_id" value={id} />
+                <button className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+                  Verify return
+                </button>
+              </form>
+            )}
+            {asset?.status === "verified" && (
+              <Status tone="green">Return verified · {asset.verified_at ? new Date(asset.verified_at).toLocaleDateString() : "date unavailable"}</Status>
+            )}
 
-            <form action={assignAsset} className="flex items-center gap-2">
+            {asset?.status === "available" && (
+              <form action={assignAsset} className="flex items-center gap-2">
               <input type="hidden" name="asset_id" value={id} />
               <select
                 name="employee_id"
+                required
                 className="rounded-md border px-2 py-1"
               >
                 <option value="">Assign to...</option>
@@ -78,6 +103,7 @@ export default async function Page({
                 Assign
               </button>
             </form>
+            )}
           </div>
         </div>
       </PageFrame>

@@ -7,11 +7,14 @@ import {
 } from "@/components/dashboard-shell";
 import { getSystemUsers } from "@/lib/supabase/data";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
-import { updateUserRole } from "@/lib/supabase/actions";
+import {
+  activateUserAccount,
+  disableUserAccount,
+  updateUserRole,
+} from "@/lib/supabase/actions";
 
 export default async function Page() {
-  const { userName, userRole } = await resolveDashboardUserContext();
-  const users = await getSystemUsers();
+  const { user, userName, userRole } = await resolveDashboardUserContext();
 
   // Check if user is admin
   const isAdminRole =
@@ -46,29 +49,31 @@ export default async function Page() {
     );
   }
 
-  const rows = users.map((user) => {
-    const roleDisplay = String(user.role ?? "Employee").trim();
-    const createdAt = user.created_at
-      ? new Date(user.created_at).toLocaleDateString()
+  const users = await getSystemUsers();
+  const currentUserId = user?.id;
+  const rows = users.map((systemUser) => {
+    const roleDisplay = String(systemUser.role ?? "Employee").trim();
+    const createdAt = systemUser.created_at
+      ? new Date(systemUser.created_at).toLocaleDateString()
       : "—";
 
     return [
-      <div key={user.id} className="flex flex-col">
+      <div key={systemUser.id} className="flex flex-col">
         <span className="font-semibold text-foreground">
-          {user.full_name || "(No name)"}
+          {systemUser.full_name || "(No name)"}
         </span>
-        <span className="text-xs text-muted-foreground">{user.id}</span>
+        <span className="text-xs text-muted-foreground">{systemUser.id}</span>
       </div>,
       roleDisplay,
-      <Status key="status" tone="green">
-        Active
+      <Status key="status" tone={systemUser.active === false ? "amber" : "green"}>
+        {systemUser.active === false ? "Deactivated" : "Active"}
       </Status>,
       createdAt,
-      <form key={`role-${user.id}`} action={updateUserRole}>
-        <input type="hidden" name="user_id" value={user.id ?? ""} />
+      <form key={`role-${systemUser.id}`} action={updateUserRole}>
+        <input type="hidden" name="user_id" value={systemUser.id ?? ""} />
         <select
           name="role"
-          defaultValue={user.role ?? "Employee"}
+          defaultValue={systemUser.role ?? "Employee"}
           className="h-8 rounded border border-input bg-background px-2 text-xs"
         >
           <option value="Employee">Employee</option>
@@ -85,6 +90,19 @@ export default async function Page() {
           className="ml-2 rounded border border-input px-2 py-1 text-xs font-medium hover:bg-muted"
         >
           Update
+        </button>
+      </form>,
+      <form
+        key={`account-${systemUser.id}`}
+        action={systemUser.active === false ? activateUserAccount : disableUserAccount}
+      >
+        <input type="hidden" name="user_id" value={systemUser.id ?? ""} />
+        <button
+          type="submit"
+          disabled={!systemUser.id || systemUser.id === currentUserId}
+          className="rounded border border-input px-2 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
+        >
+          {systemUser.active === false ? "Reactivate" : "Deactivate"}
         </button>
       </form>,
     ];
@@ -121,6 +139,7 @@ export default async function Page() {
                 "Status",
                 "Created",
                 "Change Role",
+                "Account",
               ]}
               rows={rows}
             />

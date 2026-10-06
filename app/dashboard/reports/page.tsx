@@ -8,10 +8,12 @@ import {
 import { resolveDashboardUserContext } from "@/lib/auth-role";
 import {
   getAuditEvents,
+  getLeaveRequests,
   getQuarterlyTurnoverSummary,
   getReportDashboardSnapshot,
 } from "@/lib/supabase/data";
 import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 
 const reportCatalog = [
   {
@@ -39,6 +41,11 @@ const reportCatalog = [
     label: "Quarterly attrition",
     description: "Automatically grouped exits, current headcount, and quarterly rate by department",
   },
+  {
+    key: "leave-turnaround",
+    label: "Leave turnaround",
+    description: "Pending volume, approvals, and measured application review time",
+  },
 ] as const;
 
 function buildCsvHref(rows: Array<Array<string | number>>) {
@@ -57,20 +64,17 @@ function buildCsvHref(rows: Array<Array<string | number>>) {
 }
 
 async function recordReportActivity(reportKey: string) {
-  try {
-    const supabase = await createClient();
-    await supabase.from("audit_events").insert({
-      action: "report_generated",
-      entity_type: "report",
-      entity_id: reportKey,
-      metadata: {
-        report_key: reportKey,
-        generated_at: new Date().toISOString(),
-      },
-    });
-  } catch {
-    // Report generation should never break the page view when audit storage is unavailable.
-  }
+  const supabase = await createClient();
+  const { error } = await supabase.from("audit_events").insert({
+    action: "report_generated",
+    entity_type: "report",
+    entity_id: reportKey,
+    metadata: {
+      report_key: reportKey,
+      generated_at: new Date().toISOString(),
+    },
+  });
+  if (error) throw new Error(`Unable to record report activity: ${error.message}`);
 }
 
 export default async function Page({
@@ -88,10 +92,14 @@ export default async function Page({
   const exportFormat = params.format === "csv" ? "csv" : "preview";
 
   const { userName, userRole } = await resolveDashboardUserContext();
-  const [snapshot, quarterlyTurnover, auditEvents] = await Promise.all([
+  if (!["hr", "administrator", "management"].some((role) => userRole.toLowerCase().includes(role))) {
+    redirect("/dashboard");
+  }
+  const [snapshot, quarterlyTurnover, auditEvents, leaveRequests] = await Promise.all([
     getReportDashboardSnapshot(),
     getQuarterlyTurnoverSummary(),
     getAuditEvents(5),
+    getLeaveRequests(),
   ]);
   await recordReportActivity(reportKey ?? "workforce");
 
@@ -148,8 +156,27 @@ export default async function Page({
       case "quarterly-attrition":
         return quarterlyTurnover.map((quarter) => [
           `${new Date(`${quarter.quarter_start}T12:00:00`).toLocaleDateString("en", { month: "short", year: "numeric" })} · ${quarter.department}`,
-          `${quarter.exits} exits / ${quarter.active_headcount} current staff · ${quarter.attrition_rate_pct ?? "N/A"}%`,
+          `${quarter.exits} exits / ${quarter.active_headcount} average staff · ${quarter.attrition_rate_pct ?? "N/A"}% · driver: ${quarter.top_exit_reason ?? "Not recorded"}${quarter.generated_at ? ` · snapshot ${new Date(quarter.generated_at).toLocaleDateString()}` : " · live"}`,
         ]);
+      case "leave-turnaround": {
+        const reviewed = leaveRequests.filter((request) => request.reviewed_at);
+        const averageTurnaroundDays = reviewed.length
+          ? reviewed.reduce((sum, request) => {
+              const elapsed =
+                new Date(request.reviewed_at!).getTime() -
+                new Date(request.created_at).getTime();
+              return sum + Math.max(0, elapsed / 86400000);
+            }, 0) / reviewed.length
+          : null;
+        return [
+          ["Pending requests", leaveRequests.filter((request) => request.status === "pending").length],
+          ["Approved requests", leaveRequests.filter((request) => request.status === "approved").length],
+          ["Rejected requests", leaveRequests.filter((request) => request.status === "rejected").length],
+          ["Reviewed requests", reviewed.length],
+          ["Average review turnaround", averageTurnaroundDays === null ? "No reviewed requests" : `${averageTurnaroundDays.toFixed(1)} days`],
+          ["Target", "Reduce baseline average turnaround by 35% within six months"],
+        ];
+      }
       case "workforce":
       default:
         return [

@@ -22,8 +22,21 @@ function employeeFromRequest(
   return Array.isArray(employee) ? employee[0] : employee;
 }
 
+function weekdaysWithinYear(startsOn: string, endsOn: string, year: number) {
+  const start = new Date(`${startsOn}T12:00:00`);
+  const end = new Date(`${endsOn}T12:00:00`);
+  if (start.getFullYear() < year) start.setFullYear(year, 0, 1);
+  if (end.getFullYear() > year) end.setFullYear(year, 11, 31);
+  let days = 0;
+  while (start <= end) {
+    if (start.getDay() !== 0 && start.getDay() !== 6) days += 1;
+    start.setDate(start.getDate() + 1);
+  }
+  return days;
+}
+
 export default async function Page() {
-  const { user, userName, userRole } = await resolveDashboardUserContext();
+  const { userName, userRole } = await resolveDashboardUserContext();
   const [allRequests, allBalances, employees] = await Promise.all([
     getLeaveRequests(),
     getLeaveBalances(),
@@ -46,7 +59,9 @@ export default async function Page() {
     : allBalances.filter((balance) => balance.employee_id === ownEmployee?.id);
   const currentYear = new Date().getFullYear();
   const currentYearRequests = requests.filter(
-    (request) => new Date(`${request.starts_on}T12:00:00`).getFullYear() === currentYear,
+    (request) =>
+      new Date(`${request.starts_on}T12:00:00`).getFullYear() <= currentYear &&
+      new Date(`${request.ends_on}T12:00:00`).getFullYear() >= currentYear,
   );
   const currentYearBalances = balances.filter(
     (balance) => balance.leave_year === currentYear,
@@ -79,7 +94,11 @@ export default async function Page() {
                           request.leave_type === balance.leave_type &&
                           request.status === "approved",
                       )
-                      .reduce((sum, request) => sum + Number(request.requested_days), 0);
+                      .reduce(
+                        (sum, request) =>
+                          sum + weekdaysWithinYear(request.starts_on, request.ends_on, currentYear),
+                        0,
+                      );
                     const remaining = Number(balance.entitled_days) +
                       Number(balance.carried_over_days) - used;
                     return (
@@ -161,7 +180,7 @@ export default async function Page() {
                   <select name="employee_id" required className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal">
                     <option value="">Choose employee</option>
                     {employees.map((employee) => (
-                      <option key={employee.id} value={employee.id}>
+                      <option key={employee.id} value={employee.id ?? ""}>
                         {employee.employee_number} · {employee.full_name}
                       </option>
                     ))}

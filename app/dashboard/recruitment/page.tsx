@@ -50,7 +50,7 @@ export default async function Page() {
                 <select name="department_id" className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal">
                   <option value="">Choose department</option>
                   {departments.map((department) => (
-                    <option key={department.id} value={department.id}>{department.name}</option>
+                    <option key={department.id} value={department.id ?? ""}>{department.name}</option>
                   ))}
                 </select>
               </label>

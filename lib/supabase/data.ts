@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export type AnalyticsFilterState = {
   range?: string;
@@ -21,6 +22,7 @@ export type DepartmentRecord = {
 
 export type EmployeeRecord = {
   id?: string | null;
+  user_id?: string | null;
   employee_number?: string | null;
   full_name?: string | null;
   email?: string | null;
@@ -31,6 +33,7 @@ export type EmployeeRecord = {
   exit_date?: string | null;
   home_area?: string | null;
   commute_distance_km?: number | null;
+  is_technical?: boolean | null;
   department_id?: string | null;
   departments?: DepartmentRecord | DepartmentRecord[] | null;
 };
@@ -119,6 +122,8 @@ export type QuarterlyTurnoverRecord = {
   exits: number;
   active_headcount: number;
   attrition_rate_pct: number | null;
+  top_exit_reason?: string | null;
+  generated_at?: string | null;
 };
 
 export type KnowledgeDocumentRecord = {
@@ -241,7 +246,7 @@ export async function getEmployees(): Promise<EmployeeRecord[]> {
   const baseQuery = supabase
     .from("employees")
     .select(
-      "id, employee_number, full_name, email, job_title, employment_status, employment_category, joined_on, exit_date, home_area, commute_distance_km, department_id, departments(name)",
+      "id, user_id, employee_number, full_name, email, job_title, employment_status, employment_category, joined_on, exit_date, home_area, commute_distance_km, is_technical, department_id, departments(name)",
     )
     .order("created_at", { ascending: false });
 
@@ -252,7 +257,7 @@ export async function getEmployees(): Promise<EmployeeRecord[]> {
     const fallback = await supabase
       .from("employees")
       .select(
-        "id, employee_number, full_name, email, job_title, employment_status, joined_on, exit_date, department_id, departments(name)",
+        "id, user_id, employee_number, full_name, email, job_title, employment_status, joined_on, exit_date, home_area, commute_distance_km, is_technical, department_id, departments(name)",
       )
       .order("created_at", { ascending: false });
 
@@ -397,14 +402,31 @@ export async function getRecruitmentOpenings(): Promise<RecruitmentOpeningRecord
 
 export async function getQuarterlyTurnoverSummary(): Promise<QuarterlyTurnoverRecord[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("quarterly_turnover_summary")
-    .select("quarter_start, department, exits, active_headcount, attrition_rate_pct")
-    .order("quarter_start", { ascending: false })
-    .order("department", { ascending: true })
-    .limit(48);
-  if (error) throw new Error(error.message);
-  return (data ?? []) as QuarterlyTurnoverRecord[];
+  const [liveResult, snapshotsResult] = await Promise.all([
+    supabase
+      .from("quarterly_turnover_summary")
+      .select("quarter_start, department, exits, active_headcount, top_exit_reason, attrition_rate_pct")
+      .order("quarter_start", { ascending: false })
+      .order("department", { ascending: true })
+      .limit(500),
+    supabase
+      .from("quarterly_turnover_reports")
+      .select("quarter_start, department, exits, active_headcount, top_exit_reason, attrition_rate_pct, generated_at")
+      .order("quarter_start", { ascending: false })
+      .limit(500),
+  ]);
+  if (liveResult.error) throw new Error(liveResult.error.message);
+  if (snapshotsResult.error) throw new Error(snapshotsResult.error.message);
+  const snapshots = new Map(
+    ((snapshotsResult.data ?? []) as QuarterlyTurnoverRecord[]).map((report) => [
+      `${report.quarter_start}:${report.department}`,
+      report,
+    ]),
+  );
+  return ((liveResult.data ?? []) as QuarterlyTurnoverRecord[]).map((report) => ({
+    ...report,
+    ...(snapshots.get(`${report.quarter_start}:${report.department}`) ?? {}),
+  }));
 }
 
 export async function getKnowledgeDocuments(): Promise<
@@ -905,42 +927,20 @@ export type SystemUserRecord = {
   id?: string | null;
   full_name?: string | null;
   role?: string | null;
+  active?: boolean | null;
   department_id?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
 
 export async function getSystemUsers(): Promise<SystemUserRecord[]> {
-  const supabase = await createClient();
-
-  try {
-    // Query profiles table for user data
-    // Note: profiles table is linked to auth.users via id (foreign key)
-    // Email comes from auth.users, but we can only access it if RLS allows
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("id, full_name, role, department_id, created_at, updated_at")
-      .order("created_at", { ascending: false });
-
-    if (error) {
-      console.error("Error fetching system users:", {
-        message: error.message,
-        code: error.code,
-        details: error.details,
-      });
-      return [];
-    }
-
-    if (!data) {
-      console.warn("No profile data returned");
-      return [];
-    }
-
-    return data as SystemUserRecord[];
-  } catch (err) {
-    console.error("Error in getSystemUsers catch:", err);
-    return [];
-  }
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("profiles")
+    .select("id, full_name, role, active, department_id, created_at, updated_at")
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(`Unable to load system users: ${error.message}`);
+  return (data ?? []) as SystemUserRecord[];
 }
 
 export function friendlyError(error: unknown) {

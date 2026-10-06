@@ -31,15 +31,34 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  const { data: profile, error: profileError } = user
+    ? await supabase
+        .from("profiles")
+        .select("active")
+        .eq("id", user.id)
+        .maybeSingle()
+    : { data: null, error: null };
+  if (profileError) {
+    throw new Error("Unable to verify account status.");
+  }
+  const accountDisabled = profile?.active === false;
 
   if (pathname.startsWith("/dashboard") || pathname.startsWith("/profile")) {
+    if (accountDisabled) {
+      const loginUrl = new URL("/auth/login", request.url);
+      loginUrl.searchParams.set(
+        "message",
+        "This account has been deactivated. Contact HR or an administrator.",
+      );
+      return NextResponse.redirect(loginUrl);
+    }
     if (!user) {
       const loginUrl = new URL("/auth/login", request.url);
       return NextResponse.redirect(loginUrl);
     }
   }
 
-  if (user && isPublicPath) {
+  if (user && isPublicPath && !accountDisabled) {
     const dashboardUrl = new URL("/dashboard", request.url);
     return NextResponse.redirect(dashboardUrl);
   }

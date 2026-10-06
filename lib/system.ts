@@ -1,12 +1,15 @@
 export const appConfig = {
-  appName: process.env.NEXT_PUBLIC_APP_NAME || "Retain",
-  shortName: process.env.NEXT_PUBLIC_APP_SHORT_NAME || "Retain",
+  appName: process.env.NEXT_PUBLIC_APP_NAME || "CUT-ELAMS",
+  shortName: process.env.NEXT_PUBLIC_APP_SHORT_NAME || "CUT-ELAMS",
   workspaceLabel:
     process.env.NEXT_PUBLIC_WORKSPACE_LABEL ||
-    "Institutional continuity workspace",
-  subtitle: process.env.NEXT_PUBLIC_APP_SUBTITLE || "Continuity OS",
+    "Chinhoyi University of Technology",
+  subtitle:
+    process.env.NEXT_PUBLIC_APP_SUBTITLE ||
+    "Employee Lifecycle & Asset Management",
   organization:
-    process.env.NEXT_PUBLIC_ORGANIZATION_NAME || "Institutional continuity",
+    process.env.NEXT_PUBLIC_ORGANIZATION_NAME ||
+    "Chinhoyi University of Technology",
   defaultUserName: process.env.NEXT_PUBLIC_DEFAULT_USER_NAME || "User",
   defaultRole: process.env.NEXT_PUBLIC_DEFAULT_USER_ROLE || "Employee",
   appUrl: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",

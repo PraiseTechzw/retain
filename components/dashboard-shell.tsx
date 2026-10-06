@@ -96,7 +96,16 @@ const navItems = [
     "Leave",
     "/dashboard/leave",
     CalendarDays,
-    ["employee", "academic attaché", "support staff", "hr", "administrator"],
+    [
+      "employee",
+      "academic attaché",
+      "support staff",
+      "ict",
+      "library",
+      "management",
+      "hr",
+      "administrator",
+    ],
   ],
   [
     "Clearances",
