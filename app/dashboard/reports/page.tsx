@@ -65,9 +65,10 @@ function buildCsvHref(rows: Array<Array<string | number>>) {
   return `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
 }
 
-async function recordReportActivity(reportKey: string) {
+async function recordReportActivity(reportKey: string, actorId: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("audit_events").insert({
+    actor_id: actorId,
     action: "report_generated",
     entity_type: "report",
     entity_id: null,
@@ -94,7 +95,8 @@ export default async function Page({
     : "workforce";
   const exportFormat = params.format === "csv" ? "csv" : "preview";
 
-  const { userName, userRole } = await resolveDashboardUserContext();
+  const { user, userName, userRole } = await resolveDashboardUserContext();
+  if (!user) redirect("/auth/login");
   if (
     !["hr", "administrator", "management"].some((role) =>
       userRole.toLowerCase().includes(role),
@@ -109,7 +111,7 @@ export default async function Page({
       getAuditEvents(5),
       getLeaveRequests(),
     ]);
-  await recordReportActivity(reportKey ?? "workforce");
+  await recordReportActivity(reportKey ?? "workforce", user.id);
 
   const selectedReport =
     reportCatalog.find((report) => report.key === reportKey) ??

@@ -53,6 +53,10 @@ employee categories. Their self-service permissions include their own leave
 and knowledge-document workflows; HR/admin-only reporting and management
 capabilities remain restricted.
 
+See [docs/requirements-audit.md](docs/requirements-audit.md) for the current
+requirements-to-implementation matrix, remaining acceptance checks, and audit
+fixes.
+
 ## Tech stack
 
 - Next.js 16
@@ -179,10 +183,11 @@ This project is for internal institutional use and is managed by the product own
 
 The project uses Supabase Postgres and includes the schema definitions under the supabase/migrations folder. These migrations define the core institutional tables, workflow controls, analytics, and demo data used by the application.
 
-Apply `supabase/migrations/20261006_009_lifecycle_operations.sql` after the
-existing migrations to add leave balances and requests, recruitment openings,
-daily asset activity, employee commute and technical-staff fields, account
-status enforcement, quarterly report snapshots, and the scheduled report job.
+Apply the Supabase migrations in timestamp order through
+`20261007_011_close_audit_findings.sql`. Migrations 010 and 011 replace broad
+legacy RLS policies, add role/ownership checks, align knowledge review access,
+and enforce leave balances. Validate the policies and workflows against the
+project's Supabase database before production use.
 
 | Policy                                      | Command | Roles  | Action     | USING                                                                                                                              | WITH CHECK                              |
 | ------------------------------------------- | ------- | ------ | ---------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |

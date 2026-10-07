@@ -446,6 +446,18 @@ export async function getAssetDailyLogs(limit = 50): Promise<AssetDailyLogRecord
   })) as AssetDailyLogRecord[];
 }
 
+export async function getDailyAssetCheckIds(loggedOn: string): Promise<string[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("asset_daily_logs")
+    .select("asset_id")
+    .eq("event_type", "daily_check")
+    .eq("logged_on", loggedOn);
+
+  if (error) throw new Error(error.message);
+  return [...new Set((data ?? []).map((row) => row.asset_id))];
+}
+
 export async function getRecruitmentOpenings(): Promise<RecruitmentOpeningRecord[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -629,7 +641,7 @@ export async function getKnowledgeReviewQueue() {
   const { data, error } = await supabase
     .from("knowledge_documents")
     .select(
-      "id, title, status, created_at, description, file_name, version, employee_id, requirement_id, employees!employee_id(full_name, employee_number), knowledge_requirements(name, reviewer_role)",
+      "id, title, status, created_at, description, file_name, version, employee_id, requirement_id, knowledge_requirements(name, reviewer_role)",
     )
     .in("status", [
       "submitted",
@@ -640,7 +652,29 @@ export async function getKnowledgeReviewQueue() {
     .order("created_at", { ascending: false });
 
   if (error) throw new Error(error.message);
-  return data ?? [];
+  const documents = data ?? [];
+  const employeeIds = [
+    ...new Set(
+      documents
+        .map((document) => document.employee_id)
+        .filter((employeeId): employeeId is string => Boolean(employeeId)),
+    ),
+  ];
+  const { data: employeeDirectory, error: directoryError } = employeeIds.length
+    ? await supabase
+        .from("knowledge_review_employee_directory")
+        .select("id, full_name, employee_number")
+        .in("id", employeeIds)
+    : { data: [], error: null };
+  if (directoryError) throw new Error(directoryError.message);
+
+  const employeesById = new Map(
+    (employeeDirectory ?? []).map((employee) => [employee.id, employee]),
+  );
+  return documents.map((document) => ({
+    ...document,
+    employees: employeesById.get(document.employee_id) ?? null,
+  }));
 }
 
 export async function getKnowledgeOverviewForEmployee(employeeId: string) {

@@ -1283,6 +1283,7 @@ export async function getKnowledgeDownloadUrl(id: string) {
 
 export async function createKnowledgeCategory(formData: FormData) {
   const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, ["administrator", "hr"]);
   const name = String(formData.get("name") ?? "").trim();
   const description = String(formData.get("description") ?? "").trim();
   if (!name) throw new Error("Category name is required.");
@@ -1343,39 +1344,16 @@ export async function reviewKnowledgeDocument(formData: FormData) {
     .eq("id", documentId)
     .single();
   if (documentError || !doc) throw new Error("Document not found.");
-  const { data: employee, error: employeeError } = await supabase
-    .from("employees")
-    .select("user_id,email")
-    .eq("id", doc.employee_id)
-    .single();
-  if (employeeError || !employee) throw new Error("Employee record not found.");
-  if (
-    employee.user_id === user.id ||
-    (employee.email &&
-      employee.email.toLowerCase() === String(user.email ?? "").toLowerCase())
-  ) {
-    throw new Error(
-      "Employees cannot approve their own knowledge submissions.",
-    );
+  const { data: canReview, error: reviewerError } = await supabase.rpc(
+    "can_review_knowledge_document",
+    {
+      p_employee_id: doc.employee_id,
+      p_requirement_id: doc.requirement_id,
+    },
+  );
+  if (reviewerError || canReview !== true) {
+    throw new Error("You are not authorized to review this knowledge document.");
   }
-  const role = await resolveEffectiveUserRole(supabase, user);
-  let reviewerRole: string | null = null;
-  if (doc.requirement_id) {
-    const { data: requirement, error: requirementError } = await supabase
-      .from("knowledge_requirements")
-      .select("reviewer_role")
-      .eq("id", doc.requirement_id)
-      .maybeSingle();
-    if (requirementError) throw new Error("Unable to verify the document reviewer role.");
-    reviewerRole = requirement?.reviewer_role ?? null;
-  }
-  const roleLower = role.toLowerCase();
-  const canReview =
-    ["administrator", "hr", "management"].some((allowed) =>
-      roleLower.includes(allowed),
-    ) ||
-    (reviewerRole !== null && roleLower.includes(reviewerRole.toLowerCase()));
-  if (!canReview) throw new Error("You are not authorized to review this knowledge document.");
 
   const nextStatus = action;
 
@@ -1492,7 +1470,7 @@ export async function completeOnboarding(formData: FormData) {
 
   const { data: existingEmployee } = await supabase
     .from("employees")
-    .select("id,user_id")
+    .select("id,user_id,department_id")
     .eq("email", user.email ?? "")
     .maybeSingle();
 
@@ -1502,7 +1480,7 @@ export async function completeOnboarding(formData: FormData) {
     }
     const { error: linkError } = await supabase
       .from("employees")
-      .update({ user_id: user.id })
+      .update({ user_id: user.id, department_id: departmentId })
       .eq("id", existingEmployee.id)
       .is("user_id", null);
     if (linkError) {
@@ -1524,6 +1502,15 @@ export async function completeOnboarding(formData: FormData) {
       throw new Error(
         "Profile saved, but the employee record could not be created.",
       );
+    }
+  } else if (!existingEmployee.department_id) {
+    const { error: departmentLinkError } = await supabase
+      .from("employees")
+      .update({ department_id: departmentId })
+      .eq("id", existingEmployee.id)
+      .eq("user_id", user.id);
+    if (departmentLinkError) {
+      throw new Error("Profile saved, but the employee department could not be linked.");
     }
   }
 

@@ -19,27 +19,37 @@ export default async function Page({
   const { data: document } = await supabase
     .from("knowledge_documents")
     .select(
-      "id, title, description, status, file_name, mime_type, file_size, version, created_at, updated_at, rejection_reason, employee_id, employees!employee_id(full_name, employee_number, user_id, email), knowledge_requirements(name, reviewer_role)",
+      "id, title, description, status, file_name, mime_type, file_size, version, created_at, updated_at, rejection_reason, employee_id, requirement_id, knowledge_requirements(name, reviewer_role)",
     )
     .eq("id", id)
     .maybeSingle();
 
-  const employee = Array.isArray(document?.employees)
-    ? document.employees[0]
-    : document?.employees;
+  const [{ data: employee }, { data: ownEmployee }, { data: canReviewResult }] =
+    document
+      ? await Promise.all([
+          supabase
+            .from("knowledge_review_employee_directory")
+            .select("id, full_name, employee_number")
+            .eq("id", document.employee_id)
+            .maybeSingle(),
+          user
+            ? supabase
+                .from("employees")
+                .select("id")
+                .eq("user_id", user.id)
+                .maybeSingle()
+            : Promise.resolve({ data: null }),
+          supabase.rpc("can_review_knowledge_document", {
+            p_employee_id: document.employee_id,
+            p_requirement_id: document.requirement_id,
+          }),
+        ])
+      : [{ data: null }, { data: null }, { data: false }];
   const requirement = Array.isArray(document?.knowledge_requirements)
     ? (document.knowledge_requirements[0] ?? null)
     : (document?.knowledge_requirements ?? null);
-  const isOwner =
-    employee?.user_id === user?.id ||
-    (!!employee?.email &&
-      employee.email.toLowerCase() === user?.email?.toLowerCase());
-  const isReviewer =
-    ["administrator", "hr", "management"].some((role) =>
-      userRole.toLowerCase().includes(role),
-    ) ||
-    (!!requirement?.reviewer_role &&
-      userRole.toLowerCase().includes(requirement.reviewer_role.toLowerCase()));
+  const isReviewer = canReviewResult === true;
+  const isOwner = Boolean(document && ownEmployee?.id === document.employee_id);
   if (document && !isOwner && !isReviewer) redirect("/dashboard");
   const canReview = isReviewer && !isOwner;
 
