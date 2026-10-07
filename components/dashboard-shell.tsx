@@ -200,22 +200,23 @@ function SidebarNav({
         className={`fixed inset-y-0 left-0 z-40 flex h-screen w-72 flex-col border-r border-sidebar-border bg-sidebar px-3 py-5 shadow-xl transition-all duration-200 lg:static ${mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"} ${collapsed ? "lg:w-24" : "lg:w-72"}`}
       >
         <div
-          className={`flex items-center gap-3 ${collapsed ? "lg:justify-center" : "px-3"}`}
+          className={`flex items-center gap-2 ${collapsed ? "lg:justify-center" : "px-2"}`}
         >
-          <div
-            className={`relative flex h-12 shrink-0 items-center overflow-hidden rounded-lg bg-white ${collapsed ? "w-[212px] lg:w-12" : "w-[212px]"}`}
-          >
+          <div className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white p-0.5">
             <Image
-              src="/cut-logo.png"
+              src="/cut-logo-sidebar.png"
               alt="Chinhoyi University of Technology"
-              width={450}
-              height={67}
+              width={1254}
+              height={1254}
               priority
-              className={`h-auto w-[212px] max-w-none ${collapsed ? "lg:h-12 lg:w-[322px] lg:object-cover lg:object-left" : ""}`}
+              className="h-full w-full object-contain"
             />
           </div>
-          <div className={`min-w-0 ${collapsed ? "lg:hidden" : ""}`}>
-            <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+          <div className={`min-w-0 flex-1 ${collapsed ? "lg:hidden" : ""}`}>
+            <p className="truncate text-xs font-bold leading-tight text-foreground">
+              {appConfig.shortName}
+            </p>
+            <p className="text-[10px] font-semibold uppercase leading-relaxed tracking-[0.14em] text-muted-foreground">
               {appConfig.subtitle}
             </p>
           </div>
@@ -229,7 +230,7 @@ function SidebarNav({
         </div>
 
         <div
-          className={`mt-9 flex items-center justify-between px-3 ${collapsed ? "lg:justify-center" : ""}`}
+          className={`mt-7 flex items-center justify-between px-3 ${collapsed ? "lg:justify-center" : ""}`}
         >
           <p
             className={`text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground ${collapsed ? "lg:hidden" : ""}`}
@@ -244,7 +245,7 @@ function SidebarNav({
 
         <nav
           aria-label="Workspace navigation"
-          className={`mt-4 flex flex-1 flex-col gap-1 ${collapsed ? "lg:items-center" : ""}`}
+          className={`mt-3 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain pb-3 pr-1 ${collapsed ? "lg:items-center" : ""}`}
         >
           {navItems
             .filter(([, , , allowedRoles]) =>

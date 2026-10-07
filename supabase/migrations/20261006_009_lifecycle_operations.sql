@@ -126,6 +126,23 @@ create table if not exists public.recruitment_openings (
 create index if not exists recruitment_openings_status_idx
   on public.recruitment_openings(status);
 
+create table if not exists public.retention_interventions (
+  id uuid primary key default gen_random_uuid(),
+  employee_id uuid not null references public.employees(id) on delete cascade,
+  risk_score integer not null,
+  intervention_type text not null,
+  action_notes text not null,
+  follow_up_on date,
+  created_by uuid references auth.users(id),
+  created_at timestamptz not null default now(),
+  constraint retention_interventions_score_valid check (risk_score between 0 and 100),
+  constraint retention_interventions_type_valid
+    check (intervention_type in ('career_conversation', 'workload_review', 'development', 'commute_support', 'other'))
+);
+
+create index if not exists retention_interventions_employee_date_idx
+  on public.retention_interventions(employee_id, created_at desc);
+
 create table if not exists public.quarterly_turnover_reports (
   quarter_start date not null,
   department text not null,
@@ -146,6 +163,22 @@ create policy authenticated_users_read_quarterly_reports
   on public.quarterly_turnover_reports for select
   using (auth.uid() is not null);
 
+create or replace function public.current_app_role()
+returns text
+language sql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+  select coalesce(
+    (select lower(role) from public.profiles where id = auth.uid() and active = true),
+    'employee'
+  );
+$$;
+
+revoke execute on function public.current_app_role() from public, anon;
+grant execute on function public.current_app_role() to authenticated;
+
 insert into public.role_permissions (role_name, permission_name)
 values
   ('Academic Attaché', 'view_own_profile'),
@@ -160,33 +193,92 @@ alter table public.leave_requests enable row level security;
 alter table public.leave_balances enable row level security;
 alter table public.asset_daily_logs enable row level security;
 alter table public.recruitment_openings enable row level security;
+alter table public.retention_interventions enable row level security;
 
 drop policy if exists authenticated_users_access_leave_requests on public.leave_requests;
-create policy authenticated_users_access_leave_requests
-  on public.leave_requests for all
-  using (auth.uid() is not null)
-  with check (auth.uid() is not null);
+drop policy if exists leave_requests_read_scope on public.leave_requests;
+drop policy if exists leave_requests_insert_self on public.leave_requests;
+drop policy if exists leave_requests_review_hr on public.leave_requests;
+create policy leave_requests_read_scope on public.leave_requests
+  for select using (
+    public.current_app_role() in ('administrator', 'hr')
+    or exists (
+      select 1 from public.employees e
+      where e.id = leave_requests.employee_id and e.user_id = auth.uid()
+    )
+  );
+create policy leave_requests_insert_self on public.leave_requests
+  for insert with check (
+    exists (
+      select 1 from public.employees e
+      where e.id = leave_requests.employee_id and e.user_id = auth.uid()
+    )
+  );
+create policy leave_requests_review_hr on public.leave_requests
+  for update
+  using (public.current_app_role() in ('administrator', 'hr'))
+  with check (public.current_app_role() in ('administrator', 'hr'));
 
 drop policy if exists authenticated_users_access_leave_balances on public.leave_balances;
-create policy authenticated_users_access_leave_balances
-  on public.leave_balances for all
-  using (auth.uid() is not null)
-  with check (auth.uid() is not null);
+drop policy if exists leave_balances_read_scope on public.leave_balances;
+drop policy if exists leave_balances_manage_hr on public.leave_balances;
+create policy leave_balances_read_scope on public.leave_balances
+  for select using (
+    public.current_app_role() in ('administrator', 'hr')
+    or exists (
+      select 1 from public.employees e
+      where e.id = leave_balances.employee_id and e.user_id = auth.uid()
+    )
+  );
+create policy leave_balances_manage_hr on public.leave_balances
+  for all
+  using (public.current_app_role() in ('administrator', 'hr'))
+  with check (public.current_app_role() in ('administrator', 'hr'));
 
 drop policy if exists authenticated_users_access_asset_daily_logs on public.asset_daily_logs;
-create policy authenticated_users_access_asset_daily_logs
-  on public.asset_daily_logs for all
-  using (auth.uid() is not null)
-  with check (auth.uid() is not null);
+drop policy if exists asset_daily_logs_read_roles on public.asset_daily_logs;
+drop policy if exists asset_daily_logs_insert_roles on public.asset_daily_logs;
+create policy asset_daily_logs_read_roles on public.asset_daily_logs
+  for select using (
+    public.current_app_role() in ('administrator', 'hr', 'management', 'ict', 'library')
+  );
+create policy asset_daily_logs_insert_roles on public.asset_daily_logs
+  for insert with check (
+    public.current_app_role() in ('administrator', 'hr', 'management', 'ict', 'library')
+  );
 
 drop policy if exists authenticated_users_access_recruitment_openings on public.recruitment_openings;
-create policy authenticated_users_access_recruitment_openings
-  on public.recruitment_openings for all
-  using (auth.uid() is not null)
-  with check (auth.uid() is not null);
+drop policy if exists recruitment_openings_read_roles on public.recruitment_openings;
+drop policy if exists recruitment_openings_manage_roles on public.recruitment_openings;
+create policy recruitment_openings_read_roles on public.recruitment_openings
+  for select using (
+    public.current_app_role() in ('administrator', 'hr', 'management')
+  );
+create policy recruitment_openings_manage_roles on public.recruitment_openings
+  for all
+  using (public.current_app_role() in ('administrator', 'hr', 'management'))
+  with check (public.current_app_role() in ('administrator', 'hr', 'management'));
+
+drop policy if exists retention_interventions_read_roles on public.retention_interventions;
+drop policy if exists retention_interventions_manage_hr on public.retention_interventions;
+create policy retention_interventions_read_roles on public.retention_interventions
+  for select using (
+    public.current_app_role() in ('administrator', 'hr', 'management')
+  );
+create policy retention_interventions_manage_hr on public.retention_interventions
+  for all
+  using (public.current_app_role() in ('administrator', 'hr'))
+  with check (public.current_app_role() in ('administrator', 'hr'));
+
+drop policy if exists authenticated_users_read_quarterly_reports on public.quarterly_turnover_reports;
+create policy authenticated_users_read_quarterly_reports
+  on public.quarterly_turnover_reports for select
+  using (
+    public.current_app_role() in ('administrator', 'hr', 'management')
+  );
 
 create or replace view public.quarterly_turnover_summary
-with (security_invoker = true)
+with (security_invoker = false)
 as
 with exit_events as (
   select
@@ -265,7 +357,7 @@ quarter_workforce as (
             or e.exit_date::date >= (qs.quarter_start + interval '3 months' - interval '1 day')::date
           )
       )
-    ) / 2.0)::integer as active_headcount
+    ) / 2.0)::bigint as active_headcount
   from quarter_series qs
   cross join department_scope ds
   left join public.employees e on e.department_id is not distinct from ds.department_id
@@ -276,8 +368,8 @@ select
   w.department,
   coalesce(q.exits, 0) as exits,
   w.active_headcount,
-  r.exit_reason as top_exit_reason,
-  round((coalesce(q.exits, 0) * 100.0 / nullif(w.active_headcount, 0))::numeric, 1) as attrition_rate_pct
+  round((coalesce(q.exits, 0) * 100.0 / nullif(w.active_headcount, 0))::numeric, 1) as attrition_rate_pct,
+  r.exit_reason as top_exit_reason
 from quarter_series qs
 join quarter_workforce w on w.quarter_start = qs.quarter_start
 left join quarter_exits q
@@ -286,6 +378,41 @@ left join quarter_exits q
 left join quarter_top_reason r
   on r.quarter_start = qs.quarter_start
   and r.department = w.department;
+
+revoke all on public.quarterly_turnover_summary from public, anon, authenticated;
+
+create or replace function public.get_quarterly_turnover_summary()
+returns table (
+  quarter_start date,
+  department text,
+  exits bigint,
+  active_headcount integer,
+  top_exit_reason text,
+  attrition_rate_pct numeric
+)
+language plpgsql
+stable
+security definer
+set search_path = public, pg_temp
+as $$
+begin
+  if public.current_app_role() not in ('administrator', 'hr', 'management') then
+    raise exception 'Not authorized to view quarterly turnover reports';
+  end if;
+  return query
+    select
+      summary.quarter_start,
+      summary.department,
+      summary.exits,
+      summary.active_headcount::integer,
+      summary.top_exit_reason,
+      summary.attrition_rate_pct
+    from public.quarterly_turnover_summary summary;
+end;
+$$;
+
+revoke execute on function public.get_quarterly_turnover_summary() from public, anon;
+grant execute on function public.get_quarterly_turnover_summary() to authenticated;
 
 create or replace function public.capture_quarterly_turnover_report()
 returns void

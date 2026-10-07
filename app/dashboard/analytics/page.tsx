@@ -533,10 +533,10 @@ function renderAnalyticsPage({
                     {Math.max(
                       0,
                       assignedAssets.length -
-                        assignedAssets.filter((asset) =>
-                          ["returned", "verified"].includes(
-                            String(asset.status ?? "").toLowerCase(),
-                          ),
+                        assignedAssets.filter(
+                          (asset) =>
+                            String(asset.status ?? "").toLowerCase() ===
+                            "verified",
                         ).length,
                     )}
                   </p>
@@ -789,8 +789,8 @@ export default async function Page({
         : 0;
 
     const assignedAssets = assetList.filter((asset) => !!asset.assigned_to);
-    const returnedAssets = assignedAssets.filter((asset) =>
-      ["returned", "verified"].includes(normalizeStatus(asset.status)),
+    const returnedAssets = assignedAssets.filter(
+      (asset) => normalizeStatus(asset.status) === "verified",
     ).length;
     const assetRecoveryRate =
       assignedAssets.length > 0

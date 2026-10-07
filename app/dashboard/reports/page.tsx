@@ -147,9 +147,7 @@ export default async function Page({
             "Outstanding items",
             snapshot.assets.filter(
               (asset) =>
-                !["returned", "verified"].includes(
-                  String(asset.status ?? "").toLowerCase(),
-                ),
+                String(asset.status ?? "").toLowerCase() !== "verified",
             ).length,
           ],
         ];

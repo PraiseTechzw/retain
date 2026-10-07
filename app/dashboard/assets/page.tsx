@@ -34,7 +34,7 @@ export default async function Page() {
       asset.current_location ?? "Not recorded",
       <Status
         key="status"
-        tone={asset.status === "returned" ? "green" : "amber"}
+        tone={asset.status === "verified" ? "green" : "amber"}
       >
         {asset.status}
       </Status>,

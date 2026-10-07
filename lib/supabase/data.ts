@@ -126,6 +126,16 @@ export type QuarterlyTurnoverRecord = {
   generated_at?: string | null;
 };
 
+export type RetentionInterventionRecord = {
+  id: string;
+  employee_id: string;
+  risk_score: number;
+  intervention_type: string;
+  action_notes: string;
+  follow_up_on: string | null;
+  created_at: string;
+};
+
 export type KnowledgeDocumentRecord = {
   id?: string | null;
   title?: string | null;
@@ -403,12 +413,7 @@ export async function getRecruitmentOpenings(): Promise<RecruitmentOpeningRecord
 export async function getQuarterlyTurnoverSummary(): Promise<QuarterlyTurnoverRecord[]> {
   const supabase = await createClient();
   const [liveResult, snapshotsResult] = await Promise.all([
-    supabase
-      .from("quarterly_turnover_summary")
-      .select("quarter_start, department, exits, active_headcount, top_exit_reason, attrition_rate_pct")
-      .order("quarter_start", { ascending: false })
-      .order("department", { ascending: true })
-      .limit(500),
+    supabase.rpc("get_quarterly_turnover_summary"),
     supabase
       .from("quarterly_turnover_reports")
       .select("quarter_start, department, exits, active_headcount, top_exit_reason, attrition_rate_pct, generated_at")
@@ -423,10 +428,27 @@ export async function getQuarterlyTurnoverSummary(): Promise<QuarterlyTurnoverRe
       report,
     ]),
   );
-  return ((liveResult.data ?? []) as QuarterlyTurnoverRecord[]).map((report) => ({
-    ...report,
-    ...(snapshots.get(`${report.quarter_start}:${report.department}`) ?? {}),
-  }));
+  return ((liveResult.data ?? []) as QuarterlyTurnoverRecord[])
+    .map((report) => ({
+      ...report,
+      ...(snapshots.get(`${report.quarter_start}:${report.department}`) ?? {}),
+    }))
+    .sort(
+      (a, b) =>
+        b.quarter_start.localeCompare(a.quarter_start) ||
+        a.department.localeCompare(b.department),
+    );
+}
+
+export async function getRetentionInterventions(): Promise<RetentionInterventionRecord[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("retention_interventions")
+    .select("id, employee_id, risk_score, intervention_type, action_notes, follow_up_on, created_at")
+    .order("created_at", { ascending: false })
+    .limit(200);
+  if (error) throw new Error(error.message);
+  return (data ?? []) as RetentionInterventionRecord[];
 }
 
 export async function getKnowledgeDocuments(): Promise<
@@ -791,7 +813,7 @@ export async function getAdminOverviewSnapshot(): Promise<AdminOverviewSnapshot>
 
   const returnedAssets = assets.filter((asset) => {
     const status = String(asset.status ?? "").toLowerCase();
-    return status === "returned" || status === "verified";
+    return status === "verified";
   }).length;
 
   const assetRecoveryRate = assets.length
@@ -881,7 +903,7 @@ export async function getReportDashboardSnapshot(): Promise<ReportDashboardSnaps
 
   const returnedAssets = assets.filter((asset) => {
     const status = String(asset.status ?? "").toLowerCase();
-    return status === "returned" || status === "verified";
+    return status === "verified";
   }).length;
 
   const assetRecoveryRate = assets.length

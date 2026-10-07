@@ -554,6 +554,45 @@ export async function updateEmployeeRiskProfile(formData: FormData) {
   revalidatePath("/dashboard/talent-risk");
 }
 
+export async function recordRetentionIntervention(formData: FormData) {
+  const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, ["administrator", "hr"]);
+  const employeeId = String(formData.get("employee_id") ?? "").trim();
+  const riskScore = Number(formData.get("risk_score") ?? "");
+  const interventionType = String(formData.get("intervention_type") ?? "").trim();
+  const actionNotes = String(formData.get("action_notes") ?? "").trim();
+  const followUpOn = String(formData.get("follow_up_on") ?? "").trim() || null;
+  if (
+    !employeeId ||
+    !Number.isInteger(riskScore) ||
+    riskScore < 0 ||
+    riskScore > 100 ||
+    !["career_conversation", "workload_review", "development", "commute_support", "other"].includes(interventionType) ||
+    !actionNotes
+  ) {
+    throw new Error("Enter an employee, valid score, intervention type, and action notes.");
+  }
+  const { data: intervention, error } = await supabase
+    .from("retention_interventions")
+    .insert({
+      employee_id: employeeId,
+      risk_score: riskScore,
+      intervention_type: interventionType,
+      action_notes: actionNotes,
+      follow_up_on: followUpOn,
+      created_by: user.id,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error("Unable to save the retention intervention.");
+  await audit(supabase, user.id, "recorded", "retention_intervention", intervention.id, {
+    employee_id: employeeId,
+    risk_score: riskScore,
+    intervention_type: interventionType,
+  });
+  revalidatePath("/dashboard/talent-risk");
+}
+
 export async function createExitRequest(formData: FormData) {
   const { supabase, user } = await actor();
   const employeeId = String(formData.get("employee_id") ?? "");
@@ -620,6 +659,7 @@ export async function createExitRequest(formData: FormData) {
 
 export async function updateAssetStatus(formData: FormData) {
   const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, ["administrator", "hr", "ict", "library"]);
   const id = String(formData.get("asset_id") ?? "");
   const status = String(formData.get("status") ?? "");
   if (!id || !["assigned", "available", "returned", "retired"].includes(status))
@@ -735,7 +775,7 @@ export async function reviewLeaveRequest(formData: FormData) {
   if (employee?.email && employee.email.toLowerCase() === String(user.email ?? "").toLowerCase()) {
     throw new Error("You cannot review your own leave request.");
   }
-  const { error } = await supabase
+  const { data: updated, error } = await supabase
     .from("leave_requests")
     .update({
       status: decision,
@@ -744,8 +784,11 @@ export async function reviewLeaveRequest(formData: FormData) {
       review_notes: reviewNotes,
     })
     .eq("id", requestId)
-    .eq("status", "pending");
+    .eq("status", "pending")
+    .select("id")
+    .maybeSingle();
   if (error) throw new Error("Unable to update the leave request.");
+  if (!updated) throw new Error("The request was reviewed by another user.");
   await audit(supabase, user.id, decision, "leave_request", requestId);
   revalidatePath("/dashboard/leave");
   revalidatePath("/dashboard/analytics");
@@ -1454,14 +1497,27 @@ export async function completeOnboarding(formData: FormData) {
 
   const { data: existingEmployee } = await supabase
     .from("employees")
-    .select("id")
+    .select("id,user_id")
     .eq("email", user.email ?? "")
     .maybeSingle();
 
-  if (!existingEmployee) {
+  if (existingEmployee && existingEmployee.user_id !== user.id) {
+    if (existingEmployee.user_id) {
+      throw new Error("This employee record is already linked to another account.");
+    }
+    const { error: linkError } = await supabase
+      .from("employees")
+      .update({ user_id: user.id })
+      .eq("id", existingEmployee.id)
+      .is("user_id", null);
+    if (linkError) {
+      throw new Error("Profile saved, but the employee record could not be linked.");
+    }
+  } else if (!existingEmployee) {
     const employeeNumber = `USER-${user.id.slice(0, 8).toUpperCase()}`;
     const { error: employeeError } = await supabase.from("employees").insert({
       employee_number: employeeNumber,
+      user_id: user.id,
       full_name: fullName,
       email: user.email,
       department_id: departmentId,

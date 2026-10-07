@@ -6,28 +6,23 @@ import {
 import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
 import { reviewKnowledgeDocument } from "@/lib/supabase/actions";
+import { redirect } from "next/navigation";
 
 export default async function Page({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { userName, userRole } = await resolveDashboardUserContext();
+  const { user, userName, userRole } = await resolveDashboardUserContext();
   const { id } = await params;
   const supabase = await createClient();
   const { data: document } = await supabase
     .from("knowledge_documents")
     .select(
-      "id, title, description, status, file_name, mime_type, file_size, version, created_at, updated_at, rejection_reason, employee_id, employees!employee_id(full_name, employee_number), knowledge_requirements(name, reviewer_role)",
+      "id, title, description, status, file_name, mime_type, file_size, version, created_at, updated_at, rejection_reason, employee_id, employees!employee_id(full_name, employee_number, user_id, email), knowledge_requirements(name, reviewer_role)",
     )
     .eq("id", id)
     .maybeSingle();
-
-  const canReview =
-    userRole === "Administrator" ||
-    userRole === "HR" ||
-    userRole === "ICT" ||
-    userRole === "Management";
 
   const employee = Array.isArray(document?.employees)
     ? document.employees[0]
@@ -35,6 +30,18 @@ export default async function Page({
   const requirement = Array.isArray(document?.knowledge_requirements)
     ? (document.knowledge_requirements[0] ?? null)
     : (document?.knowledge_requirements ?? null);
+  const isOwner =
+    employee?.user_id === user?.id ||
+    (!!employee?.email &&
+      employee.email.toLowerCase() === user?.email?.toLowerCase());
+  const isReviewer =
+    ["administrator", "hr", "management"].some((role) =>
+      userRole.toLowerCase().includes(role),
+    ) ||
+    (!!requirement?.reviewer_role &&
+      userRole.toLowerCase().includes(requirement.reviewer_role.toLowerCase()));
+  if (document && !isOwner && !isReviewer) redirect("/dashboard");
+  const canReview = isReviewer && !isOwner;
 
   return (
     <DashboardShell userName={userName} userRole={userRole}>

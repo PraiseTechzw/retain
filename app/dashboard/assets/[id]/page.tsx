@@ -20,6 +20,9 @@ export default async function Page({
   params: Promise<{ id: string }>;
 }) {
   const { userName, userRole } = await resolveDashboardUserContext();
+  const canOperateAssets = ["hr", "administrator", "ict", "library"].some(
+    (role) => userRole.toLowerCase().includes(role),
+  );
   if (!["hr", "administrator", "management", "ict", "library"].some((role) => userRole.toLowerCase().includes(role))) {
     redirect("/dashboard");
   }
@@ -55,7 +58,7 @@ export default async function Page({
             Assigned to {assignedEmployee?.full_name ?? "—"}
           </p>
           <div className="mt-6">
-            <Status tone={asset?.status === "returned" ? "green" : "amber"}>
+            <Status tone={asset?.status === "verified" ? "green" : "amber"}>
               {asset?.status}
             </Status>
             <p className="mt-2 text-sm text-muted-foreground">
@@ -64,7 +67,7 @@ export default async function Page({
           </div>
 
           <div className="mt-8 flex gap-3">
-            {asset?.status === "assigned" && (
+            {canOperateAssets && asset?.status === "assigned" && (
               <form action={receiveAssetReturn}>
                 <input type="hidden" name="asset_id" value={id} />
                 <button className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
@@ -72,7 +75,7 @@ export default async function Page({
                 </button>
               </form>
             )}
-            {asset?.status === "returned" && (
+            {canOperateAssets && asset?.status === "returned" && (
               <form action={verifyAsset}>
                 <input type="hidden" name="asset_id" value={id} />
                 <button className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
@@ -84,7 +87,7 @@ export default async function Page({
               <Status tone="green">Return verified · {asset.verified_at ? new Date(asset.verified_at).toLocaleDateString() : "date unavailable"}</Status>
             )}
 
-            {asset?.status === "available" && (
+            {canOperateAssets && asset?.status === "available" && (
               <form action={assignAsset} className="flex items-center gap-2">
               <input type="hidden" name="asset_id" value={id} />
               <select

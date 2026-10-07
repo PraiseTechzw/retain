@@ -251,6 +251,7 @@ export default async function Page() {
                                   <form key={decision} action={reviewLeaveRequest}>
                                     <input type="hidden" name="request_id" value={request.id} />
                                     <input type="hidden" name="decision" value={decision} />
+                                    <input name="review_notes" aria-label="Review note" placeholder="Optional note" className="mb-1 w-32 rounded border border-input bg-background px-2 py-1 text-xs" />
                                     <button className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold capitalize hover:bg-muted">
                                       {decision}
                                     </button>

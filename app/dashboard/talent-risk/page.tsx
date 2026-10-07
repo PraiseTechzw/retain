@@ -2,7 +2,12 @@ import { redirect } from "next/navigation";
 import { DashboardShell, PageFrame, Status } from "@/components/dashboard-shell";
 import { assessFlightRisk } from "@/lib/analytics/flight-risk";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
-import { getEmployees, getLeaveRequests } from "@/lib/supabase/data";
+import { recordRetentionIntervention } from "@/lib/supabase/actions";
+import {
+  getEmployees,
+  getLeaveRequests,
+  getRetentionInterventions,
+} from "@/lib/supabase/data";
 
 function commuteBand(distance: number | null | undefined) {
   if (distance === null || distance === undefined) return "Not recorded";
@@ -21,6 +26,10 @@ export default async function Page() {
     getEmployees(),
     getLeaveRequests(),
   ]);
+  const canRecordInterventions = ["hr", "administrator"].some((role) =>
+    userRole.toLowerCase().includes(role),
+  );
+  const interventions = await getRetentionInterventions();
   const activeEmployees = employees
     .filter((employee) => employee.id && employee.full_name && employee.employee_number)
     .filter((employee) => String(employee.employment_status).toLowerCase() === "active")
@@ -54,6 +63,15 @@ export default async function Page() {
   const heatmapAreas = [...heatmap.entries()].sort(
     (a, b) => b[1].size - a[1].size || a[0].localeCompare(b[0]),
   );
+  const interventionsByEmployee = new Map<
+    string,
+    (typeof interventions)[number][]
+  >();
+  interventions.forEach((intervention) => {
+    const current = interventionsByEmployee.get(intervention.employee_id) ?? [];
+    current.push(intervention);
+    interventionsByEmployee.set(intervention.employee_id, current);
+  });
   const hasCommuteData = activeEmployees.some(
     (employee) => employee.commute_distance_km !== null && employee.commute_distance_km !== undefined,
   );
@@ -95,7 +113,15 @@ export default async function Page() {
                 <table className="w-full text-left text-sm">
                   <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
                     <tr>
-                      {["Employee", "Department", "Score", "Signal", "Inputs"].map((title) => (
+                      {[
+                        "Employee",
+                        "Department",
+                        "Score",
+                        "Signal",
+                        "Inputs",
+                        "Recent intervention",
+                        ...(canRecordInterventions ? ["Record intervention"] : []),
+                      ].map((title) => (
                         <th key={title} className="px-4 py-3 font-semibold">{title}</th>
                       ))}
                     </tr>
@@ -117,6 +143,33 @@ export default async function Page() {
                         <td className="min-w-64 px-4 py-3 text-xs text-muted-foreground">
                           {assessment.signals.join(" · ")}
                         </td>
+                        <td className="min-w-48 px-4 py-3 text-xs text-muted-foreground">
+                          {interventionsByEmployee.get(assessment.employee.id)?.[0]
+                            ? `${interventionsByEmployee.get(assessment.employee.id)![0].intervention_type.replaceAll("_", " ")} · ${new Date(interventionsByEmployee.get(assessment.employee.id)![0].created_at).toLocaleDateString()}`
+                            : "No action recorded"}
+                        </td>
+                        {canRecordInterventions && (
+                          <td className="min-w-72 px-4 py-3">
+                            <form action={recordRetentionIntervention} className="space-y-2">
+                              <input type="hidden" name="employee_id" value={assessment.employee.id} />
+                              <input type="hidden" name="risk_score" value={assessment.score} />
+                              <select name="intervention_type" required className="h-9 w-full rounded-lg border border-input bg-background px-2 text-xs">
+                                <option value="career_conversation">Career conversation</option>
+                                <option value="workload_review">Workload review</option>
+                                <option value="development">Development opportunity</option>
+                                <option value="commute_support">Commute support</option>
+                                <option value="other">Other</option>
+                              </select>
+                              <textarea name="action_notes" required rows={2} placeholder="Agreed action and context" className="w-full rounded-lg border border-input bg-background p-2 text-xs" />
+                              <div className="flex gap-2">
+                                <input name="follow_up_on" type="date" className="h-9 min-w-0 flex-1 rounded-lg border border-input bg-background px-2 text-xs" />
+                                <button className="rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground">
+                                  Record
+                                </button>
+                              </div>
+                            </form>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
