@@ -39,12 +39,14 @@ const reportCatalog = [
   {
     key: "quarterly-attrition",
     label: "Quarterly attrition",
-    description: "Automatically grouped exits, current headcount, and quarterly rate by department",
+    description:
+      "Automatically grouped exits, current headcount, and quarterly rate by department",
   },
   {
     key: "leave-turnaround",
     label: "Leave turnaround",
-    description: "Pending volume, approvals, and measured application review time",
+    description:
+      "Pending volume, approvals, and measured application review time",
   },
 ] as const;
 
@@ -68,13 +70,14 @@ async function recordReportActivity(reportKey: string) {
   const { error } = await supabase.from("audit_events").insert({
     action: "report_generated",
     entity_type: "report",
-    entity_id: reportKey,
+    entity_id: null,
     metadata: {
       report_key: reportKey,
       generated_at: new Date().toISOString(),
     },
   });
-  if (error) throw new Error(`Unable to record report activity: ${error.message}`);
+  if (error)
+    throw new Error(`Unable to record report activity: ${error.message}`);
 }
 
 export default async function Page({
@@ -92,15 +95,20 @@ export default async function Page({
   const exportFormat = params.format === "csv" ? "csv" : "preview";
 
   const { userName, userRole } = await resolveDashboardUserContext();
-  if (!["hr", "administrator", "management"].some((role) => userRole.toLowerCase().includes(role))) {
+  if (
+    !["hr", "administrator", "management"].some((role) =>
+      userRole.toLowerCase().includes(role),
+    )
+  ) {
     redirect("/dashboard");
   }
-  const [snapshot, quarterlyTurnover, auditEvents, leaveRequests] = await Promise.all([
-    getReportDashboardSnapshot(),
-    getQuarterlyTurnoverSummary(),
-    getAuditEvents(5),
-    getLeaveRequests(),
-  ]);
+  const [snapshot, quarterlyTurnover, auditEvents, leaveRequests] =
+    await Promise.all([
+      getReportDashboardSnapshot(),
+      getQuarterlyTurnoverSummary(),
+      getAuditEvents(5),
+      getLeaveRequests(),
+    ]);
   await recordReportActivity(reportKey ?? "workforce");
 
   const selectedReport =
@@ -167,12 +175,32 @@ export default async function Page({
             }, 0) / reviewed.length
           : null;
         return [
-          ["Pending requests", leaveRequests.filter((request) => request.status === "pending").length],
-          ["Approved requests", leaveRequests.filter((request) => request.status === "approved").length],
-          ["Rejected requests", leaveRequests.filter((request) => request.status === "rejected").length],
+          [
+            "Pending requests",
+            leaveRequests.filter((request) => request.status === "pending")
+              .length,
+          ],
+          [
+            "Approved requests",
+            leaveRequests.filter((request) => request.status === "approved")
+              .length,
+          ],
+          [
+            "Rejected requests",
+            leaveRequests.filter((request) => request.status === "rejected")
+              .length,
+          ],
           ["Reviewed requests", reviewed.length],
-          ["Average review turnaround", averageTurnaroundDays === null ? "No reviewed requests" : `${averageTurnaroundDays.toFixed(1)} days`],
-          ["Target", "Reduce baseline average turnaround by 35% within six months"],
+          [
+            "Average review turnaround",
+            averageTurnaroundDays === null
+              ? "No reviewed requests"
+              : `${averageTurnaroundDays.toFixed(1)} days`,
+          ],
+          [
+            "Target",
+            "Reduce baseline average turnaround by 35% within six months",
+          ],
         ];
       }
       case "workforce":
