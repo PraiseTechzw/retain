@@ -157,11 +157,8 @@ export default function OnboardingForm({
         (user.user_metadata?.full_name as string | undefined) ??
         user.email?.split("@")[0] ??
         safeUserName;
-      const authRole =
-        (user.user_metadata?.role as string | undefined) ?? safeDefaultRole;
-
       setFullName(authFullName || safeUserName || "");
-      setRole(authRole || safeDefaultRole || "Employee");
+      setRole(safeDefaultRole || "Employee");
 
       const { data: profile } = await supabase
         .from("profiles")
@@ -177,8 +174,7 @@ export default function OnboardingForm({
       }
 
       if (profile?.full_name) setFullName(profile.full_name);
-      // The Auth-assigned role is canonical. Do not replace it with a stale
-      // profile value while the profile is being synchronized on submit.
+      if (profile?.role) setRole(profile.role);
 
       const { data: employee } = await supabase
         .from("employees")

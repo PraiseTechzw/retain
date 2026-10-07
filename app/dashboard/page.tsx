@@ -16,18 +16,15 @@ export default async function Page() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("department_id, full_name, role")
+    .select("department_id, full_name, role, active")
     .eq("id", user.id)
     .maybeSingle();
 
-  const authRole = user?.user_metadata?.role as string | undefined;
   const profileRole = profile?.role as string | undefined;
 
   console.log("[dashboard-role-debug]", {
     userId: user.id,
-    authRole,
     profileRole,
-    rawMetadata: user?.user_metadata ?? null,
     defaultRole: "Employee",
   });
 
@@ -87,9 +84,7 @@ export default async function Page() {
     user?.email?.split("@")[0] ||
     "User";
   const userRole = normalizeUserRole(
-    (user?.user_metadata?.role as string | undefined) ||
-      profile?.role ||
-      "Employee",
+    profile?.active !== false ? profile?.role || "Employee" : "Employee",
   );
 
   const completedClearances = (clearanceSteps ?? []).filter(

@@ -17,7 +17,7 @@ export default async function Page() {
     await Promise.all([
       supabase
         .from("profiles")
-        .select("full_name, role, department_id")
+        .select("full_name, role, department_id, active")
         .eq("id", user.id)
         .maybeSingle(),
       supabase
@@ -49,9 +49,9 @@ export default async function Page() {
     appConfig.defaultUserName;
 
   const userRole =
-    profile?.role ||
-    (user?.user_metadata?.role as string | undefined) ||
-    appConfig.defaultRole;
+    profile?.active === false
+      ? appConfig.defaultRole
+      : profile?.role || appConfig.defaultRole;
 
   return (
     <DashboardShell userName={userName} userRole={userRole}>
