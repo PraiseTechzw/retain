@@ -64,26 +64,14 @@ export async function resolveDashboardUserContext() {
   const { data: profile } = user
     ? await supabase
         .from("profiles")
-        .select("full_name, role")
+        .select("full_name, role, active")
         .eq("id", user.id)
         .maybeSingle()
     : { data: null };
-
-  const authRole = normalizeUserRole(
-    typeof user?.user_metadata?.role === "string"
-      ? String(user.user_metadata.role)
-      : null,
-  );
-
-  const profileRole = normalizeUserRole(
-    typeof profile?.role === "string" ? String(profile.role) : null,
-  );
-
-  const effectiveRole =
-    authRole && authRole !== appConfig.defaultRole ? authRole : profileRole;
-
   const userRole = normalizeUserRole(
-    effectiveRole || authRole || profileRole || appConfig.defaultRole,
+    profile?.active !== false && typeof profile?.role === "string"
+      ? profile.role
+      : appConfig.defaultRole,
   );
 
   const userName =
@@ -94,20 +82,14 @@ export async function resolveDashboardUserContext() {
     user?.email?.split("@")[0] ||
     appConfig.defaultUserName;
 
-  const roleSource =
-    authRole && authRole !== appConfig.defaultRole
-      ? "auth_metadata"
-      : profileRole && profileRole !== appConfig.defaultRole
-        ? "profile"
-        : "default";
+  const roleSource = profile?.role ? "profile" : "default";
 
   if (process.env.NODE_ENV === "development") {
     console.log("[dashboard-role-debug]", {
       userId: user?.id ?? null,
       resolvedRole: userRole,
       roleSource,
-      authRole,
-      profileRole,
+      profileRole: profile?.role ?? null,
       defaultRole: appConfig.defaultRole,
     });
   }

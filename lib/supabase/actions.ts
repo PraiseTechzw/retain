@@ -85,23 +85,15 @@ async function ensureUserProfile(
     .eq("id", user.id)
     .maybeSingle();
 
-  // Auth metadata is the assigned role. Keep the public profile copy in sync
-  // so the same user is not shown as (for example) both Employee and
-  // Administrator in different areas of the app.
-  const assignedRole = String(
-    preferredRole ??
-      user.user_metadata?.role ??
-      existingProfile?.role ??
-      appConfig.defaultRole,
-  ).trim();
-  const role = assignedRole || appConfig.defaultRole;
+  const role = String(
+    preferredRole ?? existingProfile?.role ?? appConfig.defaultRole,
+  ).trim() || appConfig.defaultRole;
 
   console.log("[profile-role-debug]", {
     userId: user.id,
     preferredRole,
-    authRole: user.user_metadata?.role ?? null,
     existingProfileRole: existingProfile?.role ?? null,
-    assignedRole,
+    assignedRole: role,
     resolvedRole: role,
   });
 
@@ -397,19 +389,16 @@ async function requireAdminRole(
   supabase: Awaited<ReturnType<typeof createClient>>,
   user: { id: string; user_metadata?: Record<string, unknown> },
 ) {
-  const metadataRole =
-    typeof user.user_metadata?.role === "string"
-      ? String(user.user_metadata.role).trim()
-      : "";
-
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, active")
     .eq("id", user.id)
     .maybeSingle();
 
   const combinedRole = normalizeUserRole(
-    metadataRole || (typeof profile?.role === "string" ? profile.role : ""),
+    typeof profile?.role === "string" && profile.active !== false
+      ? profile.role
+      : "",
   );
 
   if (
@@ -424,19 +413,16 @@ async function resolveEffectiveUserRole(
   supabase: Awaited<ReturnType<typeof createClient>>,
   user: { id: string; user_metadata?: Record<string, unknown> },
 ) {
-  const metadataRole =
-    typeof user.user_metadata?.role === "string"
-      ? String(user.user_metadata.role).trim()
-      : "";
-
   const { data: profile } = await supabase
     .from("profiles")
-    .select("role")
+    .select("role, active")
     .eq("id", user.id)
     .maybeSingle();
 
   return normalizeUserRole(
-    metadataRole || (typeof profile?.role === "string" ? profile.role : ""),
+    typeof profile?.role === "string" && profile.active !== false
+      ? profile.role
+      : "",
   );
 }
 
@@ -698,12 +684,10 @@ export async function submitLeaveRequest(formData: FormData) {
     throw new Error("Enter a valid leave date range.");
   }
 
-  const employeeEmail = String(user.email ?? "").trim();
-  if (!employeeEmail) throw new Error("Your account has no employee email.");
   const { data: employee, error: employeeError } = await supabase
     .from("employees")
     .select("id")
-    .eq("email", employeeEmail)
+    .eq("user_id", user.id)
     .maybeSingle();
   if (employeeError) throw new Error("Unable to find your employee record.");
   if (!employee) throw new Error("Your account is not linked to an employee record.");
@@ -740,7 +724,12 @@ export async function submitLeaveRequest(formData: FormData) {
     })
     .select("id")
     .single();
-  if (error) throw new Error("Unable to submit leave request.");
+  if (error) {
+    if (/leave balance|available .* balance|at least one weekday/i.test(error.message)) {
+      throw new Error(error.message);
+    }
+    throw new Error("Unable to submit leave request.");
+  }
   await audit(supabase, user.id, "submitted", "leave_request", data.id, {
     starts_on: startsOn,
     ends_on: endsOn,
@@ -963,12 +952,21 @@ export async function approveClearance(formData: FormData) {
     .single();
   const stepDept = stepData?.department ?? "";
   const userRole = await resolveEffectiveUserRole(supabase, user);
+  const normalizedRole = userRole.toLowerCase();
+  const normalizedDepartment = stepDept.toLowerCase();
+  const isIctClearance =
+    normalizedDepartment.includes("ict") ||
+    normalizedDepartment.includes("information and communication technology");
   const allowed =
-    userRole.toLowerCase().includes(stepDept.toLowerCase()) ||
-    userRole.toLowerCase().includes("hr") ||
-    userRole.toLowerCase().includes("administrator") ||
-    (stepDept.toLowerCase().includes("department head") &&
-      userRole.toLowerCase().includes("management"));
+    normalizedRole.includes("hr") ||
+    normalizedRole.includes("administrator") ||
+    (normalizedRole.includes("management") &&
+      normalizedDepartment.includes("department head")) ||
+    (normalizedRole.includes("ict") && isIctClearance) ||
+    (normalizedRole.includes("library") &&
+      normalizedDepartment.includes("librar")) ||
+    (normalizedRole.length > 2 &&
+      normalizedDepartment.includes(normalizedRole));
   if (!allowed)
     throw new Error("You are not authorized to approve this clearance.");
 
@@ -1449,11 +1447,8 @@ export async function completeOnboarding(formData: FormData) {
   // The assigned role is never accepted from onboarding form data. This stops
   // a user from creating a conflicting or elevated role for themselves.
   const role =
-    String(
-      user.user_metadata?.role ??
-        existingProfile?.role ??
-        appConfig.defaultRole,
-    ).trim() || appConfig.defaultRole;
+    String(existingProfile?.role ?? appConfig.defaultRole).trim() ||
+    appConfig.defaultRole;
 
   const profile = {
     full_name: fullName,

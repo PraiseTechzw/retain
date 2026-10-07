@@ -354,11 +354,35 @@ export async function getAssets(): Promise<AssetRecord[]> {
   const { data, error } = await supabase
     .from("assets")
     .select(
-      "id, asset_tag, asset_type, description, status, returned_at, verified_at, current_location, assigned_to, employees!assigned_to(full_name, employee_number, department_id)",
+      "id, asset_tag, asset_type, description, status, returned_at, verified_at, current_location, assigned_to",
     )
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
-  return data ?? [];
+  const assets = data ?? [];
+  const employeeIds = [
+    ...new Set(
+      assets
+        .map((asset) => asset.assigned_to)
+        .filter((employeeId): employeeId is string => Boolean(employeeId)),
+    ),
+  ];
+  const { data: directory, error: directoryError } = employeeIds.length
+    ? await supabase
+        .from("asset_employee_directory")
+        .select("id, full_name, employee_number, department_id")
+        .in("id", employeeIds)
+    : { data: [], error: null };
+  if (directoryError) throw new Error(directoryError.message);
+  const employeesById = new Map(
+    (directory ?? []).map((employee) => [employee.id, employee]),
+  );
+
+  return assets.map((asset) => ({
+    ...asset,
+    employees: asset.assigned_to
+      ? employeesById.get(asset.assigned_to) ?? null
+      : null,
+  }));
 }
 
 export async function getLeaveRequests(): Promise<LeaveRequestRecord[]> {
@@ -389,13 +413,37 @@ export async function getAssetDailyLogs(limit = 50): Promise<AssetDailyLogRecord
   const { data, error } = await supabase
     .from("asset_daily_logs")
     .select(
-      "id, asset_id, employee_id, event_type, logged_on, location, notes, created_at, assets!asset_id(asset_tag, asset_type), employees!employee_id(full_name)",
+      "id, asset_id, employee_id, event_type, logged_on, location, notes, created_at, assets!asset_id(asset_tag, asset_type)",
     )
     .order("logged_on", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(limit);
   if (error) throw new Error(error.message);
-  return (data ?? []) as AssetDailyLogRecord[];
+  const logs = data ?? [];
+  const employeeIds = [
+    ...new Set(
+      logs
+        .map((log) => log.employee_id)
+        .filter((employeeId): employeeId is string => Boolean(employeeId)),
+    ),
+  ];
+  const { data: directory, error: directoryError } = employeeIds.length
+    ? await supabase
+        .from("asset_employee_directory")
+        .select("id, full_name")
+        .in("id", employeeIds)
+    : { data: [], error: null };
+  if (directoryError) throw new Error(directoryError.message);
+  const employeeNames = new Map(
+    (directory ?? []).map((employee) => [employee.id, employee.full_name]),
+  );
+
+  return logs.map((log) => ({
+    ...log,
+    employees: log.employee_id
+      ? { full_name: employeeNames.get(log.employee_id) ?? null }
+      : null,
+  })) as AssetDailyLogRecord[];
 }
 
 export async function getRecruitmentOpenings(): Promise<RecruitmentOpeningRecord[]> {
