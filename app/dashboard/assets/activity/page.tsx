@@ -9,6 +9,7 @@ import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { recordAssetDailyLog } from "@/lib/supabase/actions";
 import {
   getAssetDailyLogs,
+  getAssetActivityCount,
   getAssets,
   getDailyAssetCheckIds,
 } from "@/lib/supabase/data";
@@ -23,17 +24,20 @@ export default async function Page() {
     redirect("/dashboard");
   }
   const today = new Date().toISOString().slice(0, 10);
-  const [assets, logs, dailyCheckIds] = await Promise.all([
+  const [assets, logs, dailyCheckIds, todayCount] = await Promise.all([
     getAssets(),
     getAssetDailyLogs(100),
     getDailyAssetCheckIds(today),
+    getAssetActivityCount(today),
   ]);
-  const todayCount = logs.filter((log) => log.logged_on === today).length;
+  const monitoredAssets = assets.filter(
+    (asset) => asset.status === "assigned" && asset.assigned_to,
+  );
   const checkedAssetIds = new Set(dailyCheckIds);
-  const missingDailyChecks = assets.filter(
+  const missingDailyChecks = monitoredAssets.filter(
     (asset) => asset.id && !checkedAssetIds.has(asset.id),
   );
-  const checkedAssetsCount = assets.filter(
+  const checkedAssetsCount = monitoredAssets.filter(
     (asset) => asset.id && checkedAssetIds.has(asset.id),
   ).length;
 
@@ -87,9 +91,9 @@ export default async function Page() {
             <div className="border-b border-border/70 p-5">
               <h2 className="text-lg font-semibold">Daily check coverage</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                {assets.length
-                  ? `${Math.round((checkedAssetsCount / assets.length) * 100)}% checked today`
-                  : "No assets are registered yet."}
+                {monitoredAssets.length
+                  ? `${Math.round((checkedAssetsCount / monitoredAssets.length) * 100)}% of assigned assets checked today`
+                  : "No currently assigned assets need a daily check."}
               </p>
             </div>
             {missingDailyChecks.length ? (
@@ -128,9 +132,9 @@ export default async function Page() {
               </div>
             ) : (
               <p className="p-5 text-sm text-muted-foreground">
-                {assets.length
-                  ? "Every registered asset has a daily check recorded today."
-                  : "Add assets to the register to start daily checks."}
+                {monitoredAssets.length
+                  ? "Every currently assigned asset has a daily check recorded today."
+                  : "Assign assets to begin daily coverage checks."}
               </p>
             )}
           </section>

@@ -17,6 +17,11 @@ const supabase = createClient(supabaseUrl, serviceRoleKey, {
 });
 
 type Profile = { id: string; full_name: string | null; role: string | null };
+type MissingDailyCheckAsset = {
+  asset_tag: string;
+  asset_type: string;
+  current_location: string | null;
+};
 
 function escapeHtml(value: string) {
   return value.replace(
@@ -32,14 +37,31 @@ function escapeHtml(value: string) {
   );
 }
 
-async function sendEmail(to: string, recipientName: string, counts: Record<string, number>) {
-  const subject = `Retain daily operations digest: ${counts.openExitRequests} open exit request${counts.openExitRequests === 1 ? "" : "s"}`;
-  const dashboardUrl = `${appUrl}/dashboard`;
+async function sendEmail(
+  to: string,
+  recipientName: string,
+  counts: Record<string, number>,
+  missingAssets: MissingDailyCheckAsset[],
+) {
+  const subject = counts.assetsMissingDailyCheck
+    ? `Retain daily asset check reminder: ${counts.assetsMissingDailyCheck} assigned asset${counts.assetsMissingDailyCheck === 1 ? "" : "s"} unchecked`
+    : `Retain daily operations digest: ${counts.openExitRequests} open exit request${counts.openExitRequests === 1 ? "" : "s"}`;
+  const dashboardUrl = `${appUrl}${counts.assetsMissingDailyCheck ? "/dashboard/assets/activity" : "/dashboard"}`;
   const lines = [
     `${counts.openExitRequests} open exit request${counts.openExitRequests === 1 ? "" : "s"}`,
     `${counts.pendingClearanceSteps} pending clearance step${counts.pendingClearanceSteps === 1 ? "" : "s"}`,
     `${counts.unverifiedKnowledgeDocuments} unverified knowledge document${counts.unverifiedKnowledgeDocuments === 1 ? "" : "s"}`,
+    `${counts.assetsMissingDailyCheck} assigned asset${counts.assetsMissingDailyCheck === 1 ? "" : "s"} without today's daily check`,
   ];
+  const assetLines = missingAssets.slice(0, 20).map(
+    (asset) => `${asset.asset_tag} (${asset.asset_type})`,
+  );
+  if (assetLines.length) {
+    lines.push("Assets to check:", ...assetLines);
+  }
+  if (missingAssets.length > assetLines.length) {
+    lines.push(`...and ${missingAssets.length - assetLines.length} more`);
+  }
   const text = `Hello ${recipientName},\n\nYour Retain daily operations digest:\n\n- ${lines.join("\n- ")}\n\nReview the workspace: ${dashboardUrl}`;
   const html = `<p>Hello ${escapeHtml(recipientName)},</p><p>Your Retain daily operations digest:</p><ul>${lines.map((line) => `<li>${escapeHtml(line)}</li>`).join("")}</ul><p><a href="${escapeHtml(dashboardUrl)}">Review the workspace</a></p>`;
 
@@ -57,21 +79,83 @@ async function sendEmail(to: string, recipientName: string, counts: Record<strin
   }
 }
 
+async function queryMissingDailyCheckAssets(checkDate: string) {
+  const pageSize = 1000;
+  const assignedAssets: Array<{
+    id: string;
+    asset_tag: string;
+    asset_type: string;
+    current_location: string | null;
+  }> = [];
+  for (let offset = 0; ; offset += pageSize) {
+    const { data: page, error: assetsError } = await supabase
+      .from("assets")
+      .select("id, asset_tag, asset_type, current_location")
+      .eq("status", "assigned")
+      .not("assigned_to", "is", null)
+      .order("asset_tag")
+      .range(offset, offset + pageSize - 1);
+    if (assetsError) throw new Error(assetsError.message);
+    assignedAssets.push(...(page ?? []));
+    if ((page?.length ?? 0) < pageSize) break;
+  }
+
+  const checkedAssetIds = new Set<string>();
+  for (let offset = 0; ; offset += pageSize) {
+    const { data: page, error: logsError } = await supabase
+      .from("asset_daily_logs")
+      .select("asset_id")
+      .eq("event_type", "daily_check")
+      .eq("logged_on", checkDate)
+      .order("asset_id")
+      .range(offset, offset + pageSize - 1);
+    if (logsError) throw new Error(logsError.message);
+    for (const row of page ?? []) checkedAssetIds.add(row.asset_id);
+    if ((page?.length ?? 0) < pageSize) break;
+  }
+
+  return assignedAssets
+    .filter((asset) => !checkedAssetIds.has(asset.id))
+    .map(({ asset_tag, asset_type, current_location }) => ({
+      asset_tag,
+      asset_type,
+      current_location,
+    }));
+}
+
 Deno.serve(async (request) => {
   if (request.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  const [{ data: setting }, { data: profiles, error: profilesError }, { count: openExitRequests }, { count: pendingClearanceSteps }, { count: unverifiedKnowledgeDocuments }] = await Promise.all([
+  const digestDate = new Date().toISOString().slice(0, 10);
+  const [{ data: setting }, { data: profiles, error: profilesError }, { count: openExitRequests }, { count: pendingClearanceSteps }, { count: unverifiedKnowledgeDocuments }, { data: missingAssets, error: missingAssetsError }] = await Promise.all([
     supabase.from("system_settings").select("value").eq("key", "notification_channel").maybeSingle(),
-    supabase.from("profiles").select("id, full_name, role").in("role", ["Administrator", "HR"]),
+    supabase.from("profiles").select("id, full_name, role").eq("active", true).in("role", ["Administrator", "HR", "Management", "ICT", "Library"]),
     supabase.from("exit_requests").select("id", { count: "exact", head: true }).not("status", "in", "(completed,rejected,cancelled)"),
     supabase.from("clearance_steps").select("id", { count: "exact", head: true }).neq("status", "approved"),
     supabase.from("knowledge_documents").select("id", { count: "exact", head: true }).neq("status", "verified"),
+    supabase.rpc("get_assets_missing_daily_checks", { p_check_date: digestDate }),
   ]);
 
+  let assetsAwaitingCheck = (missingAssets as MissingDailyCheckAsset[] | null) ?? [];
+  if (missingAssetsError) {
+    if (missingAssetsError.code !== "PGRST202" && missingAssetsError.code !== "42883") {
+      return Response.json({ error: missingAssetsError.message }, { status: 500 });
+    }
+    try {
+      assetsAwaitingCheck = await queryMissingDailyCheckAssets(digestDate);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Asset reminder query failed";
+      return Response.json({ error: message }, { status: 500 });
+    }
+  }
+
   if (profilesError) {
-    return Response.json({ error: profilesError.message }, { status: 500 });
+    return Response.json(
+      { error: profilesError.message },
+      { status: 500 },
+    );
   }
 
   if (!["email", "both"].includes(setting?.value ?? "email")) {
@@ -82,13 +166,13 @@ Deno.serve(async (request) => {
     openExitRequests: openExitRequests ?? 0,
     pendingClearanceSteps: pendingClearanceSteps ?? 0,
     unverifiedKnowledgeDocuments: unverifiedKnowledgeDocuments ?? 0,
+    assetsMissingDailyCheck: assetsAwaitingCheck.length,
   };
 
   if (Object.values(counts).every((count) => count === 0)) {
     return Response.json({ sent: 0, reason: "no outstanding work" });
   }
 
-  const digestDate = new Date().toISOString().slice(0, 10);
   let sent = 0;
 
   for (const profile of (profiles ?? []) as Profile[]) {
@@ -106,7 +190,12 @@ Deno.serve(async (request) => {
     if (existing) continue;
 
     try {
-      await sendEmail(email, profile.full_name ?? email.split("@")[0], counts);
+      await sendEmail(
+        email,
+        profile.full_name ?? email.split("@")[0],
+        counts,
+        assetsAwaitingCheck,
+      );
       await supabase.from("notification_delivery_log").upsert({
         digest_date: digestDate,
         recipient_user_id: profile.id,
@@ -117,8 +206,10 @@ Deno.serve(async (request) => {
       await supabase.from("notifications").insert({
         user_id: profile.id,
         type: "info",
-        title: "Daily operations digest",
-        message: `${counts.openExitRequests} open exits, ${counts.pendingClearanceSteps} pending clearances, and ${counts.unverifiedKnowledgeDocuments} unverified knowledge documents.`,
+        title: counts.assetsMissingDailyCheck
+          ? "Assigned asset checks are due"
+          : "Daily operations digest",
+        message: `${counts.openExitRequests} open exits, ${counts.pendingClearanceSteps} pending clearances, ${counts.unverifiedKnowledgeDocuments} unverified knowledge documents, and ${counts.assetsMissingDailyCheck} assigned assets without today's daily check.`,
       });
       sent += 1;
     } catch (error) {

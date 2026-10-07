@@ -458,6 +458,17 @@ export async function getDailyAssetCheckIds(loggedOn: string): Promise<string[]>
   return [...new Set((data ?? []).map((row) => row.asset_id))];
 }
 
+export async function getAssetActivityCount(loggedOn: string): Promise<number> {
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("asset_daily_logs")
+    .select("id", { count: "exact", head: true })
+    .eq("logged_on", loggedOn);
+
+  if (error) throw new Error(error.message);
+  return count ?? 0;
+}
+
 export async function getRecruitmentOpenings(): Promise<RecruitmentOpeningRecord[]> {
   const supabase = await createClient();
   const { data, error } = await supabase

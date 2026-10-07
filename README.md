@@ -184,9 +184,11 @@ This project is for internal institutional use and is managed by the product own
 The project uses Supabase Postgres and includes the schema definitions under the supabase/migrations folder. These migrations define the core institutional tables, workflow controls, analytics, and demo data used by the application.
 
 Apply the Supabase migrations in timestamp order through
-`20261007_011_close_audit_findings.sql`. Migrations 010 and 011 replace broad
-legacy RLS policies, add role/ownership checks, align knowledge review access,
-and enforce leave balances. Validate the policies and workflows against the
+`20261007_012_daily_asset_check_reminders.sql`. Migrations 010 and 011 replace
+broad legacy RLS policies, add role/ownership checks, align knowledge review
+access, and enforce leave balances. Migration 012 enables the scheduled daily
+digest to remind active HR, management, ICT, and Library users about assigned
+assets missing today's check. Validate policies and workflows against the
 project's Supabase database before production use.
 
 | Policy                                      | Command | Roles  | Action     | USING                                                                                                                              | WITH CHECK                              |

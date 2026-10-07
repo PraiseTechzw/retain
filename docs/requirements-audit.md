@@ -13,7 +13,7 @@ checks; leave deployment and outcome claims marked pending until verified.
 | Recruitment mapping | Implemented in code, limited | HR maps planned roles, department, category, positions, target start, and pipeline stage in `app/dashboard/recruitment/page.tsx`. | This is opening planning, not candidate tracking. Confirm this distinction matches approved scope. |
 | Digital exit and clearance | Implemented in code; deployment validation pending | Clearance workflow and exit blocker checks cover approvals, assigned assets, and required knowledge handover in `app/dashboard/exit-requests/[id]/page.tsx` and the lifecycle migrations. | Apply all migrations through `20261007_011`; run role-by-role and blocked/eligible exit scenarios in Supabase. Payroll is explicitly excluded, so no salary-payment hold exists. |
 | Asset return and verification | Implemented in code; target unverified | Asset receipt and verification states feed exit blockers and the return workflow. | Verify real asset inventory coverage and return reconciliation with ICT/Library. “100% visibility” is an operational target, not a code guarantee. |
-| Daily asset monitoring | Implemented in code; operational coverage pending | Authorized staff can log checks, movement, maintenance, issues, and returns. The activity page now calculates unique assets with a `daily_check` today, lists unchecked assets, and offers a direct log action in `app/dashboard/assets/activity/page.tsx`. | Checks remain manual; verify that the daily queue is completed by staff and that physical asset coverage is accurate. |
+| Daily asset monitoring | Implemented in code; operational coverage pending | Authorized staff can log checks, movement, maintenance, issues, and returns. The activity page calculates unique currently assigned assets with a `daily_check` today, lists unchecked assets, and offers a direct log action. The scheduled digest reminds active HR, Management, ICT, and Library users and lists up to 20 unchecked asset tags. | Apply migration 012, deploy the Edge Function, and verify email/in-app delivery. Checks still require staff action; measure that physical coverage is completed. |
 | Leave self-service and balance | Implemented in code; database validation pending | Employees request leave; HR configures balances and reviews requests. Migration 011 checks year-specific weekdays against pending and approved leave and serializes checks on balance rows. | Apply migration 011; verify date ranges spanning years, exact-balance requests, over-limit requests, cancellation/rejection handling, and concurrent requests. |
 | Leave turnaround reduction | Measurement available; target unverified | `app/dashboard/reports/page.tsx` calculates average elapsed time from request creation to review. | Establish a baseline, then compare after six months. A 35% improvement is not yet demonstrated. |
 | Flight-risk early warning | Provisional implementation | `lib/analytics/flight-risk.ts` scores approved leave, request frequency, tenure milestones, and commute distance; the UI labels it provisional. | Validate features, weights, thresholds, bias, and outcomes with HR historical data. Do not treat as a validated prediction or employment decision. |
@@ -37,6 +37,9 @@ checks; leave deployment and outcome claims marked pending until verified.
   profile when the employee record has no department.
 - Leave entitlement checks count all existing pending/approved weekdays in a
   leave year plus only the weekdays requested in that year.
+- The daily digest now sends assigned-asset check reminders to active HR,
+  Management, ICT, and Library recipients, with asset tags and a direct route
+  to the activity page.
 
 ## Validation State
 
@@ -44,3 +47,6 @@ checks; leave deployment and outcome claims marked pending until verified.
 - TypeScript editor diagnostics: no errors in the changed app files.
 - Database migration execution: not run in this workspace; there is no local
   Supabase project configuration or PostgreSQL connection available.
+- Daily reminder delivery: code is implemented but requires migration 012,
+  deployed Edge Function, configured Resend secrets, and the scheduled Vault
+  configuration from migration 008.
