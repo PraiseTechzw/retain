@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: General support
+    url: https://github.com/PraiseTechzw/retain/blob/main/SUPPORT.md
+    about: Find the right channel for product questions and operational incidents.
+  - name: Security reporting policy
+    url: https://github.com/PraiseTechzw/retain/blob/main/SECURITY.md
+    about: Read this before disclosing a security vulnerability; do not post exploit details publicly.

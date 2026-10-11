@@ -7,7 +7,6 @@ import { useState } from "react";
 import {
   Activity,
   BarChart3,
-  Bell,
   BookOpen,
   BriefcaseBusiness,
   CalendarDays,
@@ -28,6 +27,7 @@ import {
 } from "lucide-react";
 import { signOut } from "@/lib/supabase/actions";
 import { appConfig, getInitials } from "@/lib/system";
+import { NotificationCenter } from "@/components/notification-center";
 
 function resolveDisplayRole(userRole?: string | null) {
   if (!userRole) {
@@ -129,7 +129,7 @@ const navItems = [
     "Knowledge Hub",
     "/dashboard/knowledge-hub",
     BookOpen,
-    ["employee", "hr", "administrator", "management"],
+    ["employee", "hr", "administrator", "management", "ict", "library"],
   ],
   [
     "Analytics",
@@ -331,7 +331,6 @@ export function DashboardShell({
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
-  const [notice, setNotice] = useState(false);
   const displayName = userName || appConfig.defaultUserName;
   const displayRole = resolveDisplayRole(userRole);
   const headerWorkspaceLabel = workspaceLabel || appConfig.workspaceLabel;
@@ -394,14 +393,7 @@ export function DashboardShell({
               </kbd>
             </div>
 
-            <button
-              aria-label="Notifications"
-              onClick={() => setNotice(!notice)}
-              className="relative rounded-xl border border-transparent p-2.5 text-muted-foreground transition hover:border-border hover:bg-card hover:text-foreground focus-visible:border-primary focus-visible:outline-none"
-            >
-              <Bell className="size-5" />
-              <span className="absolute right-2 top-2 size-1.5 rounded-full bg-rose-500 ring-2 ring-background" />
-            </button>
+            <NotificationCenter />
 
             <Link
               href="/profile"
@@ -435,14 +427,6 @@ export function DashboardShell({
         </section>
       </div>
 
-      {notice && (
-        <div className="fixed right-5 top-20 z-50 w-80 rounded-2xl border border-border bg-card p-4 shadow-xl">
-          <p className="text-sm font-semibold">Workspace updates</p>
-          <p className="mt-2 text-sm text-muted-foreground">
-            No new action items right now.
-          </p>
-        </div>
-      )}
     </main>
   );
 }

@@ -12,7 +12,6 @@ import {
   getQuarterlyTurnoverSummary,
   getReportDashboardSnapshot,
 } from "@/lib/supabase/data";
-import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 
 const reportCatalog = [
@@ -65,22 +64,6 @@ function buildCsvHref(rows: Array<Array<string | number>>) {
   return `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
 }
 
-async function recordReportActivity(reportKey: string, actorId: string) {
-  const supabase = await createClient();
-  const { error } = await supabase.from("audit_events").insert({
-    actor_id: actorId,
-    action: "report_generated",
-    entity_type: "report",
-    entity_id: null,
-    metadata: {
-      report_key: reportKey,
-      generated_at: new Date().toISOString(),
-    },
-  });
-  if (error)
-    throw new Error(`Unable to record report activity: ${error.message}`);
-}
-
 export default async function Page({
   searchParams,
 }: {
@@ -111,7 +94,6 @@ export default async function Page({
       getAuditEvents(5),
       getLeaveRequests(),
     ]);
-  await recordReportActivity(reportKey ?? "workforce", user.id);
 
   const selectedReport =
     reportCatalog.find((report) => report.key === reportKey) ??

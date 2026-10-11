@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Validate Supabase migration versions
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          files = sorted(Path("supabase/migrations").glob("*.sql"))
+          pattern = re.compile(r"^(\d{14})_[a-z0-9_]+\.sql$")
+          versions = []
+          invalid = []
+          for path in files:
+              match = pattern.fullmatch(path.name)
+              if match:
+                  versions.append(match.group(1))
+              else:
+                  invalid.append(path.name)
+          if invalid:
+              raise SystemExit(f"Invalid Supabase migration filename(s): {', '.join(invalid)}")
+          if len(versions) != len(set(versions)):
+              raise SystemExit("Supabase migration version prefixes must be unique")
+          PY
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck Next.js application
+        run: pnpm typecheck
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Typecheck Supabase Edge Function
+        run: deno check supabase/functions/daily-notifications/index.ts
+
+      - name: Test flight-risk score boundaries
+        run: deno test tests/flight-risk_test.ts
+
+      - name: Build production application
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_placeholder
+          SUPABASE_SERVICE_ROLE_KEY: ci_only_not_a_real_key
+          NEXT_PUBLIC_APP_URL: http://localhost:3000

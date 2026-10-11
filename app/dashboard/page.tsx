@@ -20,14 +20,6 @@ export default async function Page() {
     .eq("id", user.id)
     .maybeSingle();
 
-  const profileRole = profile?.role as string | undefined;
-
-  console.log("[dashboard-role-debug]", {
-    userId: user.id,
-    profileRole,
-    defaultRole: "Employee",
-  });
-
   if (!profile?.department_id) {
     redirect("/onboard?next=/dashboard");
   }

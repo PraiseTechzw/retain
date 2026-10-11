@@ -56,6 +56,23 @@ function formatDays(value: number) {
   return `${value.toFixed(1)} days`;
 }
 
+function buildCsvHref(rows: Array<Array<string | number>>) {
+  const csv = rows
+    .map((row) =>
+      row
+        .map((cell) => {
+          let value = String(cell ?? "").replace(/\r?\n/g, " ");
+          if (typeof cell === "string" && /^[=+\-@\t\r]/.test(value)) {
+            value = `'${value}`;
+          }
+          return `"${value.replace(/"/g, '""')}"`;
+        })
+        .join(","),
+    )
+    .join("\n");
+  return `data:text/csv;charset=utf-8,${encodeURIComponent(csv)}`;
+}
+
 function renderAnalyticsError({
   userName,
   userRole,
@@ -165,6 +182,43 @@ function renderAnalyticsPage({
     exitReasons: number;
   };
 }) {
+  const exportHref = buildCsvHref([
+    ["CUT-ELAMS Talent Intelligence"],
+    ["Generated at", new Date().toISOString()],
+    ["Date range", filters.range],
+    ["Department filter", filters.department],
+    ["Employment category filter", filters.employmentCategory],
+    ["Employee type filter", filters.employeeType],
+    ["Exit status filter", filters.exitStatus],
+    [],
+    ["Summary metric", "Value", "Description"],
+    ...metrics.map((metric) => [metric.label, metric.value, metric.description]),
+    [],
+    ["Department", "Employees", "Exits", "Attrition rate (%)"],
+    ...departmentRows.map((row) => [row.department, row.employees, row.exits, row.attrition]),
+    [],
+    ["Employment category", "Employees", "Exits", "Attrition rate (%)"],
+    ...categoryRows.map((row) => [row.category, row.employees, row.exits, row.attrition]),
+    [],
+    ["Exit reason", "Requests", "Share (%)"],
+    ...exitReasonRows.map((row) => [row.reason, row.count, row.percentage]),
+    [],
+    ["Month", "Exits"],
+    ...monthlyTrend.map((row) => [row.label, row.value]),
+    [],
+    ["Clearance status", "Count"],
+    ...Object.entries(clearanceStatusCounts),
+    [],
+    ["Clearance bottleneck department", "Pending steps"],
+    ...bottleneckRows.map((row) => [row.department, row.count]),
+    [],
+    ["Data quality metric", "Coverage (%)"],
+    ["Department assigned", dataQuality.departmentCoverage],
+    ["Valid lifecycle dates", dataQuality.validDates],
+    ["Exit reasons recorded", dataQuality.exitReasons],
+    ["Assigned asset recovery rate (%)", assetRecoveryRate],
+  ]);
+
   return (
     <DashboardShell userName={userName} userRole={userRole}>
       <PageFrame
@@ -179,10 +233,10 @@ function renderAnalyticsPage({
               <FileText className="size-4" />
               Generate report
             </Link>
-            <button className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
+            <a href={exportHref} download={`cut-elams-talent-intelligence-${filters.range}.csv`} className="inline-flex items-center gap-2 rounded-xl bg-primary px-3 py-2.5 text-sm font-semibold text-primary-foreground hover:bg-primary/90">
               <Download className="size-4" />
               Export CSV
-            </button>
+            </a>
           </div>
         }
       >

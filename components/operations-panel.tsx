@@ -14,6 +14,7 @@ type EmployeeOption = {
   employee_number: string;
   full_name: string;
 };
+type DepartmentOption = { id: string; name: string };
 type KnowledgeRequirementOption = { id: string; name: string };
 
 const labels: Record<Mode, string> = {
@@ -26,10 +27,12 @@ const labels: Record<Mode, string> = {
 export function OperationsPanel({
   mode,
   employees = [],
+  departments = [],
   knowledgeRequirements = [],
 }: {
   mode: Mode;
   employees?: EmployeeOption[];
+  departments?: DepartmentOption[];
   knowledgeRequirements?: KnowledgeRequirementOption[];
 }) {
   const [open, setOpen] = useState(false);
@@ -92,8 +95,24 @@ export function OperationsPanel({
                   <Field name="employee_number" label="Employee number" required />
                   <Field name="full_name" label="Full name" required />
                   <Field name="email" label="Email" type="email" />
+                  <Field name="phone" label="Phone" type="tel" />
                   <Field name="job_title" label="Job title" />
                   <Field name="joined_on" label="Start date" type="date" />
+                  <label className="flex flex-col gap-1.5 text-sm font-medium">
+                    Department
+                    <select
+                      name="department_id"
+                      defaultValue=""
+                      className="h-10 rounded-lg border border-input bg-background px-3 font-normal"
+                    >
+                      <option value="">Unassigned</option>
+                      {departments.map((department) => (
+                        <option key={department.id} value={department.id}>
+                          {department.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                   <label className="flex flex-col gap-1.5 text-sm font-medium">
                     Employment category
                     <select
@@ -110,7 +129,15 @@ export function OperationsPanel({
                     <input name="is_technical" type="checkbox" className="size-4 accent-primary" />
                     Technical staff (knowledge handover required before exit)
                   </label>
-                  <Field name="home_area" label="Home area (optional)" />
+                  <label className="flex flex-col gap-1.5 text-sm font-medium">
+                    Home area (town/suburb only, optional)
+                    <input
+                      name="home_area"
+                      maxLength={80}
+                      placeholder="Do not enter a street address"
+                      className="h-10 rounded-lg border border-input bg-background px-3 font-normal"
+                    />
+                  </label>
                   <Field
                     name="commute_distance_km"
                     label="One-way commute (km)"
@@ -194,8 +221,12 @@ export function OperationsPanel({
                       name="file"
                       type="file"
                       required
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
                       className="rounded-lg border border-input bg-background p-2 text-sm font-normal"
                     />
+                    <span className="text-xs font-normal text-muted-foreground">
+                      PDF, Word, Excel, or PowerPoint; maximum 10 MB.
+                    </span>
                   </label>
                 </>
               )}
