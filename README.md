@@ -1,229 +1,90 @@
 # CUT-ELAMS
 
-CUT-ELAMS (the Retain application) is Chinhoyi University of Technology's employee lifecycle and asset management platform for secure employee records, recruitment mapping, leave, asset accountability, knowledge retention, and structured clearance workflows.
+CUT-ELAMS (the Retain application) is Chinhoyi University of Technology's web platform for employee lifecycle workflows, leave, asset accountability, knowledge handover, and HR/management reporting.
 
-## Overview
+> **Deployment status:** application code and database migrations are in this repository. A successful local build does not prove that migrations, Supabase Storage policies, scheduled jobs, email delivery, or role access have been validated in the institution's live project. Follow the deployment and acceptance checklists before production use.
 
-The application helps organizations manage:
+## What the system does
 
-- employee profiles and role visibility
-- department master data and governance
-- exit and clearance workflows
-- knowledge requirements and document tracking
-- alerts, admin settings, and institutional controls
+- **Employee records and recruitment mapping:** manage employee profiles and planned openings by role, department, category, position count, start date, and pipeline stage. Openings are planning records, not candidate application tracking.
+- **Leave self-service:** employees request leave; HR configures year/type balances and reviews requests. Server and database checks enforce the configured balance rules.
+- **Asset accountability:** ICT and Library staff manage assignment, return receipt, verification, and daily activity logs for checks, movement, maintenance, issues, and returns.
+- **Digital exit clearance:** HR coordinates departmental steps. Finalization is blocked until applicable clearance steps are approved, assigned assets are returned and verified, and mandatory applicable knowledge documents are approved. Account deactivation is separately blocked until the digital exit is complete.
+- **Knowledge handover:** staff upload documents to private Supabase Storage; configured reviewers approve or request changes. Technical employees require an approved handover and configured applicable requirements before finalization.
+- **Analytics:** quarterly turnover/exit-driver reports, review-turnaround measures, commute-distance groupings, and a provisional rule-based flight-risk indicator.
+- **Administration and alerts:** administrators assign roles; HR manages permitted account/workflow operations; users receive in-app notifications and configurable scheduled email digests with audit events.
 
-## Product goals
+The risk score is an **unvalidated HR review prompt**, not a prediction of an employee's intent or a basis for employment decisions. Its inputs, rules, and validation limits are documented in the [system overview](docs/system-overview.md).
 
-- centralize employee continuity information
-- reduce risk during staff transitions
-- make department assignment and access control manageable for administrators
-- provide a clean operational dashboard for HR, management, and admin teams
+## How it works
 
-## CUT-ELAMS lifecycle capabilities
+```mermaid
+flowchart LR
+    Staff[Employees and operational staff] --> Web[Next.js web application]
+    HR[HR and Management] --> Web
+    ICT[ICT and Library] --> Web
+    Web --> Auth[Supabase Auth]
+    Web --> Actions[Server components and server actions]
+    Actions --> DB[(Supabase Postgres with RLS)]
+    Actions --> Files[(Private knowledge-document storage)]
+    Cron[Supabase scheduled jobs] --> Edge[Daily notifications Edge Function]
+    Edge --> DB
+    Edge --> Mail[Resend email]
+    DB --> Reports[Operations and analytics views]
+```
 
-The platform covers employee records, mapped recruitment openings, employee
-self-service leave requests and HR-configured balances, asset assignment and
-daily activity logging, and digital exit clearance. Return receipt and ICT or
-Library verification are separate asset states; exit finalization is blocked
-until each assigned asset is verified, each applicable mandatory knowledge
-requirement is approved, and all clearance steps are approved. HR or an
-administrator can deactivate an account only after the employee's digital exit
-is complete. The application enforces this at both its server action and
-database finalization function. Account administration requires the private
-`SUPABASE_SERVICE_ROLE_KEY`; it must never be exposed to a browser.
+For request flows, data relationships, daily jobs, and safeguards, see [How the system works](docs/system-overview.md).
 
-HR and management can review quarterly turnover reports. A Postgres scheduled
-job snapshots the previous quarter's exits, leading recorded reason, average
-workforce, and attrition rate at 06:00 UTC on January 1, April 1, July 1, and
-October 1. The reports page also shows a live view and supports CSV export.
-The commute heatmap groups recorded one-way commute distances by employee home
-area.
+## Quick start
 
-The flight-risk dashboard uses a documented, provisional rule-based indicator:
-approved leave days and request frequency in the prior 12 months, tenure
-milestones within six months, and one-way commute distance. It is an early
-warning prompt for HR review, not a statistically validated prediction or a
-basis for employment decisions. CUT HR should validate the initial weights
-and thresholds before operational use. The 35% turnaround improvement,
-deployment windows, and 100% coverage targets are institutional goals to be
-measured after deployment; they are not asserted as achieved by this code.
+Requirements: Node.js 22 and pnpm. From the repository root:
 
-Academic Attaché and Support Staff are available as explicit account roles and
-employee categories. Their self-service permissions include their own leave
-and knowledge-document workflows; HR/admin-only reporting and management
-capabilities remain restricted.
+```bash
+pnpm install --frozen-lockfile
+cp .env.example .env.local
+```
 
-See [docs/requirements-audit.md](docs/requirements-audit.md) for the current
-requirements-to-implementation matrix, remaining acceptance checks, and audit
-fixes.
+Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or the legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY`), and the server-only `SUPABASE_SERVICE_ROLE_KEY` in `.env.local`. Set `NEXT_PUBLIC_APP_URL` to the public application URL. Never use a `NEXT_PUBLIC_` prefix for a service-role/secret key.
 
-## Tech stack
+```bash
+pnpm dev
+```
 
-- Next.js 16
-- React 19
-- TypeScript
-- Tailwind CSS
-- Supabase
-- PostgreSQL
+Open [http://localhost:3000](http://localhost:3000). The application expects a Supabase project with the migrations and private `knowledge-documents` Storage bucket configured. Detailed local, staging, and production steps are in [Deployment](docs/deployment.md).
 
-## Project structure
+Before proposing a change, run:
 
-- app/ — application routes and dashboard pages
-- components/ — reusable UI and admin panels
-- lib/ — data access, auth, and server actions
-- supabase/ — schema and seed migration files
+```bash
+pnpm lint
+pnpm typecheck
+pnpm build
+```
 
-## Core database model
+## Scope and important limits
 
-### departments
+Payroll processing, student management, attendance tracking, candidate application tracking, and automatic salary disbursement are outside this application's scope. The digital exit gate controls **application exit finalization**; it is not connected to payroll and does not itself stop or release a payment. If the institution needs a payroll hold, that must be designed and approved as a separate integration with explicit ownership and authorization rules.
 
-| Column      | Type        | Notes                  |
-| ----------- | ----------- | ---------------------- |
-| id          | uuid        | primary key            |
-| name        | text        | unique department name |
-| code        | text        | short department code  |
-| description | text        | optional summary       |
-| created_at  | timestamptz | audit timestamp        |
-| updated_at  | timestamptz | audit timestamp        |
+Institutional targets such as 100% asset visibility and a 35% leave-turnaround reduction require operational baselines and measurement. They are goals, not outcomes guaranteed by the code.
 
-### profiles
+## Documentation
 
-| Column        | Type        | Notes                |
-| ------------- | ----------- | -------------------- |
-| id            | uuid        | linked to auth.users |
-| full_name     | text        | user display name    |
-| role          | text        | assigned system role |
-| department_id | uuid        | linked department    |
-| created_at    | timestamptz | audit timestamp      |
-| updated_at    | timestamptz | audit timestamp      |
+- [How the system works](docs/system-overview.md) — architecture, diagrams, data flow, roles, workflows, analytics, and boundaries.
+- [Deployment guide](docs/deployment.md) — environment setup, ordered database rollout, Storage, email, scheduled jobs, and post-deployment checks.
+- [Operations guide](docs/operations.md) — daily routines, monitoring, recovery, and acceptance scenarios.
+- [Security model](docs/security.md) — trust boundaries, role checks, RLS, secrets, and handling staff data.
+- [Original project brief](docs/project-brief.md) — objectives and explicit scope boundaries supplied by the product owner.
+- [Requirements audit](docs/requirements-audit.md) — traceability to the supplied project brief, with code versus live-validation status.
+- [References](docs/references.md) — official GitHub, Next.js, and Supabase guidance used by this repository.
+- [Contributing](CONTRIBUTING.md), [security reporting](SECURITY.md), and [support](SUPPORT.md).
 
-### employees
+## Technology
 
-| Column            | Type        | Notes                    |
-| ----------------- | ----------- | ------------------------ |
-| id                | uuid        | primary key              |
-| employee_number   | text        | unique personnel number  |
-| full_name         | text        | employee display name    |
-| email             | text        | optional contact email   |
-| job_title         | text        | role title               |
-| department_id     | uuid        | department assignment    |
-| employment_status | text        | active, inactive, exited |
-| joined_on         | date        | onboarding date          |
-| exit_date         | date        | exit date if applicable  |
-| created_at        | timestamptz | audit timestamp          |
-| updated_at        | timestamptz | audit timestamp          |
+Next.js 16 App Router, React 19, TypeScript, Tailwind CSS, Supabase Auth/Postgres/Storage, and a Deno Supabase Edge Function for scheduled notifications.
 
-## Getting started
+## Database changes
 
-1. Install dependencies
+SQL migrations live in `supabase/migrations/`. Review their status against the target database before deployment; never apply them to production just because a local build passes. The repository currently does not contain an institutional production-verification record. See the [deployment guide](docs/deployment.md).
 
-   npm install
+## License and data ownership
 
-2. Start the development server
-
-   npm run dev
-
-3. Open the app in the browser
-
-   http://localhost:3000
-
-## Environment configuration
-
-Create a .env.local file with the Supabase variables required by the app:
-
-- NEXT_PUBLIC_SUPABASE_URL
-- NEXT_PUBLIC_SUPABASE_ANON_KEY
-- SUPABASE_SERVICE_ROLE_KEY
-- NEXT_PUBLIC_APP_URL
-
-Daily email notifications also require a Resend account and these Supabase
-Edge Function secrets:
-
-- `RESEND_API_KEY`
-- `NOTIFICATION_FROM_EMAIL` (a verified Resend sender)
-
-The migration `20260924_008_daily_email_notifications.sql` enables `pg_cron`
-and `pg_net`, schedules the daily job for 07:00 UTC, and stores delivery state
-so retries do not send duplicate digests. Before applying it, store the
-following in Supabase Vault:
-
-- `supabase_url`
-- `supabase_service_role_key`
-
-Deploy the function with `supabase functions deploy daily-notifications`, set
-the Edge Function secrets with `supabase secrets set RESEND_API_KEY=... NOTIFICATION_FROM_EMAIL=...`,
-store the two Vault secrets in the Supabase SQL editor, and then apply the
-migrations. The scheduler runs inside Supabase, so it remains active when the
-Next.js app and all user browsers are closed.
-
-The service-role key currently present in local environment configuration must
-be rotated in Supabase if it has been shared outside the project.
-
-## Admin features
-
-The system includes admin controls for:
-
-- user and role management
-- employee profile review
-- department creation, editing, and deletion
-- institutional settings and workflow defaults
-- audit trail review
-
-## Security notes
-
-- Role checks are enforced server-side before admin-only actions.
-- Department management is restricted to administrators and HR roles.
-- Supabase Row Level Security and server actions are used to protect sensitive data.
-
-## License
-
-This project is for internal institutional use and is managed by the product owner and engineering team.
-
-## Database reference
-
-The project uses Supabase Postgres and includes the schema definitions under the supabase/migrations folder. These migrations define the core institutional tables, workflow controls, analytics, and demo data used by the application.
-
-Apply the Supabase migrations in timestamp order through
-`20261007_012_daily_asset_check_reminders.sql`. Migrations 010 and 011 replace
-broad legacy RLS policies, add role/ownership checks, align knowledge review
-access, and enforce leave balances. Migration 012 enables the scheduled daily
-digest to remind active HR, management, ICT, and Library users about assigned
-assets missing today's check. Validate policies and workflows against the
-project's Supabase database before production use.
-
-| Policy                                      | Command | Roles  | Action     | USING                                                                                                                              | WITH CHECK                              |
-| ------------------------------------------- | ------- | ------ | ---------- | ---------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- |
-| `deny_all_other_access`                     | ALL     | public | PERMISSIVE | `false`                                                                                                                            | `false`                                 |
-| `managers_read_all`                         | SELECT  | public | PERMISSIVE | `(COALESCE((auth.jwt() ->> 'role'::text), 'employee'::text) = ANY (ARRAY['Administrator'::text, 'HR'::text, 'Management'::text]))` | —                                       |
-| `employee_self_records`                     | SELECT  | public | PERMISSIVE | `((email = (( SELECT users.email    FROM auth.users   WHERE (users.id = auth.uid())))::text) OR (auth.uid() IS NOT NULL))`         | —                                       |
-| `Employees writable by authenticated users` | INSERT  | public | PERMISSIVE | —                                                                                                                                  | `(auth.role() = 'authenticated'::text)` |
-| `Employees readable by authenticated users` | SELECT  | public | PERMISSIVE | `(auth.role() = 'authenticated'::text)`                                                                                            | —                                       |
-
-### `exit_requests`
-
-| Policy                                          | Command | Roles  | Action     | USING                                   | WITH CHECK                              |
-| ----------------------------------------------- | ------- | ------ | ---------- | --------------------------------------- | --------------------------------------- |
-| `deny_all_other_access_exit`                    | ALL     | public | PERMISSIVE | `false`                                 | `false`                                 |
-| `Exit requests writable by authenticated users` | INSERT  | public | PERMISSIVE | —                                       | `(auth.role() = 'authenticated'::text)` |
-| `Exit requests readable by authenticated users` | SELECT  | public | PERMISSIVE | `(auth.role() = 'authenticated'::text)` | —                                       |
-
-### `clearance_steps`
-
-| Policy                                            | Command | Roles  | Action     | USING                                   | WITH CHECK |
-| ------------------------------------------------- | ------- | ------ | ---------- | --------------------------------------- | ---------- |
-| `deny_all_other_access_clearances`                | ALL     | public | PERMISSIVE | `false`                                 | `false`    |
-| `Clearance steps readable by authenticated users` | SELECT  | public | PERMISSIVE | `(auth.role() = 'authenticated'::text)` | —          |
-
-### `assets`
-
-| Policy                                   | Command | Roles  | Action     | USING                                   | WITH CHECK |
-| ---------------------------------------- | ------- | ------ | ---------- | --------------------------------------- | ---------- |
-| `deny_all_other_access_assets`           | ALL     | public | PERMISSIVE | `false`                                 | `false`    |
-| `Assets readable by authenticated users` | SELECT  | public | PERMISSIVE | `(auth.role() = 'authenticated'::text)` | —          |
-
-### `knowledge_documents`
-
-| Policy                                                | Command | Roles  | Action     | USING                                   | WITH CHECK |
-| ----------------------------------------------------- | ------- | ------ | ---------- | --------------------------------------- | ---------- |
-| `deny_all_other_access_knowledge`                     | ALL     | public | PERMISSIVE | `false`                                 | `false`    |
-| `Knowledge documents readable by authenticated users` | SELECT  | public | PERMISSIVE | `(auth.role() = 'authenticated'::text)` | —          |
+This is an internal institutional system. No open-source license is declared in this repository. Employee records and uploaded handover documents remain institutional data and must be handled under CUT's approved policies.

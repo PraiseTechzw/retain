@@ -11,7 +11,7 @@ export const appConfig = {
     process.env.NEXT_PUBLIC_ORGANIZATION_NAME ||
     "Chinhoyi University of Technology",
   defaultUserName: process.env.NEXT_PUBLIC_DEFAULT_USER_NAME || "User",
-  defaultRole: process.env.NEXT_PUBLIC_DEFAULT_USER_ROLE || "Employee",
+  defaultRole: "Employee",
   appUrl: process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
   supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@example.com",
 } as const;

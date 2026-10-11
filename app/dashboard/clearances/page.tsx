@@ -24,7 +24,7 @@ export default async function Page() {
     return [
       <Link
         key={step.id}
-        href={`/dashboard/clearances/${step.id}`}
+        href={`/dashboard/clearances/${step.exit_request_id}`}
         className="font-semibold text-foreground hover:text-primary"
       >
         {employee?.employee_number ?? "—"} ·{" "}

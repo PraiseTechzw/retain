@@ -7,7 +7,7 @@ import {
   Status,
 } from "@/components/dashboard-shell";
 import { OperationsPanel } from "@/components/operations-panel";
-import { getEmployees } from "@/lib/supabase/data";
+import { getDepartments, getEmployees } from "@/lib/supabase/data";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { redirect } from "next/navigation";
 
@@ -16,7 +16,13 @@ export default async function Page() {
   if (!["hr", "administrator", "management"].some((role) => userRole.toLowerCase().includes(role))) {
     redirect("/dashboard");
   }
-  const employees = await getEmployees();
+  const canCreateEmployees = ["hr", "administrator"].some((role) =>
+    userRole.toLowerCase().includes(role),
+  );
+  const [employees, departments] = await Promise.all([
+    getEmployees(),
+    canCreateEmployees ? getDepartments() : Promise.resolve([]),
+  ]);
   const rows = employees.map((employee) => {
     const department = Array.isArray(employee.departments)
       ? employee.departments[0]
@@ -44,7 +50,18 @@ export default async function Page() {
       <PageFrame
         title="Employee Management"
         description="Maintain employee records and monitor institutional transitions."
-        action={<OperationsPanel mode="employee" />}
+        action={
+          canCreateEmployees ? (
+            <OperationsPanel
+              mode="employee"
+              departments={departments.flatMap((department) =>
+                department.id && department.name
+                  ? [{ id: department.id, name: department.name }]
+                  : [],
+              )}
+            />
+          ) : undefined
+        }
       >
         {employees.length === 0 ? (
           <EmptyState label="employees" />

@@ -6,6 +6,7 @@ import {
   getLeaveRequests,
 } from "@/lib/supabase/data";
 import {
+  cancelLeaveRequest,
   reviewLeaveRequest,
   setLeaveBalance,
   submitLeaveRequest,
@@ -23,14 +24,16 @@ function employeeFromRequest(
 }
 
 function weekdaysWithinYear(startsOn: string, endsOn: string, year: number) {
-  const start = new Date(`${startsOn}T12:00:00`);
-  const end = new Date(`${endsOn}T12:00:00`);
-  if (start.getFullYear() < year) start.setFullYear(year, 0, 1);
-  if (end.getFullYear() > year) end.setFullYear(year, 11, 31);
+  const yearStart = `${year}-01-01`;
+  const yearEnd = `${year}-12-31`;
+  const startValue = startsOn < yearStart ? yearStart : startsOn;
+  const endValue = endsOn > yearEnd ? yearEnd : endsOn;
+  const start = new Date(`${startValue}T00:00:00.000Z`);
+  const end = new Date(`${endValue}T00:00:00.000Z`);
   let days = 0;
   while (start <= end) {
-    if (start.getDay() !== 0 && start.getDay() !== 6) days += 1;
-    start.setDate(start.getDate() + 1);
+    if (start.getUTCDay() !== 0 && start.getUTCDay() !== 6) days += 1;
+    start.setUTCDate(start.getUTCDate() + 1);
   }
   return days;
 }
@@ -60,8 +63,8 @@ export default async function Page() {
   const currentYear = new Date().getFullYear();
   const currentYearRequests = requests.filter(
     (request) =>
-      new Date(`${request.starts_on}T12:00:00`).getFullYear() <= currentYear &&
-      new Date(`${request.ends_on}T12:00:00`).getFullYear() >= currentYear,
+      request.starts_on <= `${currentYear}-12-31` &&
+      request.ends_on >= `${currentYear}-01-01`,
   );
   const currentYearBalances = balances.filter(
     (balance) => balance.leave_year === currentYear,
@@ -81,7 +84,7 @@ export default async function Page() {
             <div className="rounded-2xl border border-border/70 bg-card p-5">
               <h2 className="text-lg font-semibold">Annual leave balance · {currentYear}</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Balances are configured by HR; approved requests are deducted from the available amount.
+                Balances are configured by HR; pending and approved requests reserve available days.
               </p>
               <div className="mt-4 space-y-3">
                 {currentYearBalances.length ? (
@@ -91,8 +94,8 @@ export default async function Page() {
                       .filter(
                         (request) =>
                           request.employee_id === balance.employee_id &&
-                          request.leave_type === balance.leave_type &&
-                          request.status === "approved",
+                          request.leave_type.toLowerCase() === balance.leave_type.toLowerCase() &&
+                          ["pending", "approved"].includes(request.status),
                       )
                       .reduce(
                         (sum, request) =>
@@ -258,6 +261,15 @@ export default async function Page() {
                                   </form>
                                 ))}
                               </div>
+                            ) : !isReviewer &&
+                              request.status === "pending" &&
+                              request.employee_id === ownEmployee?.id ? (
+                              <form action={cancelLeaveRequest}>
+                                <input type="hidden" name="request_id" value={request.id} />
+                                <button className="rounded-lg border border-border px-2.5 py-1.5 text-xs font-semibold hover:bg-muted">
+                                  Cancel request
+                                </button>
+                              </form>
                             ) : (
                               request.review_notes ?? "—"
                             )}

@@ -41,24 +41,24 @@ export async function proxy(request: NextRequest) {
   if (profileError) {
     throw new Error("Unable to verify account status.");
   }
-  const accountDisabled = profile?.active === false;
+  const hasActiveProfile = profile?.active === true;
 
   if (pathname.startsWith("/dashboard") || pathname.startsWith("/profile")) {
-    if (accountDisabled) {
+    if (!user || !hasActiveProfile) {
       const loginUrl = new URL("/auth/login", request.url);
-      loginUrl.searchParams.set(
-        "message",
-        "This account has been deactivated. Contact HR or an administrator.",
-      );
-      return NextResponse.redirect(loginUrl);
-    }
-    if (!user) {
-      const loginUrl = new URL("/auth/login", request.url);
+      if (user) {
+        loginUrl.searchParams.set(
+          "message",
+          profile
+            ? "This account has been deactivated. Contact HR or an administrator."
+            : "This account has no active profile. Contact an administrator.",
+        );
+      }
       return NextResponse.redirect(loginUrl);
     }
   }
 
-  if (user && isPublicPath && !accountDisabled) {
+  if (user && isPublicPath && hasActiveProfile) {
     const dashboardUrl = new URL("/dashboard", request.url);
     return NextResponse.redirect(dashboardUrl);
   }

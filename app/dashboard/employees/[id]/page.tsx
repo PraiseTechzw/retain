@@ -6,6 +6,7 @@ import {
 import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
 import { updateEmployeeRiskProfile } from "@/lib/supabase/actions";
+import { EmployeeRecordForm } from "@/components/employee-record-form";
 import { redirect } from "next/navigation";
 
 export default async function Page({
@@ -24,7 +25,7 @@ export default async function Page({
   const { data: employee, error } = await supabase
     .from("employees")
     .select(
-      "id, user_id, employee_number, full_name, email, job_title, employment_status, employment_category, joined_on, exit_date, home_area, commute_distance_km, is_technical, department_id, departments(name)",
+      "id, user_id, employee_number, full_name, email, phone, job_title, employment_status, employment_category, joined_on, exit_date, home_area, commute_distance_km, is_technical, department_id, departments(name)",
     )
     .or(
       `id.eq.${lookupValue},employee_number.eq.${lookupValue},email.eq.${lookupValue}`,
@@ -68,6 +69,15 @@ export default async function Page({
       fallbackEmployee.email.toLowerCase() === user?.email?.toLowerCase());
   if (fallbackEmployee && !hasStaffDirectoryAccess && !isOwnEmployeeRecord) {
     redirect("/dashboard");
+  }
+
+  let departmentOptions: { id: string; name: string }[] = [];
+  if (canManageEmployee && employee) {
+    const { data: departments } = await supabase
+      .from("departments")
+      .select("id, name")
+      .order("name", { ascending: true });
+    departmentOptions = departments ?? [];
   }
 
   const departmentName =
@@ -146,6 +156,22 @@ export default async function Page({
                 </div>
               </div>
             </div>
+            {canManageEmployee && employee && (
+              <EmployeeRecordForm
+                employee={{
+                  id: employee.id,
+                  employee_number: employee.employee_number,
+                  full_name: employee.full_name,
+                  email: employee.email,
+                  phone: employee.phone,
+                  job_title: employee.job_title,
+                  employment_category: employee.employment_category,
+                  joined_on: employee.joined_on,
+                  department_id: employee.department_id,
+                }}
+                departments={departmentOptions}
+              />
+            )}
             {canManageEmployee && fallbackEmployee.id && (
               <section className="rounded-2xl border border-border/70 bg-card p-6">
                 <h2 className="text-lg font-semibold">Commute details for risk review</h2>
@@ -155,8 +181,8 @@ export default async function Page({
                 <form action={updateEmployeeRiskProfile} className="mt-4 grid gap-3 md:grid-cols-3">
                   <input type="hidden" name="employee_id" value={fallbackEmployee.id} />
                   <label className="text-sm font-medium">
-                    Home area
-                    <input name="home_area" defaultValue={fallbackEmployee.home_area ?? ""} className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal" />
+                    Home area (town/suburb only)
+                    <input name="home_area" maxLength={80} placeholder="Do not enter a street address" defaultValue={fallbackEmployee.home_area ?? ""} className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal" />
                   </label>
                   <label className="text-sm font-medium">
                     One-way commute (km)

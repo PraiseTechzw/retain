@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { appConfig } from "@/lib/system";
+import { redirect } from "next/navigation";
 
 export type UserRole =
   | "Administrator"
@@ -15,44 +16,26 @@ export function normalizeUserRole(role: string | null | undefined): string {
   const trimmed = role?.trim();
 
   if (!trimmed) {
-    return appConfig.defaultRole;
-  }
-
-  const normalized = trimmed.toLowerCase();
-
-  if (normalized === "admin" || normalized.includes("administrator")) {
-    return "Administrator";
-  }
-
-  if (normalized.includes("hr")) {
-    return "HR";
-  }
-
-  if (normalized.includes("ict")) {
-    return "ICT";
-  }
-
-  if (normalized.includes("library")) {
-    return "Library";
-  }
-
-  if (normalized.includes("attache") || normalized.includes("attaché")) {
-    return "Academic Attaché";
-  }
-
-  if (normalized.includes("support")) {
-    return "Support Staff";
-  }
-
-  if (normalized.includes("management") || normalized.includes("operations")) {
-    return "Management";
-  }
-
-  if (normalized === "employee" || normalized.includes("staff")) {
     return "Employee";
   }
 
-  return trimmed;
+  const normalized = trimmed.toLowerCase();
+  const exactRoles: Record<string, string> = {
+    admin: "Administrator",
+    administrator: "Administrator",
+    hr: "HR",
+    ict: "ICT",
+    "information and communication technology": "ICT",
+    library: "Library",
+    "library services": "Library",
+    management: "Management",
+    "academic attaché": "Academic Attaché",
+    "academic attache": "Academic Attaché",
+    "support staff": "Support Staff",
+    employee: "Employee",
+  };
+
+  return exactRoles[normalized] ?? trimmed;
 }
 
 export async function resolveDashboardUserContext() {
@@ -60,19 +43,29 @@ export async function resolveDashboardUserContext() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user) redirect("/auth/login");
 
-  const { data: profile } = user
-    ? await supabase
-        .from("profiles")
-        .select("full_name, role, active")
-        .eq("id", user.id)
-        .maybeSingle()
-    : { data: null };
-  const userRole = normalizeUserRole(
-    profile?.active !== false && typeof profile?.role === "string"
-      ? profile.role
-      : appConfig.defaultRole,
-  );
+  const { data: profile, error } = await supabase
+    .from("profiles")
+    .select("full_name, role, active")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (error) throw new Error("Unable to verify account profile.");
+  if (!profile || profile.active !== true) {
+    redirect(
+      "/auth/login?message=" +
+        encodeURIComponent(
+          profile
+            ? "This account is inactive. Contact HR or an administrator."
+            : "This account has no active profile. Contact an administrator.",
+        ),
+    );
+  }
+  const rawUserRole =
+    typeof profile.role === "string" && profile.role.trim()
+      ? profile.role.trim()
+      : "Employee";
+  const userRole = normalizeUserRole(rawUserRole);
 
   const userName =
     profile?.full_name ||
@@ -82,23 +75,11 @@ export async function resolveDashboardUserContext() {
     user?.email?.split("@")[0] ||
     appConfig.defaultUserName;
 
-  const roleSource = profile?.role ? "profile" : "default";
-
-  if (process.env.NODE_ENV === "development") {
-    console.log("[dashboard-role-debug]", {
-      userId: user?.id ?? null,
-      resolvedRole: userRole,
-      roleSource,
-      profileRole: profile?.role ?? null,
-      defaultRole: appConfig.defaultRole,
-    });
-  }
-
   return {
     user,
     profile,
     userName,
+    rawUserRole,
     userRole,
-    roleSource,
   };
 }

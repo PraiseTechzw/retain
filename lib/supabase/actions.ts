@@ -6,6 +6,7 @@ import { normalizeUserRole } from "@/lib/auth-role";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { appConfig } from "@/lib/system";
+import { assessFlightRisk, type FlightRiskLeave } from "@/lib/analytics/flight-risk";
 
 const DEFAULT_CLEARANCE_DEPARTMENTS = [
   "ICT",
@@ -70,7 +71,6 @@ async function ensureUserProfile(
     email?: string | null;
     user_metadata?: Record<string, unknown>;
   },
-  preferredRole?: string,
 ) {
   const fullName =
     String(
@@ -79,37 +79,21 @@ async function ensureUserProfile(
         appConfig.defaultUserName,
     ).trim() || appConfig.defaultUserName;
 
-  const { data: existingProfile } = await supabase
+  const { data: existingProfile, error: profileLookupError } = await supabase
     .from("profiles")
     .select("id, full_name, role, department_id, active")
     .eq("id", user.id)
     .maybeSingle();
 
-  const role = String(
-    preferredRole ?? existingProfile?.role ?? appConfig.defaultRole,
-  ).trim() || appConfig.defaultRole;
-
-  console.log("[profile-role-debug]", {
-    userId: user.id,
-    preferredRole,
-    existingProfileRole: existingProfile?.role ?? null,
-    assignedRole: role,
-    resolvedRole: role,
-  });
-
+  if (profileLookupError) throw new Error("Unable to verify your account profile.");
   if (!existingProfile) {
-    const { error } = await supabase.from("profiles").insert({
-      id: user.id,
-      full_name: fullName,
-      role,
-      department_id: null,
-    });
-
-    if (error && !/duplicate key|already exists/i.test(error.message)) {
-      throw new Error("Unable to create profile for this user.");
-    }
+    await supabase.auth.signOut();
+    redirect(
+      "/auth/login?message=" +
+        encodeURIComponent("Your account has no active profile. Contact an administrator."),
+    );
   } else {
-    if (existingProfile.active === false) {
+    if (existingProfile.active !== true) {
       redirect(
         "/auth/login?message=" +
           encodeURIComponent("This account has been deactivated. Contact HR or an administrator."),
@@ -117,7 +101,6 @@ async function ensureUserProfile(
     }
     const updates: Record<string, string | null> = {};
     if (!existingProfile.full_name) updates.full_name = fullName;
-    if (existingProfile.role !== role) updates.role = role;
 
     if (Object.keys(updates).length > 0) {
       const { error } = await supabase
@@ -263,7 +246,6 @@ export async function signUp(formData: FormData) {
   const fullName = String(formData.get("full_name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
-  const role = appConfig.defaultRole;
 
   if (!fullName || !email || !password) {
     redirect(
@@ -288,7 +270,6 @@ export async function signUp(formData: FormData) {
     options: {
       data: {
         full_name: fullName,
-        role,
       },
     },
   });
@@ -306,13 +287,14 @@ export async function signUp(formData: FormData) {
   }
 
   if (data.user && data.session) {
-    const { error: profileError } = await supabase.from("profiles").upsert({
-      id: data.user.id,
-      full_name: fullName,
-      role,
-    });
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .update({ full_name: fullName })
+      .eq("id", data.user.id)
+      .select("id")
+      .maybeSingle();
 
-    if (profileError) {
+    if (profileError || !profile) {
       redirect(
         "/auth/register?message=" +
           encodeURIComponent(
@@ -379,10 +361,49 @@ async function actor() {
     .eq("id", user.id)
     .maybeSingle();
   if (error) throw new Error("Unable to verify account status.");
-  if (profile?.active === false) {
-    throw new Error("This account has been deactivated.");
+  if (!profile || profile.active !== true) {
+    throw new Error("This account is inactive or has no authorized profile.");
   }
   return { supabase, user };
+}
+
+export async function getMyNotifications() {
+  const { supabase, user } = await actor();
+  const { data, error } = await supabase
+    .from("notifications")
+    .select("id, type, title, message, entity_type, entity_id, read_at, created_at")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (error) throw new Error("Unable to load notifications.");
+  return data ?? [];
+}
+
+export async function markMyNotificationRead(formData: FormData) {
+  const { supabase, user } = await actor();
+  const id = String(formData.get("notification_id") ?? "").trim();
+  if (!id) throw new Error("Notification ID is required.");
+
+  const { error } = await supabase
+    .from("notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("user_id", user.id)
+    .is("read_at", null);
+
+  if (error) throw new Error("Unable to mark notification as read.");
+}
+
+export async function markAllMyNotificationsRead() {
+  const { supabase, user } = await actor();
+  const { error } = await supabase
+    .from("notifications")
+    .update({ read_at: new Date().toISOString() })
+    .eq("user_id", user.id)
+    .is("read_at", null);
+
+  if (error) throw new Error("Unable to mark notifications as read.");
 }
 
 async function requireAdminRole(
@@ -395,16 +416,12 @@ async function requireAdminRole(
     .eq("id", user.id)
     .maybeSingle();
 
-  const combinedRole = normalizeUserRole(
-    typeof profile?.role === "string" && profile.active !== false
-      ? profile.role
-      : "",
-  );
+  const role =
+    profile?.active === true && typeof profile.role === "string"
+      ? profile.role.trim().toLowerCase()
+      : "";
 
-  if (
-    !combinedRole.toLowerCase().includes("administrator") &&
-    !combinedRole.toLowerCase().includes("hr")
-  ) {
+  if (!["administrator", "hr"].includes(role)) {
     throw new Error("You are not authorized to change system settings.");
   }
 }
@@ -419,11 +436,9 @@ async function resolveEffectiveUserRole(
     .eq("id", user.id)
     .maybeSingle();
 
-  return normalizeUserRole(
-    typeof profile?.role === "string" && profile.active !== false
-      ? profile.role
-      : "",
-  );
+  return profile?.active === true && typeof profile.role === "string"
+    ? profile.role.trim() || "Employee"
+    : "Employee";
 }
 
 async function requireAnyRole(
@@ -432,7 +447,7 @@ async function requireAnyRole(
   allowedRoles: string[],
 ) {
   const role = (await resolveEffectiveUserRole(supabase, user)).toLowerCase();
-  if (!allowedRoles.some((allowedRole) => role.includes(allowedRole.toLowerCase()))) {
+  if (!allowedRoles.some((allowedRole) => role === allowedRole.toLowerCase())) {
     throw new Error("You are not authorized to perform this action.");
   }
 }
@@ -448,20 +463,44 @@ type AssetRow = {
 };
 
 async function audit(
-  supabase: Awaited<ReturnType<typeof createClient>>,
+  _supabase: Awaited<ReturnType<typeof createClient>>,
   userId: string,
   action: string,
   entityType: string,
   entityId?: string,
   metadata: Record<string, unknown> = {},
 ) {
-  await supabase.from("audit_events").insert({
+  const adminClient = createAdminClient();
+  const { error } = await adminClient.from("audit_events").insert({
     actor_id: userId,
     action,
     entity_type: entityType,
     entity_id: entityId ?? null,
     metadata,
   });
+  if (error) {
+    console.error("Audit event write failed", {
+      code: error.code,
+      action,
+      entityType,
+    });
+  }
+}
+
+function parseOptionalDate(value: string, label: string) {
+  const normalized = value.trim();
+  if (!normalized) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+    throw new Error(`${label} must be a valid date.`);
+  }
+  const parsed = new Date(`${normalized}T00:00:00.000Z`);
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.toISOString().slice(0, 10) !== normalized
+  ) {
+    throw new Error(`${label} must be a valid date.`);
+  }
+  return normalized;
 }
 
 export async function createEmployee(formData: FormData) {
@@ -473,21 +512,43 @@ export async function createEmployee(formData: FormData) {
   const commuteDistance = commuteDistanceValue
     ? Number(commuteDistanceValue)
     : null;
+  const employmentCategory =
+    String(formData.get("employment_category") ?? "").trim().toLowerCase() ||
+    "support";
+  const email = String(formData.get("email") ?? "").trim().toLowerCase() || null;
   const employee = {
     employee_number: String(formData.get("employee_number") ?? "").trim(),
     full_name: String(formData.get("full_name") ?? "").trim(),
-    email: String(formData.get("email") ?? "").trim() || null,
+    email,
+    phone: String(formData.get("phone") ?? "").trim() || null,
+    department_id: String(formData.get("department_id") ?? "").trim() || null,
     job_title: String(formData.get("job_title") ?? "").trim() || null,
-    employment_category:
-      String(formData.get("employment_category") ?? "").trim() || "support",
-    joined_on: String(formData.get("joined_on") ?? "").trim() || null,
-    home_area: String(formData.get("home_area") ?? "").trim() || null,
+    employment_category: employmentCategory,
+    joined_on: parseOptionalDate(
+      String(formData.get("joined_on") ?? ""),
+      "Start date",
+    ),
+    home_area:
+      String(formData.get("home_area") ?? "").trim().replace(/\s+/g, " ") ||
+      null,
     commute_distance_km: commuteDistance,
     is_technical: formData.get("is_technical") === "on",
     employment_status: "active",
   };
   if (!employee.employee_number || !employee.full_name)
     throw new Error("Employee number and full name are required.");
+  if (employee.home_area && employee.home_area.length > 80)
+    throw new Error("Home area must be a broad locality name under 80 characters.");
+  if (
+    !["academic", "academic_attaché", "support"].includes(
+      employee.employment_category,
+    )
+  ) {
+    throw new Error("Select a valid employment category.");
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error("Enter a valid email address.");
+  }
   if (
     commuteDistance !== null &&
     (!Number.isFinite(commuteDistance) || commuteDistance < 0)
@@ -507,16 +568,96 @@ export async function createEmployee(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
+export async function updateEmployeeRecord(formData: FormData) {
+  const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, ["administrator", "hr"]);
+
+  const employeeId = String(formData.get("employee_id") ?? "").trim();
+  const employeeNumber = String(formData.get("employee_number") ?? "").trim();
+  const fullName = String(formData.get("full_name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase() || null;
+  const departmentId =
+    String(formData.get("department_id") ?? "").trim() || null;
+  const employmentCategory = String(
+    formData.get("employment_category") ?? "",
+  ).trim().toLowerCase();
+  const supportedCategories = ["academic", "academic_attaché", "support"];
+
+  if (!employeeId || !employeeNumber || !fullName) {
+    throw new Error("Employee number and full name are required.");
+  }
+  if (!supportedCategories.includes(employmentCategory)) {
+    const { data: existing, error: existingError } = await supabase
+      .from("employees")
+      .select("employment_category")
+      .eq("id", employeeId)
+      .maybeSingle();
+    if (
+      existingError ||
+      String(existing?.employment_category ?? "").trim().toLowerCase() !==
+        employmentCategory
+    ) {
+      throw new Error("Select a valid employment category.");
+    }
+  }
+  if (!employmentCategory) {
+    throw new Error("Select a valid employment category.");
+  }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new Error("Enter a valid email address.");
+  }
+
+  const { data, error } = await supabase
+    .from("employees")
+    .update({
+      employee_number: employeeNumber,
+      full_name: fullName,
+      email,
+      phone: String(formData.get("phone") ?? "").trim() || null,
+      department_id: departmentId,
+      job_title: String(formData.get("job_title") ?? "").trim() || null,
+      employment_category: employmentCategory,
+      joined_on: parseOptionalDate(
+        String(formData.get("joined_on") ?? ""),
+        "Start date",
+      ),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", employeeId)
+    .select("id")
+    .single();
+
+  if (error || !data) throw new Error("Unable to update employee record.");
+  await audit(supabase, user.id, "updated_lifecycle_record", "employee", employeeId, {
+    fields: [
+      "employee_number",
+      "full_name",
+      "email",
+      "phone",
+      "department_id",
+      "job_title",
+      "employment_category",
+      "joined_on",
+    ],
+  });
+  revalidatePath("/dashboard/employees");
+  revalidatePath(`/dashboard/employees/${employeeId}`);
+  revalidatePath("/dashboard");
+}
+
 export async function updateEmployeeRiskProfile(formData: FormData) {
   const { supabase, user } = await actor();
   await requireAnyRole(supabase, user, ["administrator", "hr"]);
   const employeeId = String(formData.get("employee_id") ?? "").trim();
-  const homeArea = String(formData.get("home_area") ?? "").trim() || null;
+  const homeArea =
+    String(formData.get("home_area") ?? "").trim().replace(/\s+/g, " ") ||
+    null;
   const commuteValue = String(formData.get("commute_distance_km") ?? "").trim();
   const commuteDistance = commuteValue ? Number(commuteValue) : null;
   const isTechnical = formData.get("is_technical") === "on";
   if (
     !employeeId ||
+    (homeArea !== null && homeArea.length > 80) ||
     (commuteDistance !== null &&
       (!Number.isFinite(commuteDistance) || commuteDistance < 0))
   ) {
@@ -533,6 +674,7 @@ export async function updateEmployeeRiskProfile(formData: FormData) {
     .eq("id", employeeId);
   if (error) throw new Error("Unable to update commute details.");
   await audit(supabase, user.id, "updated_commute", "employee", employeeId, {
+    home_area_updated: true,
     commute_distance_km: commuteDistance,
     is_technical: isTechnical,
   });
@@ -544,25 +686,55 @@ export async function recordRetentionIntervention(formData: FormData) {
   const { supabase, user } = await actor();
   await requireAnyRole(supabase, user, ["administrator", "hr"]);
   const employeeId = String(formData.get("employee_id") ?? "").trim();
-  const riskScore = Number(formData.get("risk_score") ?? "");
   const interventionType = String(formData.get("intervention_type") ?? "").trim();
   const actionNotes = String(formData.get("action_notes") ?? "").trim();
   const followUpOn = String(formData.get("follow_up_on") ?? "").trim() || null;
   if (
     !employeeId ||
-    !Number.isInteger(riskScore) ||
-    riskScore < 0 ||
-    riskScore > 100 ||
     !["career_conversation", "workload_review", "development", "commute_support", "other"].includes(interventionType) ||
     !actionNotes
   ) {
-    throw new Error("Enter an employee, valid score, intervention type, and action notes.");
+    throw new Error("Enter an employee, intervention type, and action notes.");
   }
+
+  const { data: employee, error: employeeError } = await supabase
+    .from("employees")
+    .select("id, full_name, employee_number, employment_status, job_title, joined_on, home_area, commute_distance_km, departments(name)")
+    .eq("id", employeeId)
+    .single();
+  if (employeeError || !employee) throw new Error("Employee record not found.");
+  if (String(employee.employment_status).toLowerCase() !== "active") {
+    throw new Error("Retention interventions can only be recorded for active employees.");
+  }
+  const { data: leaveRequests, error: leaveError } = await supabase
+    .from("leave_requests")
+    .select("employee_id, requested_days, starts_on, status")
+    .eq("employee_id", employeeId)
+    .eq("status", "approved");
+  if (leaveError) throw new Error("Unable to calculate the current review signal.");
+  const department = Array.isArray(employee.departments)
+    ? employee.departments[0]
+    : employee.departments;
+  const assessment = assessFlightRisk(
+    {
+      id: employee.id,
+      full_name: employee.full_name,
+      employee_number: employee.employee_number,
+      employment_status: employee.employment_status,
+      job_title: employee.job_title,
+      joined_on: employee.joined_on,
+      department_name: department?.name ?? null,
+      home_area: employee.home_area,
+      commute_distance_km: employee.commute_distance_km,
+    },
+    (leaveRequests ?? []) as FlightRiskLeave[],
+  );
+
   const { data: intervention, error } = await supabase
     .from("retention_interventions")
     .insert({
       employee_id: employeeId,
-      risk_score: riskScore,
+      risk_score: assessment.score,
       intervention_type: interventionType,
       action_notes: actionNotes,
       follow_up_on: followUpOn,
@@ -573,7 +745,7 @@ export async function recordRetentionIntervention(formData: FormData) {
   if (error) throw new Error("Unable to save the retention intervention.");
   await audit(supabase, user.id, "recorded", "retention_intervention", intervention.id, {
     employee_id: employeeId,
-    risk_score: riskScore,
+    risk_score: assessment.score,
     intervention_type: interventionType,
   });
   revalidatePath("/dashboard/talent-risk");
@@ -587,7 +759,7 @@ export async function createExitRequest(formData: FormData) {
   if (!employeeId || !reason)
     throw new Error("Employee and reason are required.");
   const role = await resolveEffectiveUserRole(supabase, user);
-  if (!["administrator", "hr"].some((allowed) => role.toLowerCase().includes(allowed))) {
+  if (!["administrator", "hr"].includes(role.toLowerCase())) {
     const { data: ownEmployee, error: ownEmployeeError } = await supabase
       .from("employees")
       .select("id")
@@ -600,30 +772,6 @@ export async function createExitRequest(formData: FormData) {
     }
   }
 
-  const { data: configurationRow } = await supabase
-    .from("system_settings")
-    .select("value")
-    .eq("key", "default_clearance_departments")
-    .maybeSingle();
-
-  let defaultDepartments = [...DEFAULT_CLEARANCE_DEPARTMENTS];
-  if (configurationRow?.value) {
-    try {
-      const parsed = JSON.parse(configurationRow.value) as unknown;
-      if (Array.isArray(parsed)) {
-        defaultDepartments = parsed
-          .map((item) => String(item).trim())
-          .filter(Boolean);
-      }
-    } catch {
-      const splitValue = configurationRow.value
-        .split(/[\n,]+/)
-        .map((item: string) => item.trim())
-        .filter(Boolean);
-      if (splitValue.length) defaultDepartments = splitValue;
-    }
-  }
-
   const { data, error } = await supabase
     .from("exit_requests")
     .insert({ employee_id: employeeId, reason, last_day: lastDay })
@@ -631,14 +779,6 @@ export async function createExitRequest(formData: FormData) {
     .single();
   if (error) throw new Error("Unable to submit exit request.");
   await audit(supabase, user.id, "created", "exit_request", data.id);
-  try {
-    await createClearanceSteps(data.id, defaultDepartments);
-  } catch (err) {
-    await audit(supabase, user.id, "warn", "clearance_steps", data.id, {
-      message: "Unable to create configured clearance steps",
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
   revalidatePath("/dashboard/exit-requests");
   revalidatePath("/dashboard");
 }
@@ -672,14 +812,20 @@ export async function updateAssetStatus(formData: FormData) {
 export async function submitLeaveRequest(formData: FormData) {
   const { supabase, user } = await actor();
   const leaveType = String(formData.get("leave_type") ?? "").trim();
-  const startsOn = String(formData.get("starts_on") ?? "").trim();
-  const endsOn = String(formData.get("ends_on") ?? "").trim();
+  const startsOn = parseOptionalDate(
+    String(formData.get("starts_on") ?? ""),
+    "Leave start date",
+  );
+  const endsOn = parseOptionalDate(
+    String(formData.get("ends_on") ?? ""),
+    "Leave end date",
+  );
   const reason = String(formData.get("reason") ?? "").trim() || null;
   if (!leaveType || !startsOn || !endsOn) {
     throw new Error("Leave type and date range are required.");
   }
-  const start = new Date(`${startsOn}T12:00:00`);
-  const end = new Date(`${endsOn}T12:00:00`);
+  const start = new Date(`${startsOn}T00:00:00.000Z`);
+  const end = new Date(`${endsOn}T00:00:00.000Z`);
   if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
     throw new Error("Enter a valid leave date range.");
   }
@@ -706,9 +852,9 @@ export async function submitLeaveRequest(formData: FormData) {
   let requestedDays = 0;
   const cursor = new Date(start);
   while (cursor <= end) {
-    const day = cursor.getDay();
+    const day = cursor.getUTCDay();
     if (day !== 0 && day !== 6) requestedDays += 1;
-    cursor.setDate(cursor.getDate() + 1);
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
   if (!requestedDays) throw new Error("Leave must include at least one weekday.");
 
@@ -783,6 +929,35 @@ export async function reviewLeaveRequest(formData: FormData) {
   revalidatePath("/dashboard/analytics");
 }
 
+export async function cancelLeaveRequest(formData: FormData) {
+  const { supabase, user } = await actor();
+  const requestId = String(formData.get("request_id") ?? "").trim();
+  if (!requestId) throw new Error("A leave request is required.");
+
+  const { data: employee, error: employeeError } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (employeeError) throw new Error("Unable to verify your employee record.");
+  if (!employee) throw new Error("Your account is not linked to an employee record.");
+
+  const { data: cancelled, error } = await supabase
+    .from("leave_requests")
+    .update({ status: "cancelled", updated_at: new Date().toISOString() })
+    .eq("id", requestId)
+    .eq("employee_id", employee.id)
+    .eq("status", "pending")
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error("Unable to cancel the leave request.");
+  if (!cancelled) throw new Error("Only your pending leave request can be cancelled.");
+
+  await audit(supabase, user.id, "cancelled", "leave_request", requestId);
+  revalidatePath("/dashboard/leave");
+  revalidatePath("/dashboard/analytics");
+}
+
 export async function setLeaveBalance(formData: FormData) {
   const { supabase, user } = await actor();
   await requireAnyRole(supabase, user, ["administrator", "hr"]);
@@ -841,15 +1016,21 @@ export async function recordAssetDailyLog(formData: FormData) {
     throw new Error("A destination is required when recording asset movement.");
   }
   const dateValue = loggedOn || new Date().toISOString().slice(0, 10);
-  if (Number.isNaN(new Date(`${dateValue}T12:00:00`).getTime())) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue) || Number.isNaN(new Date(`${dateValue}T12:00:00Z`).getTime())) {
     throw new Error("Enter a valid activity date.");
+  }
+  if (eventType === "daily_check" && dateValue !== new Date().toISOString().slice(0, 10)) {
+    throw new Error("Daily checks can only be logged for today's UTC date.");
   }
   const { data: asset, error: assetError } = await supabase
     .from("assets")
-    .select("id, assigned_to")
+    .select("id, assigned_to, status")
     .eq("id", assetId)
     .single();
   if (assetError || !asset) throw new Error("Asset not found.");
+  if (eventType === "daily_check" && (!asset.assigned_to || asset.status !== "assigned")) {
+    throw new Error("Daily checks are only required for assets currently assigned to an employee.");
+  }
   const { data, error } = await supabase
     .from("asset_daily_logs")
     .insert({
@@ -863,6 +1044,9 @@ export async function recordAssetDailyLog(formData: FormData) {
     })
     .select("id")
     .single();
+  if (error?.code === "23505" && eventType === "daily_check") {
+    throw new Error("A daily check has already been recorded for this asset today.");
+  }
   if (error) throw new Error("Unable to record asset activity.");
   if (location) {
     const { error: locationError } = await supabase
@@ -958,15 +1142,12 @@ export async function approveClearance(formData: FormData) {
     normalizedDepartment.includes("ict") ||
     normalizedDepartment.includes("information and communication technology");
   const allowed =
-    normalizedRole.includes("hr") ||
-    normalizedRole.includes("administrator") ||
-    (normalizedRole.includes("management") &&
+    normalizedRole === "hr" ||
+    normalizedRole === "administrator" ||
+    (normalizedRole === "management" &&
       normalizedDepartment.includes("department head")) ||
-    (normalizedRole.includes("ict") && isIctClearance) ||
-    (normalizedRole.includes("library") &&
-      normalizedDepartment.includes("librar")) ||
-    (normalizedRole.length > 2 &&
-      normalizedDepartment.includes(normalizedRole));
+    (normalizedRole === "ict" && isIctClearance) ||
+    (normalizedRole === "library" && normalizedDepartment.includes("librar"));
   if (!allowed)
     throw new Error("You are not authorized to approve this clearance.");
 
@@ -983,6 +1164,9 @@ export async function approveClearance(formData: FormData) {
   if (error) throw new Error("Unable to approve clearance step.");
   await audit(supabase, user.id, "approved", "clearance_step", data.id);
   revalidatePath("/dashboard/clearances");
+  if (stepData?.exit_request_id) {
+    revalidatePath(`/dashboard/clearances/${stepData.exit_request_id}`);
+  }
 }
 
 // Helper: check blockers for an exit request
@@ -990,7 +1174,7 @@ export async function checkExitBlockers(exitRequestId: string) {
   const supabase = await createClient();
   const { data: exitReq, error: exitErr } = await supabase
     .from("exit_requests")
-    .select("id, employee_id, status")
+    .select("id, employee_id, status, clearance_departments")
     .eq("id", exitRequestId)
     .single();
   if (exitErr || !exitReq) throw new Error("Exit request not found.");
@@ -1011,6 +1195,16 @@ export async function checkExitBlockers(exitRequestId: string) {
 
   const pending = (steps ?? []).filter(
     (s: ClearanceStep) => s.status !== "approved",
+  );
+  const expectedDepartments = exitReq.status === "completed"
+    ? []
+    : Array.isArray(exitReq.clearance_departments)
+      ? exitReq.clearance_departments.map((department: string) => department.trim()).filter(Boolean)
+      : [];
+  const missingDepartments = expectedDepartments.filter(
+    (department: string) => !(steps ?? []).some(
+      (step: ClearanceStep) => step.department.trim().toLowerCase() === department.toLowerCase(),
+    ),
   );
 
   const { data: assets, error: assetsError } = await supabase
@@ -1060,12 +1254,19 @@ export async function checkExitBlockers(exitRequestId: string) {
   }
 
   const blockers: Record<string, unknown> = {};
-  if (pending.length)
-    blockers.clearance = pending.map((p: ClearanceStep) => ({
-      department: p.department,
-      status: p.status,
-      comments: p.comments,
-    }));
+  if (pending.length || missingDepartments.length)
+    blockers.clearance = [
+      ...pending.map((p: ClearanceStep) => ({
+        department: p.department,
+        status: p.status,
+        comments: p.comments,
+      })),
+      ...missingDepartments.map((department: string) => ({
+        department,
+        status: "missing",
+        comments: `Required clearance step was not provisioned for ${department}.`,
+      })),
+    ];
   if (outstandingAssets.length)
     blockers.assets = outstandingAssets.map((a: AssetRow) => ({
       id: a.id,
@@ -1154,7 +1355,7 @@ export async function finalizeExit(formData: FormData) {
   const { supabase, user } = await actor();
 
   const userRole = await resolveEffectiveUserRole(supabase, user);
-  if (!["administrator", "hr"].some((role) => userRole.toLowerCase().includes(role))) {
+  if (!["administrator", "hr"].includes(userRole.toLowerCase())) {
     throw new Error("You are not authorized to finalize exits.");
   }
   const { data, error } = await supabase.rpc("finalize_exit", {
@@ -1186,10 +1387,26 @@ export async function uploadKnowledgeDocument(formData: FormData) {
   const requirementId = String(formData.get("requirement_id") ?? "").trim() || null;
   if (!(file instanceof File) || file.size === 0 || !title || !employeeId)
     throw new Error("Title, employee, and a file are required.");
+  if (title.length > 200 || file.name.length > 255)
+    throw new Error("The title must be 200 characters or fewer and the file name 255 characters or fewer.");
   if (file.size > 10 * 1024 * 1024)
     throw new Error("Files must be smaller than 10 MB.");
+  const allowedMimeByExtension: Record<string, string> = {
+    pdf: "application/pdf",
+    doc: "application/msword",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    xls: "application/vnd.ms-excel",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ppt: "application/vnd.ms-powerpoint",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  };
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const validatedMimeType = allowedMimeByExtension[extension];
+  if (!validatedMimeType || (file.type && file.type.toLowerCase() !== validatedMimeType)) {
+    throw new Error("Upload a PDF, Word, Excel, or PowerPoint document with a matching file type.");
+  }
   const role = await resolveEffectiveUserRole(supabase, user);
-  if (!["administrator", "hr"].some((allowed) => role.toLowerCase().includes(allowed))) {
+  if (!["administrator", "hr"].includes(role.toLowerCase())) {
     const { data: ownEmployee, error: ownEmployeeError } = await supabase
       .from("employees")
       .select("id")
@@ -1229,12 +1446,12 @@ export async function uploadKnowledgeDocument(formData: FormData) {
       throw new Error("This knowledge requirement does not apply to the selected employee.");
     }
   }
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(-120);
   const path = `private/${employeeId}/${crypto.randomUUID()}-${safeName}`;
   const { error: uploadError } = await supabase.storage
     .from("knowledge-documents")
     .upload(path, file, {
-      contentType: file.type || "application/octet-stream",
+      contentType: validatedMimeType,
       upsert: false,
     });
   if (uploadError) throw new Error("Unable to upload document.");
@@ -1248,7 +1465,7 @@ export async function uploadKnowledgeDocument(formData: FormData) {
       storage_path: path,
       category: String(formData.get("category") ?? "").trim() || null,
       file_name: file.name,
-      mime_type: file.type || null,
+      mime_type: validatedMimeType,
       file_size: file.size,
       created_by: user.id,
     })
@@ -1421,22 +1638,21 @@ export async function completeOnboarding(formData: FormData) {
     .maybeSingle();
 
   if (profileLookupError) throw new Error("Unable to load your profile.");
+  if (!existingProfile) {
+    throw new Error("Your account profile is not initialized. Contact an administrator.");
+  }
 
   // The assigned role is never accepted from onboarding form data. This stops
   // a user from creating a conflicting or elevated role for themselves.
-  const role =
-    String(existingProfile?.role ?? appConfig.defaultRole).trim() ||
-    appConfig.defaultRole;
+  const role = String(existingProfile.role ?? "Employee").trim() || "Employee";
 
   const profile = {
     full_name: fullName,
-    role: role || appConfig.defaultRole,
     department_id: departmentRow.id,
   };
 
-  // Do not use upsert here. PostgREST evaluates an upsert against INSERT RLS
-  // policies even when it resolves to an update, while an onboarding user will
-  // normally already have a profile created during sign-in.
+  // Profile creation is handled by the trusted Auth trigger; onboarding only
+  // updates the signed-in user's existing profile.
   const { data: updatedProfile, error: profileUpdateError } = await supabase
     .from("profiles")
     .update(profile)
@@ -1453,20 +1669,7 @@ export async function completeOnboarding(formData: FormData) {
     throw new Error("Unable to save your onboarding details.");
   }
 
-  if (!updatedProfile) {
-    const { error: profileInsertError } = await supabase
-      .from("profiles")
-      .insert({ id: user.id, ...profile });
-
-    if (profileInsertError) {
-      console.error("Unable to create onboarding profile", {
-        code: profileInsertError.code,
-        message: profileInsertError.message,
-        details: profileInsertError.details,
-      });
-      throw new Error("Unable to save your onboarding details.");
-    }
-  }
+  if (!updatedProfile) throw new Error("Your account profile is not initialized. Contact an administrator.");
 
   const { data: existingEmployee } = await supabase
     .from("employees")
@@ -1533,33 +1736,14 @@ export async function signOut() {
   redirect("/auth/login");
 }
 
-export async function createClearanceSteps(
-  exitRequestId: string,
-  departments: string[],
-) {
-  const { supabase, user } = await actor();
-  const rows = departments.map((department, index) => ({
-    exit_request_id: exitRequestId,
-    department,
-    step_order: index + 1,
-  }));
-  const { error } = await supabase
-    .from("clearance_steps")
-    .upsert(rows, { onConflict: "exit_request_id,department" });
-  if (error) throw new Error("Unable to create clearance steps.");
-  await audit(supabase, user.id, "created", "clearance_steps", exitRequestId, {
-    departments,
-  });
-  revalidatePath("/dashboard/clearances");
-}
-
 export async function updateProfile(formData: FormData) {
   const { supabase, user } = await actor();
   const fullName = String(formData.get("full_name") ?? "").trim();
   if (!fullName) throw new Error("Full name is required.");
   const { error } = await supabase
     .from("profiles")
-    .upsert({ id: user.id, full_name: fullName });
+    .update({ full_name: fullName })
+    .eq("id", user.id);
   if (error) throw new Error("Unable to update profile.");
   await audit(supabase, user.id, "updated", "profile", user.id);
   revalidatePath("/profile");
@@ -1703,8 +1887,47 @@ export async function saveSystemSetting(formData: FormData) {
   await requireAdminRole(supabase, user);
 
   const key = String(formData.get("key") ?? "").trim();
-  const value = String(formData.get("value") ?? "").trim();
-  if (!key) throw new Error("Setting key is required.");
+  const rawValue = String(formData.get("value") ?? "").trim();
+  let value: string;
+
+  switch (key) {
+    case "organization_name":
+      if (!rawValue || rawValue.length > 120) {
+        throw new Error("Institution name must contain 1–120 characters.");
+      }
+      value = rawValue;
+      break;
+    case "default_clearance_departments": {
+      const departments = [...new Set(
+        rawValue.split(/[\n,]+/).map((item) => item.trim()).filter(Boolean),
+      )];
+      if (
+        departments.length === 0 ||
+        departments.length > 20 ||
+        departments.some((department) => department.length > 80)
+      ) {
+        throw new Error("Enter between 1 and 20 clearance departments, each no longer than 80 characters.");
+      }
+      value = JSON.stringify(departments);
+      break;
+    }
+    case "retention_days": {
+      const days = Number(rawValue);
+      if (!Number.isInteger(days) || days < 30 || days > 3650) {
+        throw new Error("Knowledge retention must be a whole number from 30 to 3,650 days.");
+      }
+      value = String(days);
+      break;
+    }
+    case "notification_channel":
+      if (!["email", "in_app", "both"].includes(rawValue)) {
+        throw new Error("Choose email, in-app, or both notification channels.");
+      }
+      value = rawValue;
+      break;
+    default:
+      throw new Error("This system setting is not supported.");
+  }
 
   const { error } = await supabase
     .from("system_settings")
@@ -1930,8 +2153,10 @@ export async function createHandover(formData: FormData) {
 export async function updateUserRole(formData: FormData) {
   const { supabase, user } = await actor();
 
-  // Verify admin role
-  await requireAdminRole(supabase, user);
+  const actorRole = (await resolveEffectiveUserRole(supabase, user)).toLowerCase();
+  if (actorRole !== "administrator") {
+    throw new Error("Only an Administrator can change user roles.");
+  }
 
   const userId = String(formData.get("user_id") ?? "");
   const newRole = String(formData.get("role") ?? "");
@@ -1955,29 +2180,14 @@ export async function updateUserRole(formData: FormData) {
   }
 
   const adminClient = createAdminClient();
-  const { data: targetUser, error: targetUserError } =
-    await adminClient.auth.admin.getUserById(userId);
-  if (targetUserError || !targetUser.user) {
-    throw new Error("Unable to load the account to update.");
-  }
-  const { error: authRoleError } = await adminClient.auth.admin.updateUserById(
-    userId,
-    {
-      user_metadata: {
-        ...targetUser.user.user_metadata,
-        role: newRole,
-      },
-    },
-  );
-  if (authRoleError) throw new Error("Unable to update the account role.");
-
-  // Update profile role
-  const { error: profileError } = await adminClient
+  const { data: updatedProfile, error: profileError } = await adminClient
     .from("profiles")
     .update({ role: newRole })
-    .eq("id", userId);
+    .eq("id", userId)
+    .select("id")
+    .maybeSingle();
 
-  if (profileError) {
+  if (profileError || !updatedProfile) {
     throw new Error("Unable to update user role.");
   }
 
@@ -1992,13 +2202,26 @@ export async function updateUserRole(formData: FormData) {
 export async function disableUserAccount(formData: FormData) {
   const { supabase, user } = await actor();
 
-  // Verify admin role
   await requireAdminRole(supabase, user);
+  const actorRole = (await resolveEffectiveUserRole(supabase, user)).toLowerCase();
 
   const userId = String(formData.get("user_id") ?? "");
 
   if (!userId) {
     throw new Error("User ID is required.");
+  }
+
+  const { data: targetProfile, error: targetProfileError } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+  if (targetProfileError || !targetProfile) {
+    throw new Error("Unable to verify the target account role.");
+  }
+  const targetRole = normalizeUserRole(targetProfile.role ?? "").toLowerCase();
+  if (actorRole !== "administrator" && (targetRole === "administrator" || targetRole === "hr")) {
+    throw new Error("Only an Administrator may deactivate an Administrator or HR account.");
   }
 
   // Prevent self-disable
@@ -2069,13 +2292,26 @@ export async function disableUserAccount(formData: FormData) {
 export async function activateUserAccount(formData: FormData) {
   const { supabase, user } = await actor();
 
-  // Verify admin role
   await requireAdminRole(supabase, user);
+  const actorRole = (await resolveEffectiveUserRole(supabase, user)).toLowerCase();
 
   const userId = String(formData.get("user_id") ?? "");
 
   if (!userId) {
     throw new Error("User ID is required.");
+  }
+
+  const { data: targetProfile, error: targetProfileError } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+  if (targetProfileError || !targetProfile) {
+    throw new Error("Unable to verify the target account role.");
+  }
+  const targetRole = normalizeUserRole(targetProfile.role ?? "").toLowerCase();
+  if (actorRole !== "administrator" && (targetRole === "administrator" || targetRole === "hr")) {
+    throw new Error("Only an Administrator may reactivate an Administrator or HR account.");
   }
 
   const { data: employee, error: employeeError } = await supabase

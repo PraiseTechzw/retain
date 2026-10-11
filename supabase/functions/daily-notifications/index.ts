@@ -158,9 +158,12 @@ Deno.serve(async (request) => {
     );
   }
 
-  if (!["email", "both"].includes(setting?.value ?? "email")) {
-    return Response.json({ skipped: true, reason: "email notifications disabled" });
+  const channel = setting?.value ?? "email";
+  if (!["email", "in_app", "both"].includes(channel)) {
+    return Response.json({ error: "Invalid notification channel configuration" }, { status: 500 });
   }
+  const emailEnabled = channel === "email" || channel === "both";
+  const inAppEnabled = channel === "in_app" || channel === "both";
 
   const counts = {
     openExitRequests: openExitRequests ?? 0,
@@ -176,52 +179,73 @@ Deno.serve(async (request) => {
   let sent = 0;
 
   for (const profile of (profiles ?? []) as Profile[]) {
-    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(profile.id);
-    const email = authUser.user?.email;
-    if (authError || !email) continue;
+    let delivered = false;
+    let email: string | null = null;
 
-    const { data: existing } = await supabase
-      .from("notification_delivery_log")
-      .select("id")
-      .eq("digest_date", digestDate)
-      .eq("recipient_email", email)
-      .eq("status", "sent")
-      .maybeSingle();
-    if (existing) continue;
+    if (emailEnabled) {
+      const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(profile.id);
+      email = authUser.user?.email ?? null;
+      if (authError || !email) {
+        console.error("Unable to resolve a recipient for the daily email digest");
+      } else {
+        const { data: existing } = await supabase
+          .from("notification_delivery_log")
+          .select("id")
+          .eq("digest_date", digestDate)
+          .eq("recipient_email", email)
+          .eq("status", "sent")
+          .maybeSingle();
 
-    try {
-      await sendEmail(
-        email,
-        profile.full_name ?? email.split("@")[0],
-        counts,
-        assetsAwaitingCheck,
-      );
-      await supabase.from("notification_delivery_log").upsert({
-        digest_date: digestDate,
-        recipient_user_id: profile.id,
-        recipient_email: email,
-        status: "sent",
-        sent_at: new Date().toISOString(),
-      }, { onConflict: "digest_date,recipient_email" });
-      await supabase.from("notifications").insert({
+        if (!existing) {
+          try {
+            await sendEmail(
+              email,
+              profile.full_name ?? email.split("@")[0],
+              counts,
+              assetsAwaitingCheck,
+            );
+            await supabase.from("notification_delivery_log").upsert({
+              digest_date: digestDate,
+              recipient_user_id: profile.id,
+              recipient_email: email,
+              status: "sent",
+              sent_at: new Date().toISOString(),
+            }, { onConflict: "digest_date,recipient_email" });
+            delivered = true;
+          } catch (error) {
+            console.error("Unable to send daily email digest", error);
+            await supabase.from("notification_delivery_log").upsert({
+              digest_date: digestDate,
+              recipient_user_id: profile.id,
+              recipient_email: email,
+              status: "failed",
+            }, { onConflict: "digest_date,recipient_email" });
+          }
+        }
+      }
+    }
+
+    if (inAppEnabled) {
+      const { error: notificationError } = await supabase.from("notifications").insert({
         user_id: profile.id,
         type: "info",
         title: counts.assetsMissingDailyCheck
           ? "Assigned asset checks are due"
           : "Daily operations digest",
         message: `${counts.openExitRequests} open exits, ${counts.pendingClearanceSteps} pending clearances, ${counts.unverifiedKnowledgeDocuments} unverified knowledge documents, and ${counts.assetsMissingDailyCheck} assigned assets without today's daily check.`,
+        entity_type: "daily_digest",
+        entity_id: digestDate,
       });
-      sent += 1;
-    } catch (error) {
-      console.error(`Unable to send daily digest to ${email}`, error);
-      await supabase.from("notification_delivery_log").upsert({
-        digest_date: digestDate,
-        recipient_user_id: profile.id,
-        recipient_email: email,
-        status: "failed",
-      }, { onConflict: "digest_date,recipient_email" });
+
+      if (!notificationError || notificationError.code === "23505") {
+        delivered = true;
+      } else {
+        console.error("Unable to create in-app daily digest", notificationError);
+      }
     }
+
+    if (delivered) sent += 1;
   }
 
-  return Response.json({ sent, digestDate, counts });
+  return Response.json({ sent, digestDate, counts, channel });
 });

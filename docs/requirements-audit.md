@@ -1,53 +1,52 @@
 # CUT-ELAMS Requirements Audit
 
-Prepared for the CUT-ELAMS project brief by Ruth Makanaka Shawatu.
+Prepared for the CUT-ELAMS project brief supplied by the product owner.
 
-This matrix records implementation visible in the repository. “Implemented in
-code” does not mean the migrations have been applied to the live Supabase
-project or that institutional outcome targets have already been achieved.
-After each feature implementation, update this matrix and rerun the relevant
-checks; leave deployment and outcome claims marked pending until verified.
+This matrix records implementation visible in the repository. **“Implemented in code” does not mean the SQL migrations have been applied to the institution's database, the deployed application is live, or an operational target has been achieved.** All live authorization, data, schedule, and email behavior remains subject to staging acceptance.
 
 | Brief requirement | Current status | Evidence in the application | Remaining work / acceptance check |
 | --- | --- | --- | --- |
-| Recruitment mapping | Implemented in code, limited | HR maps planned roles, department, category, positions, target start, and pipeline stage in `app/dashboard/recruitment/page.tsx`. | This is opening planning, not candidate tracking. Confirm this distinction matches approved scope. |
-| Digital exit and clearance | Implemented in code; deployment validation pending | Clearance workflow and exit blocker checks cover approvals, assigned assets, and required knowledge handover in `app/dashboard/exit-requests/[id]/page.tsx` and the lifecycle migrations. | Apply all migrations through `20261007_011`; run role-by-role and blocked/eligible exit scenarios in Supabase. Payroll is explicitly excluded, so no salary-payment hold exists. |
-| Asset return and verification | Implemented in code; target unverified | Asset receipt and verification states feed exit blockers and the return workflow. | Verify real asset inventory coverage and return reconciliation with ICT/Library. “100% visibility” is an operational target, not a code guarantee. |
-| Daily asset monitoring | Implemented and function deployed; delivery setup pending | Authorized staff can log checks, movement, maintenance, issues, and returns. The activity page calculates unique currently assigned assets with a `daily_check` today, lists unchecked assets, and offers a direct log action. The scheduled digest reminds active HR, Management, ICT, and Library users and lists up to 20 unchecked asset tags. | Configure `RESEND_API_KEY`, `NOTIFICATION_FROM_EMAIL`, and `NEXT_PUBLIC_APP_URL` in Supabase and verify email/in-app delivery. Apply migration 012 for the service-role RPC; the function has a paginated query fallback if it is absent. Checks still require staff action; measure physical coverage. |
-| Leave self-service and balance | Implemented in code; database validation pending | Employees request leave; HR configures balances and reviews requests. Migration 011 checks year-specific weekdays against pending and approved leave and serializes checks on balance rows. | Apply migration 011; verify date ranges spanning years, exact-balance requests, over-limit requests, cancellation/rejection handling, and concurrent requests. |
-| Leave turnaround reduction | Measurement available; target unverified | `app/dashboard/reports/page.tsx` calculates average elapsed time from request creation to review. | Establish a baseline, then compare after six months. A 35% improvement is not yet demonstrated. |
-| Flight-risk early warning | Provisional implementation | `lib/analytics/flight-risk.ts` scores approved leave, request frequency, tenure milestones, and commute distance; the UI labels it provisional. | Validate features, weights, thresholds, bias, and outcomes with HR historical data. Do not treat as a validated prediction or employment decision. |
-| Commute heatmap | Implemented in code, limited | Talent-risk page groups staff by home area and commute band. | It is a table, not a geographic map. Confirm location-data quality and access safeguards. |
-| Quarterly attrition and exit drivers | Implemented in code; deployment validation pending | Quarterly view/RPC, department rates, top reason, scheduled snapshots, and CSV reporting are in the analytics/reporting migrations and reports page. | Apply migrations and validate quarter boundaries, duplicate exit records, denominator logic, reported drivers, and the scheduled job. |
-| Technical knowledge handover | Implemented in code; reviewer access fix included | Mandatory applicable requirements and approved documents are checked before finalization; migration 011 aligns document review permissions with HR, Management, and configured reviewer roles and prevents self-review. | Apply migrations and test HR, Management, ICT/Library configured reviewers, document owner, and inactive-user cases. Confirm technical requirements are configured for every applicable department/category. |
-| Academic Attaché and Support Staff access | Implemented in code; RLS deployment pending | Explicit roles/categories, self-service leave, and knowledge workflows are present. Migration 010/011 scopes access to active profiles and linked employee records. | Apply migrations; test both roles directly through Supabase REST/RPC, not only through hidden UI controls. |
-| Role-based access and audit controls | Fixes implemented in code; live verification pending | Profile roles are the trusted role source; migration 010 installs scoped RLS; migration 011 gates inactive accounts, aligns knowledge review policies, and protects employee department and other HR-owned fields. Report activity now includes its actor. | Apply migrations 010 and 011 in order. Test anonymous, active, inactive, employee, HR, administrator, Management, ICT, Library, Attaché, and Support Staff access. |
-| Payroll, student management, attendance | Out of scope | The brief explicitly excludes these capabilities. | No implementation expected unless scope is formally changed. |
+| Recruitment and employee records | Implemented in code, limited | HR/Admin employee create/edit workflows and planned opening management in `app/dashboard/employees`, `app/dashboard/recruitment`, and `lib/supabase/actions.ts`. Openings capture role, department, category, positions, target start, and stage. | This is opening planning, not a candidate application pipeline. Confirm that distinction matches the approved scope. |
+| Digital exit and clearance | Implemented in code; migration and staging validation pending | Exit requests snapshot configured departments; database triggers provision clearance steps atomically. Missing steps, pending approvals, assigned assets, and required knowledge block the finalization RPC. Finalization is a separate, authorized workflow from account deactivation. | Reconcile the renamed migration history, apply to staging, and test partial/failed creation, immutable snapshots, all blockers, direct-update denial, and repeated/terminal finalization. Payroll is not integrated. |
+| Asset return and verification | Implemented in code; target unverified | Asset receipt, return, verification, and status feed exit blockers and the return workflow. | Verify real inventory coverage and return reconciliation with ICT/Library. “100% visibility” is an operational target, not a code guarantee. |
+| Daily asset monitoring | Implemented in code; external schedule/delivery validation pending | Authorized staff log checks, movement, maintenance, issues, and returns. Checks are limited to assigned assets/current UTC date, and a partial unique index prevents duplicate asset/day checks. The scheduled digest supports email, in-app, or both. | Apply migrations; configure `pg_cron`/`pg_net`, Edge Function secrets, Resend for email modes, and the app URL. Test each channel, failures, unread/read behavior, idempotency, and physical coverage. |
+| Leave self-service and balance | Implemented in code; database validation pending | Employees request leave; HR configures balances and reviews requests. Server and database checks count pending/approved requests, prevent overlapping requests, serialize balance checks, and allow employees to cancel their own pending requests. | Apply migrations and test year boundaries, weekends, exact/over balance, concurrent and overlapping requests, cancellation, direct unauthorized updates, and reviewer self-review. |
+| Leave turnaround reduction | Measurement available; target unverified | Reports calculate elapsed time from request creation to review. | Establish a measured baseline and compare after the agreed period. A 35% improvement is not demonstrated by source code. |
+| Flight-risk early warning | Provisional implementation | `lib/analytics/flight-risk.ts` scores approved leave, request frequency, tenure milestones, and commute distance. Server actions recompute from current data; boundary tests are in `tests/flight-risk_test.ts`. | Validate features, weights, thresholds, bias, and outcomes with HR historical data. Do not treat this as a validated prediction or employment decision. |
+| Commute heatmap | Implemented in code, privacy-limited | Talent-risk page groups home areas and one-way commute bands, normalizes area labels, uses a heat scale, and suppresses small groups. Inputs request only broad locality labels. | It is a table/matrix, not a geographic map. Validate access, data minimization, and re-identification risk in staging. |
+| Quarterly attrition and exit drivers | Implemented in code; deployment validation pending | Quarterly view/RPC, department rates, top reason, scheduled snapshots, and summary CSV reporting are present. Page refreshes no longer create false report-generation audit events. | Apply migrations and validate quarter boundaries, denominator/duplicate-exit rules, report access, and scheduled snapshots. |
+| Technical knowledge handover | Implemented in code; environment validation pending | Private Storage, scoped reviewer roles, no-self-review checks, requirement matching, and exit blockers exist. Uploads are limited to PDF/Office document formats under 10 MB with matching extension/MIME. | Apply migrations; test owner/reviewer/inactive-user permissions, signed-link expiry, and all technical requirements. The upload checks are not malware scanning. |
+| Attaché and Support Staff access | Implemented in code; RLS deployment pending | Explicit roles/categories and self-service leave/knowledge flows are present. New hardening removes self-profile insertion and fails closed when a profile is missing/inactive. | Test both roles directly against Supabase REST/RPC, not only through UI visibility. |
+| Role-based access and audit controls | Hardened in code/migrations; live verification pending | Exact canonical profile roles drive server-action authorization; only an exact Administrator may change roles. HR cannot change roles or administer Administrator/HR account status. Missing/inactive profiles fail closed at the proxy, page context, sign-in, and actions. Latest migrations remove stale permissive RLS policies, restrict direct audit inserts, create profiles with Employee, normalize unsupported legacy role labels, and revoke internal RPC execution. | Reconcile/apply migrations. Verify the existing Administrator/HR roster against CUT's authoritative list before role normalization. Test every role against REST/RPC, especially legacy-policy removal, self-promotion, direct audit insertion, and the service-role boundary. |
+| Payroll, student management, attendance | Out of scope / unresolved payroll boundary | The repository has no payroll integration, student-management module, attendance system, or salary-payment instruction. | Confirm whether the brief's requested final-salary hold is an external dependency. Any payroll integration needs separate ownership, authorization, data-flow, and approval. |
+| University Council reporting | Not implemented as a distinct role | No separate Council role or Council-specific dashboard is present. | Decide whether Council should receive a new read-only, privacy-minimized reporting role; do not equate Council with general Management access without approval. |
 
-## Latest Audit Fixes
+## Latest implementation work
 
-- Report activity now supplies the authenticated `actor_id` required by audit
-  event RLS.
-- Knowledge document view/update policies use the same database reviewer rule
-  as the server action, preserve uploaded content during review, and prohibit
-  self-review.
-- Inactive profiles are denied self-service access to protected data paths.
-- Employee self-service cannot set HR-managed identity, employment, technical,
-  commute, or department fields. Department is copied once from the onboarding
-  profile when the employee record has no department.
-- Leave entitlement checks count all existing pending/approved weekdays in a
-  leave year plus only the weekdays requested in that year.
-- The daily digest now sends assigned-asset check reminders to active HR,
-  Management, ICT, and Library recipients, with asset tags and a direct route
-  to the activity page.
+- Standardized existing migration filenames to unique 14-digit Supabase CLI versions. File renaming does not reconcile a database that recorded earlier names or applied SQL manually.
+- Added migration `20261011000000_security_leave_integrity.sql` for stale permissive policies, trusted profile creation, leave integrity, daily-check uniqueness, and restricted RPC execution.
+- Added `20261011000100_daily_digest_idempotency.sql`, `20261011000200_exit_clearance_atomicity.sql`, and `20261011000300_audit_integrity.sql` for daily digest uniqueness, atomic exit clearance and finalization guards, and audit-log insertion integrity.
+- Added `20261011000400_canonical_profile_roles.sql` to downgrade unsupported legacy labels to Employee; canonical privileged profile values still need to be checked against the institution's authorized roster.
+- Made application authorization compare exact canonical profile roles, removed role assignment from user-controlled Auth metadata, and made missing/inactive profiles fail closed.
+- Made account role changes Administrator-only and prevented HR from changing Administrator/HR account status.
+- Replaced the static notification bell with a user-scoped in-app notification center and made the digest honor `email`, `in_app`, and `both` settings.
+- Tightened knowledge uploads to supported formats/size, recomputed flight-risk scores server-side, added CSV export, removed page-refresh audit side effects, and expanded the employee lifecycle workflow.
 
-## Validation State
+## Validation state
 
-- `pnpm lint`: passing after the latest app changes.
-- TypeScript editor diagnostics: no errors in the changed app files.
-- Database migration execution: not run in this workspace; there is no local
-  Supabase project configuration or PostgreSQL connection available.
-- Daily reminder delivery: Edge Function `daily-notifications` is deployed at
-  version 2 with JWT verification enabled. Migration 012 is not confirmed
-  applied remotely; the function has a paginated query fallback. Configure the
-  Resend secrets and app URL, then verify delivery. No test email was sent.
+- `pnpm lint`: passed without warnings.
+- `pnpm typecheck`: passed.
+- `pnpm build`: passed; all listed application routes compiled.
+- Deno Edge Function/test checks: passed; 5 flight-risk tests passed, 0 failed.
+- PostgreSQL statement-grammar parsing: all 18 migration files parsed; every version is a unique 14-digit prefix. Parsing is not SQL execution or PL/pgSQL runtime validation.
+- Markdown local links passed; all 4 Mermaid diagrams in the README/system overview rendered successfully.
+- `git diff --check`: passed after the final code and documentation edits.
+- SQL execution, migration history reconciliation, RLS/Storage acceptance, scheduled jobs, email delivery, and production verification: **not run**. No database migrations were applied by this workspace session.
+
+## Product-owner decisions to close
+
+1. Confirm whether recruitment means planned openings only or full candidate application tracking.
+2. Confirm whether payroll must consume an exit-finalization signal before final salary, and identify the system owner.
+3. Decide whether University Council needs a separate read-only, minimized reporting role.
+4. Verify the current Administrator/HR list against CUT's authoritative roster before applying the role-canonicalization migration.
+5. Identify the authorized staging project and migration owner; reconcile the historical migration IDs before any deployment.

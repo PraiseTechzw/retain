@@ -17,6 +17,15 @@ function commuteBand(distance: number | null | undefined) {
   return "Under 10 km";
 }
 
+const commuteBands = [
+  "Under 10 km",
+  "10–24 km",
+  "25–49 km",
+  "50+ km",
+  "Not recorded",
+];
+const minimumHeatmapCellSize = 5;
+
 export default async function Page() {
   const { userName, userRole } = await resolveDashboardUserContext();
   if (!["hr", "administrator", "management"].some((role) => userRole.toLowerCase().includes(role))) {
@@ -52,16 +61,46 @@ export default async function Page() {
   const assessments = activeEmployees
     .map((employee) => assessFlightRisk(employee, leaveRequests))
     .sort((a, b) => b.score - a.score);
-  const heatmap = new Map<string, Map<string, number>>();
+  const heatmap = new Map<
+    string,
+    { label: string; bands: Map<string, number>; total: number }
+  >();
   activeEmployees.forEach((employee) => {
-    const area = employee.home_area?.trim() || "Area not recorded";
+    const area = employee.home_area?.trim().replace(/\s+/g, " ") || "Area not recorded";
+    const areaKey = area.toLocaleLowerCase("en");
     const band = commuteBand(employee.commute_distance_km);
-    const bands = heatmap.get(area) ?? new Map<string, number>();
-    bands.set(band, (bands.get(band) ?? 0) + 1);
-    heatmap.set(area, bands);
+    const row = heatmap.get(areaKey) ?? {
+      label: area,
+      bands: new Map<string, number>(),
+      total: 0,
+    };
+    row.bands.set(band, (row.bands.get(band) ?? 0) + 1);
+    row.total += 1;
+    heatmap.set(areaKey, row);
   });
-  const heatmapAreas = [...heatmap.entries()].sort(
-    (a, b) => b[1].size - a[1].size || a[0].localeCompare(b[0]),
+  const areaRows = [...heatmap.values()];
+  const visibleAreas = areaRows
+    .filter((row) => row.total >= minimumHeatmapCellSize)
+    .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
+  const smallAreas = areaRows.filter(
+    (row) => row.total < minimumHeatmapCellSize,
+  );
+  if (smallAreas.length) {
+    const pooledBands = new Map<string, number>();
+    smallAreas.forEach((row) => {
+      row.bands.forEach((count, band) => {
+        pooledBands.set(band, (pooledBands.get(band) ?? 0) + count);
+      });
+    });
+    visibleAreas.push({
+      label: "Other areas (suppressed)",
+      bands: pooledBands,
+      total: smallAreas.reduce((total, row) => total + row.total, 0),
+    });
+  }
+  const maxHeatmapCell = Math.max(
+    1,
+    ...visibleAreas.flatMap((row) => commuteBands.map((band) => row.bands.get(band) ?? 0)),
   );
   const interventionsByEmployee = new Map<
     string,
@@ -72,10 +111,6 @@ export default async function Page() {
     current.push(intervention);
     interventionsByEmployee.set(intervention.employee_id, current);
   });
-  const hasCommuteData = activeEmployees.some(
-    (employee) => employee.commute_distance_km !== null && employee.commute_distance_km !== undefined,
-  );
-
   return (
     <DashboardShell userName={userName} userRole={userRole}>
       <PageFrame
@@ -152,7 +187,6 @@ export default async function Page() {
                           <td className="min-w-72 px-4 py-3">
                             <form action={recordRetentionIntervention} className="space-y-2">
                               <input type="hidden" name="employee_id" value={assessment.employee.id} />
-                              <input type="hidden" name="risk_score" value={assessment.score} />
                               <select name="intervention_type" required className="h-9 w-full rounded-lg border border-input bg-background px-2 text-xs">
                                 <option value="career_conversation">Career conversation</option>
                                 <option value="workload_review">Workload review</option>
@@ -184,28 +218,38 @@ export default async function Page() {
             <div className="border-b border-border/70 p-5">
               <h2 className="text-lg font-semibold">Commute burden heatmap</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Employee counts by recorded home area and one-way commute distance band.
+                Shading compares employee counts across one-way commute bands. Use broad locality names, not street addresses; cells smaller than five are suppressed and small-area rows are pooled.
               </p>
             </div>
-            {hasCommuteData ? (
+            {visibleAreas.length ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
                     <tr>
-                      {["Home area", "Under 10 km", "10–24 km", "25–49 km", "50+ km", "Not recorded"].map((title) => (
+                      {["Home area", ...commuteBands].map((title) => (
                         <th key={title} className="px-4 py-3 font-semibold">{title}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
-                    {heatmapAreas.map(([area, bands]) => (
-                      <tr key={area}>
-                        <td className="px-4 py-3 font-medium">{area}</td>
-                        {["Under 10 km", "10–24 km", "25–49 km", "50+ km", "Not recorded"].map((band) => {
-                          const count = bands.get(band) ?? 0;
+                    {visibleAreas.map((row) => (
+                      <tr key={row.label}>
+                        <td className="px-4 py-3 font-medium">{row.label}</td>
+                        {commuteBands.map((band) => {
+                          const count = row.bands.get(band) ?? 0;
+                          const intensity = count / maxHeatmapCell;
+                          const heatClass = count < minimumHeatmapCellSize
+                            ? "bg-muted/40 text-muted-foreground"
+                            : intensity >= 0.75
+                              ? "bg-blue-700 font-semibold text-white dark:bg-blue-400 dark:text-slate-950"
+                              : intensity >= 0.5
+                                ? "bg-blue-500 font-semibold text-white dark:bg-blue-600 dark:text-white"
+                                : intensity >= 0.25
+                                  ? "bg-blue-300 font-semibold text-blue-950 dark:bg-blue-800 dark:text-blue-100"
+                                  : "bg-blue-100 font-semibold text-blue-900 dark:bg-blue-950/70 dark:text-blue-200";
                           return (
-                            <td key={band} className={`px-4 py-3 text-center ${count ? "bg-blue-100 font-semibold text-blue-900 dark:bg-blue-950/50 dark:text-blue-200" : "text-muted-foreground"}`}>
-                              {count || "—"}
+                            <td key={band} className={`px-4 py-3 text-center ${heatClass}`}>
+                              {count === 0 ? "—" : count < minimumHeatmapCellSize ? "<5" : count}
                             </td>
                           );
                         })}
@@ -213,10 +257,13 @@ export default async function Page() {
                     ))}
                   </tbody>
                 </table>
+                <p className="border-t border-border/70 px-5 py-3 text-xs text-muted-foreground">
+                  Darker shading indicates a larger relative count. A displayed “&lt;5” is suppressed; totals are intentionally omitted.
+                </p>
               </div>
             ) : (
               <p className="p-6 text-sm text-muted-foreground">
-                Commute heatmap is waiting for commute distance values on employee profiles.
+                No active employee records are available for the commute matrix.
               </p>
             )}
           </section>
