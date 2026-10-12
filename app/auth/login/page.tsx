@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { signIn } from "@/lib/supabase/actions";
 import { appConfig } from "@/lib/system";
-import LoginMascotForm from "@/components/auth/login-mascot-form";
+import LoginForm from "@/components/auth/login-form";
 
 export default async function Page({
   searchParams,
@@ -24,7 +24,7 @@ export default async function Page({
             className="h-auto w-full"
           />
         </div>
-        <LoginMascotForm
+        <LoginForm
           signIn={signIn}
           appName={appConfig.appName}
           workspaceLabel={appConfig.workspaceLabel}

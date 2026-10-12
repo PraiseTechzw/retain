@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { signUp } from "@/lib/supabase/actions";
 import { appConfig } from "@/lib/system";
-import RegisterMascotForm from "@/components/auth/register-mscot-form";
+import RegisterForm from "@/components/auth/register-form";
 
 export default async function Page({
   searchParams,
@@ -25,7 +25,7 @@ export default async function Page({
             className="h-auto w-full"
           />
         </div>
-        <RegisterMascotForm
+        <RegisterForm
           signUp={signUp}
           appName={appConfig.appName}
           message={message}
