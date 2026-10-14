@@ -5,7 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
-  useState,
+  useSyncExternalStore,
 } from "react";
 import { Check } from "lucide-react";
 
@@ -37,12 +37,15 @@ const defaultPreferences: UserPreferences = {
   highContrast: false,
 };
 
-const colorModes: Array<{ value: ColorMode; label: string; description: string }> =
-  [
-    { value: "light", label: "Light", description: "Bright and clear" },
-    { value: "dark", label: "Dark", description: "Easy on the eyes" },
-    { value: "system", label: "System", description: "Follow your device" },
-  ];
+const colorModes: Array<{
+  value: ColorMode;
+  label: string;
+  description: string;
+}> = [
+  { value: "light", label: "Light", description: "Bright and clear" },
+  { value: "dark", label: "Dark", description: "Easy on the eyes" },
+  { value: "system", label: "System", description: "Follow your device" },
+];
 
 const accentThemes: Array<{
   value: AccentTheme;
@@ -56,9 +59,7 @@ const accentThemes: Array<{
   { value: "amber", label: "Amber", swatch: "bg-amber-600" },
 ];
 
-const preferencesContext = createContext<UserPreferencesContextValue | null>(
-  null,
-);
+const preferencesContext = createContext<UserPreferencesContextValue | null>(null);
 
 function isColorMode(value: unknown): value is ColorMode {
   return value === "light" || value === "dark" || value === "system";
@@ -114,59 +115,97 @@ function applyPreferences(preferences: UserPreferences) {
   root.dataset.highContrast = String(preferences.highContrast);
 }
 
+const defaultSnapshot: UserPreferencesContextValue = {
+  preferences: defaultPreferences,
+  updatePreference: () => undefined,
+  error: null,
+};
+
+let snapshot = defaultSnapshot;
+const listeners = new Set<() => void>();
+
+if (typeof window !== "undefined") {
+  try {
+    snapshot = {
+      ...defaultSnapshot,
+      preferences: parsePreferences(localStorage.getItem(storageKey)),
+    };
+  } catch (loadError) {
+    console.error("Unable to load saved appearance preferences.", loadError);
+    snapshot = {
+      ...defaultSnapshot,
+      error: "Saved appearance preferences could not be loaded.",
+    };
+  }
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+function getSnapshot() {
+  return snapshot;
+}
+
+function getServerSnapshot() {
+  return defaultSnapshot;
+}
+
+function savePreferences(preferences: UserPreferences) {
+  let error: string | null = null;
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(preferences));
+  } catch (saveError) {
+    console.error("Unable to save appearance preferences.", saveError);
+    error = "Your changes apply now but could not be saved on this device.";
+  }
+
+  snapshot = {
+    ...snapshot,
+    preferences,
+    error,
+  };
+  for (const listener of listeners) listener();
+}
+
 export function UserPreferencesProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const [preferences, setPreferences] =
-    useState<UserPreferences>(defaultPreferences);
-  const [ready, setReady] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const currentSnapshot = useSyncExternalStore(
+    subscribe,
+    getSnapshot,
+    getServerSnapshot,
+  );
+  const { preferences } = currentSnapshot;
+
+  useEffect(() => applyPreferences(preferences), [preferences]);
 
   useEffect(() => {
-    try {
-      setPreferences(parsePreferences(localStorage.getItem(storageKey)));
-    } catch (loadError) {
-      console.error("Unable to load saved appearance preferences.", loadError);
-      setError("Saved appearance preferences could not be loaded.");
-    } finally {
-      setReady(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!ready) return;
-
-    applyPreferences(preferences);
-    try {
-      localStorage.setItem(storageKey, JSON.stringify(preferences));
-      setError(null);
-    } catch (saveError) {
-      console.error("Unable to save appearance preferences.", saveError);
-      setError("Your changes apply now but could not be saved on this device.");
-    }
-  }, [preferences, ready]);
-
-  useEffect(() => {
-    if (!ready || preferences.colorMode !== "system") return;
+    if (preferences.colorMode !== "system") return;
 
     const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
     const syncSystemTheme = () => applyPreferences(preferences);
     mediaQuery.addEventListener("change", syncSystemTheme);
     return () => mediaQuery.removeEventListener("change", syncSystemTheme);
-  }, [preferences, ready]);
+  }, [preferences]);
 
   const updatePreference = useCallback(
     <K extends keyof UserPreferences>(key: K, value: UserPreferences[K]) => {
-      setPreferences((current) => ({ ...current, [key]: value }));
+      savePreferences({ ...snapshot.preferences, [key]: value });
     },
     [],
   );
 
   return (
     <preferencesContext.Provider
-      value={{ preferences, updatePreference, error }}
+      value={{
+        preferences,
+        updatePreference,
+        error: currentSnapshot.error,
+      }}
     >
       {children}
     </preferencesContext.Provider>
