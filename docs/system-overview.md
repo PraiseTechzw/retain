@@ -6,7 +6,7 @@ This document describes behavior implemented in the repository. It distinguishes
 
 The browser uses Supabase Auth sessions through the Next.js App Router. The root `proxy.ts` asks Supabase to validate the session, refreshes cookies, checks whether a protected profile is active, and redirects unauthenticated or deactivated users away from protected pages. A trusted database trigger creates new Auth users' profiles with the least-privileged `Employee` role. The app no longer lets an account recreate a missing profile; missing or inactive profiles fail closed. PostgreSQL Row Level Security (RLS) provides a second authorization boundary for database access.
 
-The service-role credential is server-only. The app uses it for authorized system-user listing, account administration, and audit writes after application checks. Knowledge files are stored in a private `knowledge-documents` bucket and downloaded through short-lived signed URLs.
+The service-role credential is server-only. The app uses it for account administration and audit writes after application checks; system-user listings use the signed-in user's session under profile-read RLS. Knowledge files are stored in a private `knowledge-documents` bucket and downloaded through short-lived signed URLs.
 
 ```mermaid
 flowchart LR

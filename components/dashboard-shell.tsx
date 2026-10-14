@@ -28,6 +28,7 @@ import {
 import { signOut } from "@/lib/supabase/actions";
 import { appConfig, getInitials } from "@/lib/system";
 import { NotificationCenter } from "@/components/notification-center";
+import { UserPreferencesProvider } from "@/components/user-preferences";
 
 function resolveDisplayRole(userRole?: string | null) {
   if (!userRole) {
@@ -336,8 +337,9 @@ export function DashboardShell({
   const headerWorkspaceLabel = workspaceLabel || appConfig.workspaceLabel;
 
   return (
-    <main className="h-screen overflow-hidden bg-background text-foreground">
-      <div className="flex h-screen overflow-hidden">
+    <UserPreferencesProvider>
+      <main className="h-screen overflow-hidden bg-background text-foreground">
+        <div className="flex h-screen overflow-hidden">
         <SidebarNav
           pathname={pathname}
           collapsed={collapsed}
@@ -425,9 +427,9 @@ export function DashboardShell({
 
           <main className="flex-1 overflow-y-auto">{children}</main>
         </section>
-      </div>
-
-    </main>
+        </div>
+      </main>
+    </UserPreferencesProvider>
   );
 }
 

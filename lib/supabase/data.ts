@@ -1,5 +1,4 @@
 import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 export type AnalyticsFilterState = {
   range?: string;
@@ -1049,7 +1048,7 @@ export type SystemUserRecord = {
 };
 
 export async function getSystemUsers(): Promise<SystemUserRecord[]> {
-  const supabase = createAdminClient();
+  const supabase = await createClient();
   const { data, error } = await supabase
     .from("profiles")
     .select("id, full_name, role, active, department_id, created_at, updated_at")

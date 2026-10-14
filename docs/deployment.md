@@ -26,7 +26,7 @@ Use a private server-side environment for deployment. Do not commit `.env`, `.en
 | --- | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Browser and server | Project URL. |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Browser and server | Preferred public key. Code also accepts legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY`. |
-| `SUPABASE_SERVICE_ROLE_KEY` | Server only | Elevated legacy key used for authorized account administration, user listing, and audit writes. Store only in the secret manager; rotate the historically committed value before production. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server only | Elevated legacy key used for authorized account administration and audit writes. User listings use the signed-in user's database permissions. Store only in the secret manager; rotate the historically committed value before production. |
 | `NEXT_PUBLIC_APP_URL` | Server/Edge Function links | Canonical HTTPS URL for app links and scheduled notification emails. |
 
 Optional public branding values such as `NEXT_PUBLIC_APP_NAME`, `NEXT_PUBLIC_ORGANIZATION_NAME`, and `NEXT_PUBLIC_SUPPORT_EMAIL` are read in `lib/system.ts` and have defaults.

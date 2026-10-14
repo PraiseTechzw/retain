@@ -20,6 +20,7 @@ import {
   updateDepartment,
   updateProfile,
 } from "@/lib/supabase/actions";
+import { AppearanceSettings } from "@/components/user-preferences";
 
 export default async function Page() {
   const { userName, userRole } = await resolveDashboardUserContext();
@@ -55,6 +56,8 @@ export default async function Page() {
       >
         <div className="grid gap-6 xl:grid-cols-[1.4fr_0.6fr]">
           <div className="space-y-6">
+            <AppearanceSettings />
+
             {!isAdminRole && (
               <section className="rounded-2xl border border-dashed border-amber-300 bg-amber-50 p-6 dark:border-amber-700 dark:bg-amber-950/30">
                 <div className="flex items-start gap-4">
