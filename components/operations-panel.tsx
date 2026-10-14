@@ -82,7 +82,11 @@ export function OperationsPanel({
           aria-modal="true"
           aria-labelledby="operations-dialog-title"
         >
-          <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+          <div
+            className={`flex max-h-[calc(100dvh-2rem)] w-full ${
+              mode === "employee" ? "max-w-2xl" : "max-w-lg"
+            } flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl`}
+          >
             <div className="flex items-start justify-between border-b border-border/70 px-6 py-5">
               <div className="flex items-start gap-3">
                 {mode === "employee" && (
