@@ -330,103 +330,170 @@ export function DashboardShell({
   workspaceLabel?: string;
 }) {
   const pathname = usePathname();
+  const inputRef = useRef<HTMLInputElement>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const displayName = userName || appConfig.defaultUserName;
   const displayRole = resolveDisplayRole(userRole);
   const headerWorkspaceLabel = workspaceLabel || appConfig.workspaceLabel;
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const isSearchShortcut =
+        (event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k";
+
+      if (!isSearchShortcut) {
+        return;
+      }
+
+      event.preventDefault();
+      inputRef.current?.focus();
+      inputRef.current?.select();
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
+
+  const searchResults = searchQuery.trim()
+    ? navItems.filter(([label, href, , allowedRoles]) => {
+        const matchesQuery = label
+          .toLowerCase()
+          .includes(searchQuery.trim().toLowerCase());
+
+        return matchesQuery && canAccessNavItem(displayRole, allowedRoles);
+      })
+    : [];
 
   return (
     <UserPreferencesProvider>
       <main className="h-screen overflow-hidden bg-background text-foreground">
         <div className="flex h-screen overflow-hidden">
-        <SidebarNav
-          pathname={pathname}
-          collapsed={collapsed}
-          mobileOpen={mobileOpen}
-          onClose={() => setMobileOpen(false)}
-          userName={displayName}
-          userRole={displayRole}
-        />
+          <SidebarNav
+            pathname={pathname}
+            collapsed={collapsed}
+            mobileOpen={mobileOpen}
+            onClose={() => setMobileOpen(false)}
+            userName={displayName}
+            userRole={displayRole}
+          />
 
-        <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <header className="relative flex min-h-19 items-center gap-3 border-b border-border/70 bg-background/90 px-4 shadow-[0_8px_24px_-24px_hsl(var(--foreground)/0.5)] backdrop-blur-xl md:gap-5 md:px-8">
-            <button
-              aria-label="Open navigation"
-              className="rounded-xl border border-border/70 bg-card p-2.5 text-muted-foreground shadow-sm transition hover:border-primary/30 hover:bg-muted hover:text-foreground lg:hidden"
-              onClick={() => setMobileOpen(true)}
-            >
-              <Menu className="size-5" />
-            </button>
+          <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
+            <header className="relative flex min-h-19 items-center gap-3 border-b border-border/70 bg-background/90 px-4 shadow-[0_8px_24px_-24px_hsl(var(--foreground)/0.5)] backdrop-blur-xl md:gap-5 md:px-8">
+              <button
+                aria-label="Open navigation"
+                className="rounded-xl border border-border/70 bg-card p-2.5 text-muted-foreground shadow-sm transition hover:border-primary/30 hover:bg-muted hover:text-foreground lg:hidden"
+                onClick={() => setMobileOpen(true)}
+              >
+                <Menu className="size-5" />
+              </button>
 
-            <button
-              aria-label={
-                collapsed ? "Expand navigation" : "Collapse navigation"
-              }
-              className="hidden rounded-xl border border-border/70 bg-card p-2.5 text-muted-foreground shadow-sm transition hover:border-primary/30 hover:bg-muted hover:text-foreground lg:inline-flex"
-              onClick={() => setCollapsed((value) => !value)}
-            >
-              {collapsed ? (
-                <PanelLeftOpen className="size-5" />
-              ) : (
-                <PanelLeftClose className="size-5" />
-              )}
-            </button>
+              <button
+                aria-label={
+                  collapsed ? "Expand navigation" : "Collapse navigation"
+                }
+                className="hidden rounded-xl border border-border/70 bg-card p-2.5 text-muted-foreground shadow-sm transition hover:border-primary/30 hover:bg-muted hover:text-foreground lg:inline-flex"
+                onClick={() => setCollapsed((value) => !value)}
+              >
+                {collapsed ? (
+                  <PanelLeftOpen className="size-5" />
+                ) : (
+                  <PanelLeftClose className="size-5" />
+                )}
+              </button>
 
-            <div className="hidden min-w-45 lg:block">
-              <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                <LayoutDashboard className="size-3" />
-                Workspace
-              </div>
-              <p className="mt-1 truncate text-sm font-semibold">
-                {headerWorkspaceLabel}
-              </p>
-            </div>
-
-            <div className="relative max-w-2xl flex-1">
-              <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <input
-                aria-label="Search workspace"
-                placeholder="Search employees, requests, assets..."
-                className="h-11 w-full rounded-xl border border-input bg-card/80 pl-10 pr-20 text-sm outline-none shadow-sm transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/15"
-              />
-              <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground xl:block">
-                ⌘ K
-              </kbd>
-            </div>
-
-            <NotificationCenter />
-
-            <Link
-              href="/profile"
-              className="hidden items-center gap-2 rounded-xl border border-transparent px-2 py-1.5 text-left transition hover:border-border hover:bg-card md:flex"
-            >
-              <div className="relative flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                {getInitials(displayName)}
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{displayName}</p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {displayRole}
+              <div className="hidden min-w-45 lg:block">
+                <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  <LayoutDashboard className="size-3" />
+                  Workspace
+                </div>
+                <p className="mt-1 truncate text-sm font-semibold">
+                  {headerWorkspaceLabel}
                 </p>
               </div>
-            </Link>
 
-            <form action={signOut}>
-              <button
-                type="submit"
-                aria-label="Sign out"
-                title="Sign out"
-                className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+              <div className="relative max-w-2xl flex-1">
+                <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  ref={inputRef}
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape") {
+                      setSearchQuery("");
+                    }
+                  }}
+                  aria-label="Search workspace"
+                  placeholder="Search employees, requests, assets..."
+                  className="h-11 w-full rounded-xl border border-input bg-card/80 pl-10 pr-20 text-sm outline-none shadow-sm transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/15"
+                />
+                <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground xl:block">
+                  ⌘ K
+                </kbd>
+
+                {searchQuery.trim() && searchResults.length > 0 && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 rounded-xl border border-border bg-popover p-2 shadow-xl">
+                    <div className="mb-2 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                      Quick links
+                    </div>
+                    <div className="space-y-1">
+                      {searchResults.map(([label, href, Icon]) => (
+                        <Link
+                          key={href}
+                          href={href}
+                          onClick={() => setSearchQuery("")}
+                          className="flex items-center gap-3 rounded-lg px-2 py-2 text-sm text-sidebar-foreground/80 transition hover:bg-accent hover:text-foreground"
+                        >
+                          <span className="flex size-7 items-center justify-center rounded-md bg-muted text-muted-foreground">
+                            <Icon className="size-4" />
+                          </span>
+                          {label}
+                        </Link>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {searchQuery.trim() && searchResults.length === 0 && (
+                  <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 rounded-xl border border-border bg-popover p-3 text-sm text-muted-foreground shadow-xl">
+                    No matching workspace pages found.
+                  </div>
+                )}
+              </div>
+
+              <NotificationCenter />
+
+              <Link
+                href="/profile"
+                className="hidden items-center gap-2 rounded-xl border border-transparent px-2 py-1.5 text-left transition hover:border-border hover:bg-card md:flex"
               >
-                <LogOut className="size-4" />
-                <span className="hidden xl:inline">Sign out</span>
-              </button>
-            </form>
-          </header>
+                <div className="relative flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                  {getInitials(displayName)}
+                </div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{displayName}</p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {displayRole}
+                  </p>
+                </div>
+              </Link>
 
-          <main className="flex-1 overflow-y-auto">{children}</main>
-        </section>
+              <form action={signOut}>
+                <button
+                  type="submit"
+                  aria-label="Sign out"
+                  title="Sign out"
+                  className="inline-flex items-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-sm font-medium text-muted-foreground transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 dark:hover:border-rose-900 dark:hover:bg-rose-950/30 dark:hover:text-rose-300"
+                >
+                  <LogOut className="size-4" />
+                  <span className="hidden xl:inline">Sign out</span>
+                </button>
+              </form>
+            </header>
+
+            <main className="flex-1 overflow-y-auto">{children}</main>
+          </section>
         </div>
       </main>
     </UserPreferencesProvider>
