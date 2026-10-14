@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { LoaderCircle, UserRoundPlus, X } from "lucide-react";
 import {
   createAsset,
   createEmployee,
@@ -73,78 +74,107 @@ export function OperationsPanel({
       )}
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
           aria-label={labels[mode]}
         >
-          <div className="w-full max-w-lg rounded-2xl border border-border bg-card p-6 shadow-2xl">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">{labels[mode]}</h2>
+          <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
+            <div className="flex items-start justify-between border-b border-border/70 px-6 py-5">
+              <div className="flex items-start gap-3">
+                {mode === "employee" && (
+                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <UserRoundPlus aria-hidden="true" className="size-5" />
+                  </span>
+                )}
+                <div>
+                  <h2 className="text-lg font-semibold">{labels[mode]}</h2>
+                  {mode === "employee" && (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Add the key details first. You can include optional details below.
+                    </p>
+                  )}
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
-                className="text-sm text-muted-foreground"
+                aria-label="Close dialog"
+                className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
               >
-                Close
+                <X aria-hidden="true" className="size-4" />
               </button>
             </div>
-            <form action={submit} className="mt-5 flex flex-col gap-4">
+            <form
+              action={submit}
+              className="flex min-h-0 flex-col gap-4 overflow-y-auto px-6 py-5"
+            >
               {mode === "employee" && (
                 <>
-                  <Field name="employee_number" label="Employee number" required />
-                  <Field name="full_name" label="Full name" required />
-                  <Field name="email" label="Email" type="email" />
-                  <Field name="phone" label="Phone" type="tel" />
-                  <Field name="job_title" label="Job title" />
-                  <Field name="joined_on" label="Start date" type="date" />
-                  <label className="flex flex-col gap-1.5 text-sm font-medium">
-                    Department
-                    <select
-                      name="department_id"
-                      defaultValue=""
-                      className="h-10 rounded-lg border border-input bg-background px-3 font-normal"
-                    >
-                      <option value="">Unassigned</option>
-                      {departments.map((department) => (
-                        <option key={department.id} value={department.id}>
-                          {department.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="flex flex-col gap-1.5 text-sm font-medium">
-                    Employment category
-                    <select
-                      name="employment_category"
-                      defaultValue="support"
-                      className="h-10 rounded-lg border border-input bg-background px-3 font-normal"
-                    >
-                      <option value="academic">Academic</option>
-                      <option value="academic_attaché">Academic attaché</option>
-                      <option value="support">Support staff</option>
-                    </select>
-                  </label>
-                  <label className="flex items-center gap-2 text-sm font-medium">
-                    <input name="is_technical" type="checkbox" className="size-4 accent-primary" />
-                    Technical staff (knowledge handover required before exit)
-                  </label>
-                  <label className="flex flex-col gap-1.5 text-sm font-medium">
-                    Home area (town/suburb only, optional)
-                    <input
-                      name="home_area"
-                      maxLength={80}
-                      placeholder="Do not enter a street address"
-                      className="h-10 rounded-lg border border-input bg-background px-3 font-normal"
-                    />
-                  </label>
-                  <Field
-                    name="commute_distance_km"
-                    label="One-way commute (km)"
-                    type="number"
-                    step="any"
-                    min="0"
-                  />
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field name="employee_number" label="Employee number" required />
+                    <Field name="full_name" label="Full name" required />
+                    <Field name="email" label="Work email" type="email" />
+                    <Field name="phone" label="Phone" type="tel" />
+                    <Field name="job_title" label="Job title" />
+                    <Field name="joined_on" label="Start date" type="date" />
+                    <label className="flex flex-col gap-1.5 text-sm font-medium">
+                      Department
+                      <select
+                        name="department_id"
+                        defaultValue=""
+                        className="h-10 rounded-lg border border-input bg-background px-3 font-normal"
+                      >
+                        <option value="">Unassigned</option>
+                        {departments.map((department) => (
+                          <option key={department.id} value={department.id}>
+                            {department.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="flex flex-col gap-1.5 text-sm font-medium">
+                      Employment category
+                      <select
+                        name="employment_category"
+                        defaultValue="support"
+                        className="h-10 rounded-lg border border-input bg-background px-3 font-normal"
+                      >
+                        <option value="academic">Academic</option>
+                        <option value="academic_attaché">Academic attaché</option>
+                        <option value="support">Support staff</option>
+                      </select>
+                    </label>
+                  </div>
+                  <details className="group rounded-xl border border-border/70 bg-muted/20">
+                    <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold marker:hidden">
+                      <span className="flex items-center justify-between">
+                        Optional details
+                        <span className="text-xs font-normal text-muted-foreground group-open:hidden">
+                          Risk review and handover
+                        </span>
+                      </span>
+                    </summary>
+                    <div className="grid gap-4 border-t border-border/70 p-4 sm:grid-cols-2">
+                      <label className="flex items-center gap-2 text-sm font-medium sm:col-span-2">
+                        <input name="is_technical" type="checkbox" className="size-4 accent-primary" />
+                        Technical staff (knowledge handover required before exit)
+                      </label>
+                      <Field
+                        name="home_area"
+                        label="Home area (town/suburb only)"
+                        placeholder="Do not enter a street address"
+                        maxLength={80}
+                      />
+                      <Field
+                        name="commute_distance_km"
+                        label="One-way commute (km)"
+                        type="number"
+                        step="any"
+                        min="0"
+                      />
+                    </div>
+                  </details>
                 </>
               )}
               {mode === "exit" && (
@@ -232,9 +262,10 @@ export function OperationsPanel({
               )}
               <button
                 disabled={pending}
-                className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+                className="sticky bottom-0 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {pending ? "Saving…" : "Save record"}
+                {pending && <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />}
+                {pending ? "Saving…" : mode === "employee" ? "Add employee" : "Save record"}
               </button>
             </form>
           </div>
@@ -251,6 +282,8 @@ function Field({
   required = false,
   step,
   min,
+  placeholder,
+  maxLength,
 }: {
   name: string;
   label: string;
@@ -258,6 +291,8 @@ function Field({
   required?: boolean;
   step?: string;
   min?: string;
+  placeholder?: string;
+  maxLength?: number;
 }) {
   return (
     <label className="flex flex-col gap-1.5 text-sm font-medium">
@@ -268,6 +303,8 @@ function Field({
         required={required}
         step={step}
         min={min}
+        placeholder={placeholder}
+        maxLength={maxLength}
         className="h-10 rounded-lg border border-input bg-background px-3 font-normal outline-none focus:border-primary focus:ring-2 focus:ring-primary/15"
       />
     </label>
