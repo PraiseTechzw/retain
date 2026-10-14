@@ -357,7 +357,7 @@ export function DashboardShell({
   }, []);
 
   const searchResults = searchQuery.trim()
-    ? navItems.filter(([label, href, , allowedRoles]) => {
+    ? navItems.filter(([label, , , allowedRoles]) => {
         const matchesQuery = label
           .toLowerCase()
           .includes(searchQuery.trim().toLowerCase());
