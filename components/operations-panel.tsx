@@ -68,7 +68,10 @@ export function OperationsPanel({
         {labels[mode]}
       </button>
       {message && (
-        <p role="status" className={`text-xs text-muted-foreground ${open ? "sr-only" : ""}`}>
+        <p
+          role="status"
+          className={`text-xs text-muted-foreground ${open ? "sr-only" : ""}`}
+        >
           {message}
         </p>
       )}
@@ -88,7 +91,12 @@ export function OperationsPanel({
                   </span>
                 )}
                 <div>
-                  <h2 id="operations-dialog-title" className="text-lg font-semibold">{labels[mode]}</h2>
+                  <h2
+                    id="operations-dialog-title"
+                    className="text-lg font-semibold"
+                  >
+                    {labels[mode]}
+                  </h2>
                   {mode === "employee" && (
                     <p className="mt-1 text-sm text-muted-foreground">
                       Add the key details first. You can include optional details below.
