@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { DashboardShell, PageFrame } from "@/components/dashboard-shell";
 import { DashboardOverview } from "@/components/dashboard/overview";
 import { normalizeUserRole } from "@/lib/auth-role";
+import { getGreeting } from "@/lib/system";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function Page() {
@@ -140,7 +141,7 @@ export default async function Page() {
   return (
     <DashboardShell userName={userName} userRole={userRole}>
       <PageFrame
-        title={`Good morning, ${userName}`}
+        title={getGreeting(userName)}
         description={
           userRole === "Employee"
             ? "Here is the continuity information relevant to your role and department."

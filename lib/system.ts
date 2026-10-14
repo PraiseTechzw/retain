@@ -74,7 +74,13 @@ export function resolveSystemSettingValue(
 }
 
 export function getGreeting(name?: string) {
-  const hour = new Date().getHours();
+  const hour = Number(
+    new Intl.DateTimeFormat("en", {
+      hour: "numeric",
+      hourCycle: "h23",
+      timeZone: "Africa/Harare",
+    }).format(new Date()),
+  );
   const prefix =
     hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
   return `${prefix}${name ? `, ${name}` : ""}`;
