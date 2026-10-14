@@ -197,15 +197,6 @@ export default async function Page() {
                   </div>
                 </form>
               </section>
-            </SettingsSection>
-          )}
-
-          {isAdminRole && (
-            <SettingsSection
-              number="03"
-              title="Workflow & notifications"
-              description="Clearance defaults, retention, and notification delivery"
-            >
               <section className="rounded-2xl border border-border/70 bg-card p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   Organization
@@ -325,14 +316,12 @@ export default async function Page() {
                   )}
                 </div>
               </section>
-            </SettingsSection>
-          )}
 
           {isAdminRole && (
             <SettingsSection
-              number="04"
-              title="Overview & audit"
-              description="Institutional status and recent administrative activity"
+              number="03"
+              title="Workflow & notifications"
+              description="Clearance defaults, retention, and notification delivery"
             >
               <div className="grid gap-4 xl:grid-cols-2">
               <section className="rounded-2xl border border-border/70 bg-card p-6">
@@ -383,7 +372,6 @@ export default async function Page() {
               </section>
             )}
 
-            {isAdminRole && (
               <section className="rounded-2xl border border-border/70 bg-card p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   Controls
@@ -486,7 +474,14 @@ export default async function Page() {
                 </div>
               </dl>
             </section>
-
+            </div>
+            </SettingsSection>
+            <SettingsSection
+            number="04"
+            title="Overview & audit"
+            description="Institutional status and recent administrative activity"
+            >
+            <div className="grid gap-4 xl:grid-cols-2">
             <section className="rounded-2xl border border-border/70 bg-card p-6">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Audit trail
