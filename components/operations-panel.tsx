@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { LoaderCircle, UserRoundPlus, X } from "lucide-react";
+import { ChevronDown, LoaderCircle, UserRoundPlus, X } from "lucide-react";
 import {
   createAsset,
   createEmployee,
@@ -68,7 +68,7 @@ export function OperationsPanel({
         {labels[mode]}
       </button>
       {message && (
-        <p role="status" className="text-xs text-muted-foreground">
+        <p role="status" className={`text-xs text-muted-foreground ${open ? "sr-only" : ""}`}>
           {message}
         </p>
       )}
@@ -77,7 +77,7 @@ export function OperationsPanel({
           className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm"
           role="dialog"
           aria-modal="true"
-          aria-label={labels[mode]}
+          aria-labelledby="operations-dialog-title"
         >
           <div className="flex max-h-[calc(100dvh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
             <div className="flex items-start justify-between border-b border-border/70 px-6 py-5">
@@ -88,7 +88,7 @@ export function OperationsPanel({
                   </span>
                 )}
                 <div>
-                  <h2 className="text-lg font-semibold">{labels[mode]}</h2>
+                  <h2 id="operations-dialog-title" className="text-lg font-semibold">{labels[mode]}</h2>
                   {mode === "employee" && (
                     <p className="mt-1 text-sm text-muted-foreground">
                       Add the key details first. You can include optional details below.
@@ -99,8 +99,9 @@ export function OperationsPanel({
               <button
                 type="button"
                 onClick={() => setOpen(false)}
+                disabled={pending}
                 aria-label="Close dialog"
-                className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"
+                className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:opacity-50"
               >
                 <X aria-hidden="true" className="size-4" />
               </button>
@@ -153,6 +154,10 @@ export function OperationsPanel({
                         <span className="text-xs font-normal text-muted-foreground group-open:hidden">
                           Risk review and handover
                         </span>
+                        <ChevronDown
+                          aria-hidden="true"
+                          className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+                        />
                       </span>
                     </summary>
                     <div className="grid gap-4 border-t border-border/70 p-4 sm:grid-cols-2">
@@ -259,6 +264,11 @@ export function OperationsPanel({
                     </span>
                   </label>
                 </>
+              )}
+              {open && message && (
+                <p role="alert" className="text-sm text-destructive">
+                  {message}
+                </p>
               )}
               <button
                 disabled={pending}

@@ -40,9 +40,9 @@ function SettingsSection({
     <details
       name="settings-section"
       open={open}
-      className="group overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm"
+      className="group"
     >
-      <summary className="flex cursor-pointer list-none items-center gap-4 p-4 transition hover:bg-muted/30 [&::-webkit-details-marker]:hidden md:p-5">
+      <summary className="flex cursor-pointer list-none items-center gap-4 rounded-2xl border border-border/70 bg-card p-4 shadow-sm transition hover:border-primary/30 hover:shadow-md [&::-webkit-details-marker]:hidden md:p-5">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-bold text-primary">
           {number}
         </span>
@@ -57,7 +57,7 @@ function SettingsSection({
           className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
         />
       </summary>
-      <div className="space-y-4 border-t border-border/70 p-4 md:p-5">
+      <div className="mt-3 space-y-4">
         {children}
       </div>
     </details>
@@ -245,7 +245,7 @@ export default async function Page() {
                   </label>
                 </form>
 
-                <div className="mt-6 space-y-3">
+                <div className="mt-6 max-h-80 space-y-3 overflow-y-auto pr-1">
                   {departmentRecords.length === 0 ? (
                     <p className="text-sm text-muted-foreground">
                       No departments configured yet.
@@ -316,6 +316,8 @@ export default async function Page() {
                   )}
                 </div>
               </section>
+            </SettingsSection>
+          )}
 
           {isAdminRole && (
             <SettingsSection
@@ -370,7 +372,6 @@ export default async function Page() {
                   </button>
                 </form>
               </section>
-            )}
 
               <section className="rounded-2xl border border-border/70 bg-card p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
@@ -427,6 +428,17 @@ export default async function Page() {
                   </form>
                 </div>
               </section>
+              </div>
+            </SettingsSection>
+          )}
+
+          {isAdminRole && (
+            <SettingsSection
+              number="04"
+              title="Overview & audit"
+              description="Institutional status and recent administrative activity"
+            >
+              <div className="grid gap-4 xl:grid-cols-2">
               <section className="rounded-2xl border border-border/70 bg-card p-6">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Admin status
@@ -474,14 +486,6 @@ export default async function Page() {
                 </div>
               </dl>
             </section>
-            </div>
-            </SettingsSection>
-            <SettingsSection
-            number="04"
-            title="Overview & audit"
-            description="Institutional status and recent administrative activity"
-            >
-            <div className="grid gap-4 xl:grid-cols-2">
             <section className="rounded-2xl border border-border/70 bg-card p-6">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Audit trail
