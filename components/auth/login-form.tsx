@@ -1,9 +1,33 @@
 "use client";
 
 import Link from "next/link";
+import { LoaderCircle } from "lucide-react";
 import { useState } from "react";
+import { useFormStatus } from "react-dom";
 
 type SignInAction = (formData: FormData) => void | Promise<void>;
+
+function LoginSubmitButton() {
+  const { pending } = useFormStatus();
+
+  return (
+    <button
+      type="submit"
+      disabled={pending}
+      aria-busy={pending}
+      className="h-11 rounded-xl bg-primary font-semibold text-primary-foreground transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-70"
+    >
+      {pending ? (
+        <span className="inline-flex items-center justify-center gap-2">
+          <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />
+          Signing in…
+        </span>
+      ) : (
+        "Sign in"
+      )}
+    </button>
+  );
+}
 
 export default function LoginForm({
   signIn,
@@ -92,12 +116,7 @@ export default function LoginForm({
           </Link>
         </div>
 
-        <button
-          type="submit"
-          className="h-11 rounded-xl bg-primary font-semibold text-primary-foreground transition hover:brightness-110 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-[0.98]"
-        >
-          Sign in
-        </button>
+        <LoginSubmitButton />
       </form>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
