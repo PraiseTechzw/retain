@@ -21,6 +21,48 @@ import {
   updateProfile,
 } from "@/lib/supabase/actions";
 import { AppearanceSettings } from "@/components/user-preferences";
+import { ChevronDown } from "lucide-react";
+
+function SettingsSection({
+  number,
+  title,
+  description,
+  open = false,
+  children,
+}: {
+  number: string;
+  title: string;
+  description: string;
+  open?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <details
+      name="settings-section"
+      open={open}
+      className="group overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm"
+    >
+      <summary className="flex cursor-pointer list-none items-center gap-4 p-4 transition hover:bg-muted/30 [&::-webkit-details-marker]:hidden md:p-5">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-sm font-bold text-primary">
+          {number}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-base font-semibold">{title}</span>
+          <span className="mt-0.5 block text-sm text-muted-foreground">
+            {description}
+          </span>
+        </span>
+        <ChevronDown
+          aria-hidden="true"
+          className="size-5 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"
+        />
+      </summary>
+      <div className="space-y-4 border-t border-border/70 p-4 md:p-5">
+        {children}
+      </div>
+    </details>
+  );
+}
 
 export default async function Page() {
   const { userName, userRole } = await resolveDashboardUserContext();
@@ -52,10 +94,15 @@ export default async function Page() {
     <DashboardShell userName={userName} userRole={userRole}>
       <PageFrame
         title="Administration & settings"
-        description="Central control layer for institutional configuration, access control, workflow policy, retention, and audit readiness."
+        description="Manage your preferences and institutional configuration from one place."
       >
-        <div className="grid gap-6 xl:grid-cols-[1.4fr_0.6fr]">
-          <div className="space-y-6">
+        <div className="space-y-3">
+          <SettingsSection
+            number="01"
+            title="Personal"
+            description="Your profile, appearance, and accessibility preferences"
+            open
+          >
             <AppearanceSettings />
 
             {!isAdminRole && (
@@ -115,8 +162,14 @@ export default async function Page() {
                 </div>
               </form>
             </section>
+          </SettingsSection>
 
-            {isAdminRole && (
+          {isAdminRole && (
+            <SettingsSection
+              number="02"
+              title="Organization"
+              description="Institution identity and department directory"
+            >
               <section className="rounded-2xl border border-border/70 bg-card p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   Organization
@@ -144,9 +197,15 @@ export default async function Page() {
                   </div>
                 </form>
               </section>
-            )}
+            </SettingsSection>
+          )}
 
-            {isAdminRole && (
+          {isAdminRole && (
+            <SettingsSection
+              number="03"
+              title="Workflow & notifications"
+              description="Clearance defaults, retention, and notification delivery"
+            >
               <section className="rounded-2xl border border-border/70 bg-card p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   Organization
@@ -266,9 +325,16 @@ export default async function Page() {
                   )}
                 </div>
               </section>
-            )}
+            </SettingsSection>
+          )}
 
-            {isAdminRole && (
+          {isAdminRole && (
+            <SettingsSection
+              number="04"
+              title="Overview & audit"
+              description="Institutional status and recent administrative activity"
+            >
+              <div className="grid gap-4 xl:grid-cols-2">
               <section className="rounded-2xl border border-border/70 bg-card p-6">
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                   Workflow
@@ -373,11 +439,7 @@ export default async function Page() {
                   </form>
                 </div>
               </section>
-            )}
-          </div>
-
-          <aside className="space-y-6">
-            <section className="rounded-2xl border border-border/70 bg-card p-6">
+              <section className="rounded-2xl border border-border/70 bg-card p-6">
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
                 Admin status
               </p>
@@ -460,8 +522,10 @@ export default async function Page() {
                   ))
                 )}
               </div>
-            </section>
-          </aside>
+              </section>
+              </div>
+            </SettingsSection>
+          )}
         </div>
       </PageFrame>
     </DashboardShell>
