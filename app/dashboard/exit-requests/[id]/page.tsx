@@ -5,6 +5,7 @@ import {
 } from "@/components/dashboard-shell";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
+import { notFound } from "next/navigation";
 import { checkExitBlockers, finalizeExit } from "@/lib/supabase/actions";
 
 type ClearanceStep = {
@@ -44,6 +45,7 @@ export default async function Page({
     )
     .eq("id", id)
     .single();
+  if (!exitReq) notFound();
   const employee = Array.isArray(exitReq?.employees)
     ? (exitReq.employees[0] ?? null)
     : (exitReq?.employees ?? null);

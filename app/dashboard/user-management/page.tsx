@@ -7,11 +7,7 @@ import {
 } from "@/components/dashboard-shell";
 import { getSystemUsers } from "@/lib/supabase/data";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
-import {
-  activateUserAccount,
-  disableUserAccount,
-  updateUserRole,
-} from "@/lib/supabase/actions";
+import { UserManagementActionForm } from "@/components/user-management-action-form";
 
 export default async function Page() {
   const { user, userName, userRole, rawUserRole } =
@@ -70,7 +66,7 @@ export default async function Page() {
       </Status>,
       createdAt,
       canChangeRoles ? (
-        <form key={`role-${systemUser.id}`} action={updateUserRole}>
+        <UserManagementActionForm key={`role-${systemUser.id}`} kind="role" successMessage="User role updated.">
           <input type="hidden" name="user_id" value={systemUser.id ?? ""} />
           <select
             name="role"
@@ -92,15 +88,16 @@ export default async function Page() {
           >
             Update
           </button>
-        </form>
+        </UserManagementActionForm>
       ) : (
         <span key={`role-${systemUser.id}`} className="text-xs text-muted-foreground">
           Administrator only
         </span>
       ),
-      <form
+      <UserManagementActionForm
         key={`account-${systemUser.id}`}
-        action={systemUser.active === false ? activateUserAccount : disableUserAccount}
+        kind={systemUser.active === false ? "activate" : "disable"}
+        successMessage={systemUser.active === false ? "Account activated." : "Account deactivated."}
       >
         <input type="hidden" name="user_id" value={systemUser.id ?? ""} />
         <button
@@ -110,7 +107,7 @@ export default async function Page() {
         >
           {systemUser.active === false ? "Reactivate" : "Deactivate"}
         </button>
-      </form>,
+      </UserManagementActionForm>,
     ];
   });
 

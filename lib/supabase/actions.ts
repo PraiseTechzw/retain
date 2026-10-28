@@ -564,12 +564,48 @@ export async function createEmployee(formData: FormData) {
   ) {
     throw new Error("Commute distance must be a non-negative number.");
   }
-  const { data, error } = await supabase
+  let employeeInsert = await supabase
     .from("employees")
     .insert(employee)
     .select("id")
     .single();
-  if (error) throw new Error("Unable to create employee record.");
+  const missingLifecycleColumn =
+    employeeInsert.error &&
+    (employeeInsert.error.code === "42703" || employeeInsert.error.code === "PGRST204") &&
+    /home_area|commute_distance_km|is_technical/i.test(employeeInsert.error.message);
+  const hasLifecycleDetails = Boolean(
+    employee.home_area || commuteDistance !== null || employee.is_technical,
+  );
+  if (missingLifecycleColumn && !hasLifecycleDetails) {
+    const {
+      home_area,
+      commute_distance_km,
+      is_technical,
+      ...coreEmployee
+    } = employee;
+    void home_area;
+    void commute_distance_km;
+    void is_technical;
+    employeeInsert = await supabase
+      .from("employees")
+      .insert(coreEmployee)
+      .select("id")
+      .single();
+  }
+  const { data, error } = employeeInsert;
+  if (error?.code === "23505") {
+    throw new Error("That employee number is already in use. Check it and try again.");
+  }
+  if (missingLifecycleColumn && hasLifecycleDetails) {
+    throw new Error("Optional employee fields aren’t available in the database yet. Ask your administrator to apply the latest Supabase migrations before saving those details.");
+  }
+  if (error?.code === "42703" || error?.code === "PGRST204") {
+    throw new Error("Employee setup is incomplete in the database. Ask your administrator to apply the latest Supabase migrations.");
+  }
+  if (error) {
+    console.error("Employee creation failed", { code: error.code });
+    throw new Error("We couldn’t add this employee. Check the required details and try again, or contact your administrator.");
+  }
   await audit(supabase, user.id, "created", "employee", data.id, {
     employee_number: employee.employee_number,
   });
@@ -2055,7 +2091,13 @@ export async function createAsset(formData: FormData) {
     .single();
   if (error?.code === "23505")
     throw new Error("That asset tag is already in use. Check the tag and try again.");
-  if (error) throw new Error("We couldn’t add this asset right now. Please try again.");
+  if (error?.code === "42703" || error?.code === "PGRST204") {
+    throw new Error("Asset setup is incomplete in the database. Ask your administrator to apply the latest Supabase migrations.");
+  }
+  if (error) {
+    console.error("Asset creation failed", { code: error.code });
+    throw new Error("We couldn’t add this asset right now. Check the details and try again.");
+  }
   await audit(supabase, user.id, "created", "asset", data.id, {
     asset_tag: asset.asset_tag,
     asset_type: asset.asset_type,
