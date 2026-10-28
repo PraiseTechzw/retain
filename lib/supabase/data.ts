@@ -25,6 +25,7 @@ export type EmployeeRecord = {
   employee_number?: string | null;
   full_name?: string | null;
   email?: string | null;
+  phone?: string | null;
   job_title?: string | null;
   employment_status?: string | null;
   employment_category?: string | null;
@@ -299,6 +300,58 @@ export async function getEmployees(): Promise<EmployeeRecord[]> {
   }
 
   throw new Error("Unable to load employee records.");
+}
+
+export async function getEmployeeByLookup(
+  lookupValue: string,
+): Promise<EmployeeRecord | null> {
+  const supabase = await createClient();
+  const optionalColumns = [
+    "user_id",
+    "employment_category",
+    "home_area",
+    "commute_distance_km",
+    "is_technical",
+  ];
+  const selectedOptionalColumns = new Set(optionalColumns);
+
+  for (let attempt = 0; attempt <= optionalColumns.length; attempt += 1) {
+    const columns = [
+      "id",
+      "employee_number",
+      "full_name",
+      "email",
+      "phone",
+      "job_title",
+      "employment_status",
+      ...optionalColumns.filter((column) => selectedOptionalColumns.has(column)),
+      "joined_on",
+      "exit_date",
+      "department_id",
+      "departments(name)",
+    ];
+    const { data, error } = await supabase
+      .from("employees")
+      .select(columns.join(", "))
+      .or(
+        `id.eq.${lookupValue},employee_number.eq.${lookupValue},email.eq.${lookupValue}`,
+      )
+      .maybeSingle();
+
+    if (!error) return (data ?? null) as unknown as EmployeeRecord | null;
+    const missingColumn = optionalColumns.find(
+      (column) =>
+        selectedOptionalColumns.has(column) &&
+        isMissingColumnError(error.message, column),
+    );
+    if (missingColumn) {
+      selectedOptionalColumns.delete(missingColumn);
+      continue;
+    }
+    throw new Error(error.message);
+  }
+
+  throw new Error("Unable to load this employee record.");
 }
 
 export async function getDepartments(): Promise<DepartmentRecord[]> {

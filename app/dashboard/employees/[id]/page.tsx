@@ -6,6 +6,7 @@ import {
 import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
 import { updateEmployeeRiskProfile } from "@/lib/supabase/actions";
+import { getEmployeeByLookup } from "@/lib/supabase/data";
 import { EmployeeRecordForm } from "@/components/employee-record-form";
 import { redirect } from "next/navigation";
 
@@ -22,15 +23,7 @@ export default async function Page({
   const supabase = await createClient();
 
   const lookupValue = decodeURIComponent(id);
-  const { data: employee, error } = await supabase
-    .from("employees")
-    .select(
-      "id, user_id, employee_number, full_name, email, phone, job_title, employment_status, employment_category, joined_on, exit_date, home_area, commute_distance_km, is_technical, department_id, departments(name)",
-    )
-    .or(
-      `id.eq.${lookupValue},employee_number.eq.${lookupValue},email.eq.${lookupValue}`,
-    )
-    .maybeSingle();
+  const employee = await getEmployeeByLookup(lookupValue);
 
   const { data: profileFallback } = await supabase
     .from("profiles")
@@ -91,7 +84,7 @@ export default async function Page({
       <PageFrame
         title="Employee profile"
         description={
-          error || !fallbackEmployee
+          !fallbackEmployee
             ? "Employee record could not be located."
             : `${fallbackEmployee.full_name ?? "Employee"} · ${fallbackEmployee.employee_number ?? "No number"}`
         }
@@ -159,15 +152,15 @@ export default async function Page({
             {canManageEmployee && employee && (
               <EmployeeRecordForm
                 employee={{
-                  id: employee.id,
-                  employee_number: employee.employee_number,
-                  full_name: employee.full_name,
-                  email: employee.email,
-                  phone: employee.phone,
-                  job_title: employee.job_title,
-                  employment_category: employee.employment_category,
-                  joined_on: employee.joined_on,
-                  department_id: employee.department_id,
+                  id: employee.id ?? "",
+                  employee_number: employee.employee_number ?? "",
+                  full_name: employee.full_name ?? "",
+                  email: employee.email ?? null,
+                  phone: employee.phone ?? null,
+                  job_title: employee.job_title ?? null,
+                  employment_category: employee.employment_category ?? null,
+                  joined_on: employee.joined_on ?? null,
+                  department_id: employee.department_id ?? null,
                 }}
                 departments={departmentOptions}
               />
