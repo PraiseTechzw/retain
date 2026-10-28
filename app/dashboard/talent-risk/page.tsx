@@ -5,7 +5,7 @@ import {
   getUpcomingServiceAnniversary,
 } from "@/lib/analytics/retention-support";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
-import { recordRetentionIntervention } from "@/lib/supabase/actions";
+import { RetentionSupportActionForm } from "@/components/retention-support-action-form";
 import {
   getEmployees,
   getRetentionInterventions,
@@ -212,23 +212,10 @@ export default async function Page() {
                         </td>
                         {canRecordInterventions && (
                           <td className="min-w-72 px-4 py-3">
-                            <form action={recordRetentionIntervention} className="space-y-2">
-                              <input type="hidden" name="employee_id" value={employee.id} />
-                              <select name="intervention_type" required className="h-9 w-full rounded-lg border border-input bg-background px-2 text-xs">
-                                <option value="career_conversation">Career conversation</option>
-                                <option value="workload_review">Workload review</option>
-                                <option value="development">Development opportunity</option>
-                                <option value="commute_support">Commute support</option>
-                                <option value="other">Other</option>
-                              </select>
-                              <textarea name="action_notes" required maxLength={2000} rows={2} placeholder="Agreed action and context" className="w-full rounded-lg border border-input bg-background p-2 text-xs" />
-                              <div className="flex gap-2">
-                                <input name="follow_up_on" type="date" className="h-9 min-w-0 flex-1 rounded-lg border border-input bg-background px-2 text-xs" />
-                                <button className="rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground">
-                                  Record action
-                                </button>
-                              </div>
-                            </form>
+                            <RetentionSupportActionForm
+                              employeeId={employee.id}
+                              employeeName={employee.full_name}
+                            />
                           </td>
                         )}
                       </tr>

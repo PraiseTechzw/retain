@@ -129,7 +129,6 @@ export type QuarterlyTurnoverRecord = {
 export type RetentionInterventionRecord = {
   id: string;
   employee_id: string;
-  risk_score: number | null;
   intervention_type: string;
   action_notes: string;
   follow_up_on: string | null;
@@ -593,7 +592,7 @@ export async function getRetentionInterventions(): Promise<RetentionIntervention
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("retention_interventions")
-    .select("id, employee_id, risk_score, intervention_type, action_notes, follow_up_on, created_at")
+    .select("id, employee_id, intervention_type, action_notes, follow_up_on, created_at")
     .order("created_at", { ascending: false })
     .limit(200);
   if (error) throw new Error(error.message);

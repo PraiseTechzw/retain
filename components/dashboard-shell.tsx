@@ -139,7 +139,7 @@ const navItems = [
     ["hr", "administrator", "management"],
   ],
   [
-    "Talent Risk",
+    "Talent Support",
     "/dashboard/talent-risk",
     Activity,
     ["hr", "administrator", "management"],

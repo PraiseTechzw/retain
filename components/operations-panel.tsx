@@ -45,7 +45,11 @@ export function OperationsPanel({
   const [messageIsError, setMessageIsError] = useState(false);
   const [pending, startTransition] = useTransition();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [selectedRequirementId, setSelectedRequirementId] = useState(initialRequirementId ?? "");
+  const initialRequirement = knowledgeRequirements.find(
+    (requirement) => requirement.id === initialRequirementId,
+  );
+  const [selectedRequirementId, setSelectedRequirementId] = useState(initialRequirement?.id ?? "");
+  const [documentTitle, setDocumentTitle] = useState(initialRequirement?.name ?? "");
   const selectedRequirement = knowledgeRequirements.find((requirement) => requirement.id === selectedRequirementId);
 
   function submit(formData: FormData) {
@@ -67,6 +71,8 @@ export function OperationsPanel({
                 : "Document uploaded successfully.",
         );
         setSelectedFile(null);
+        setSelectedRequirementId(initialRequirement?.id ?? "");
+        setDocumentTitle(initialRequirement?.name ?? "");
         setOpen(false);
       } catch (error) {
         setMessageIsError(true);
@@ -272,15 +278,38 @@ export function OperationsPanel({
                 <>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="sm:col-span-2">
-                      <Field name="title" label="Document title" required maxLength={200} placeholder="e.g. Current projects handover — October 2026" />
+                      <label className="flex flex-col gap-1.5 text-sm font-medium">
+                        Document title
+                        <input
+                          name="title"
+                          value={selectedRequirement?.name ?? documentTitle}
+                          onChange={(event) => setDocumentTitle(event.target.value)}
+                          readOnly={Boolean(selectedRequirement)}
+                          required
+                          maxLength={200}
+                          placeholder="Enter a clear title for this general document"
+                          className="h-10 rounded-lg border border-input bg-background px-3 font-normal read-only:bg-muted/40"
+                        />
+                        <span className="text-xs font-normal text-muted-foreground">
+                          {selectedRequirement
+                            ? "Automatically set from the selected system requirement."
+                            : "No system requirement selected. Enter a title for this general document."}
+                        </span>
+                      </label>
                     </div>
                     <label className="flex flex-col gap-1.5 text-sm font-medium">
                     Handover requirement <span className="font-normal text-muted-foreground">Optional for general documents</span>
                     <select
                       name="requirement_id"
-                      required
                       value={selectedRequirementId}
-                      onChange={(event) => setSelectedRequirementId(event.target.value)}
+                      onChange={(event) => {
+                        const requirementId = event.target.value;
+                        const requirement = knowledgeRequirements.find(
+                          (item) => item.id === requirementId,
+                        );
+                        setSelectedRequirementId(requirementId);
+                        setDocumentTitle(requirement?.name ?? "");
+                      }}
                       className="h-10 rounded-lg border border-input bg-background px-3 font-normal"
                     >
                       <option value="">General document · no requirement</option>

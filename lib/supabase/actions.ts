@@ -773,56 +773,81 @@ export async function updateEmployeeRiskProfile(formData: FormData) {
   revalidatePath("/dashboard/talent-risk");
 }
 
-export async function recordRetentionIntervention(formData: FormData) {
-  const { supabase, user } = await actor();
-  await requireAnyRole(supabase, user, ["administrator", "hr"]);
-  const employeeId = String(formData.get("employee_id") ?? "").trim();
-  const interventionType = String(formData.get("intervention_type") ?? "").trim();
-  const actionNotes = String(formData.get("action_notes") ?? "").trim();
-  const followUpOn = String(formData.get("follow_up_on") ?? "").trim() || null;
-  const followUpDate = followUpOn ? new Date(`${followUpOn}T00:00:00.000Z`) : null;
-  if (
-    !employeeId ||
-    !["career_conversation", "workload_review", "development", "commute_support", "other"].includes(interventionType) ||
-    !actionNotes ||
-    actionNotes.length > 2000 ||
-    (followUpOn && (
-      !/^\d{4}-\d{2}-\d{2}$/.test(followUpOn) ||
-      !followUpDate ||
-      Number.isNaN(followUpDate.getTime()) ||
-      followUpDate.toISOString().slice(0, 10) !== followUpOn
-    ))
-  ) {
-    throw new Error("Choose an employee and action, enter notes up to 2,000 characters, and provide a valid follow-up date.");
-  }
+export type RetentionActionState = {
+  status: "idle" | "success" | "error";
+  message: string;
+};
 
-  const { data: employee, error: employeeError } = await supabase
-    .from("employees")
-    .select("id, employment_status")
-    .eq("id", employeeId)
-    .single();
-  if (employeeError || !employee) throw new Error("Employee record not found.");
-  if (String(employee.employment_status).toLowerCase() !== "active") {
-    throw new Error("Retention interventions can only be recorded for active employees.");
-  }
-  const { data: intervention, error } = await supabase
-    .from("retention_interventions")
-    .insert({
+export async function recordRetentionIntervention(
+  _previousState: RetentionActionState,
+  formData: FormData,
+): Promise<RetentionActionState> {
+  try {
+    const { supabase, user } = await actor();
+    await requireAnyRole(supabase, user, ["administrator", "hr"]);
+    const employeeId = String(formData.get("employee_id") ?? "").trim();
+    const interventionType = String(formData.get("intervention_type") ?? "").trim();
+    const actionNotes = String(formData.get("action_notes") ?? "").trim();
+    const followUpOn = String(formData.get("follow_up_on") ?? "").trim() || null;
+    const followUpDate = followUpOn ? new Date(`${followUpOn}T00:00:00.000Z`) : null;
+    if (
+      !employeeId ||
+      !["career_conversation", "workload_review", "development", "commute_support", "other"].includes(interventionType) ||
+      !actionNotes ||
+      actionNotes.length > 2000 ||
+      (followUpOn && (
+        !/^\d{4}-\d{2}-\d{2}$/.test(followUpOn) ||
+        !followUpDate ||
+        Number.isNaN(followUpDate.getTime()) ||
+        followUpDate.toISOString().slice(0, 10) !== followUpOn
+      ))
+    ) {
+      return {
+        status: "error",
+        message: "Choose an action, enter notes up to 2,000 characters, and provide a valid follow-up date.",
+      };
+    }
+
+    const { data: employee, error: employeeError } = await supabase
+      .from("employees")
+      .select("id, employment_status")
+      .eq("id", employeeId)
+      .single();
+    if (employeeError || !employee) {
+      return { status: "error", message: "Employee record not found. Refresh the page and try again." };
+    }
+    if (String(employee.employment_status).toLowerCase() !== "active") {
+      return { status: "error", message: "Support actions can only be recorded for active employees." };
+    }
+
+    const { data: intervention, error } = await supabase
+      .from("retention_interventions")
+      .insert({
+        employee_id: employeeId,
+        intervention_type: interventionType,
+        action_notes: actionNotes,
+        follow_up_on: followUpOn,
+        created_by: user.id,
+      })
+      .select("id")
+      .single();
+    if (error) {
+      console.error("Unable to save retention support action", error);
+      return {
+        status: "error",
+        message: "Unable to save this action. Confirm the latest database migration is applied, then try again.",
+      };
+    }
+    await audit(supabase, user.id, "recorded", "retention_intervention", intervention.id, {
       employee_id: employeeId,
-      risk_score: null,
       intervention_type: interventionType,
-      action_notes: actionNotes,
-      follow_up_on: followUpOn,
-      created_by: user.id,
-    })
-    .select("id")
-    .single();
-  if (error) throw new Error("Unable to save the retention intervention.");
-  await audit(supabase, user.id, "recorded", "retention_intervention", intervention.id, {
-    employee_id: employeeId,
-    intervention_type: interventionType,
-  });
-  revalidatePath("/dashboard/talent-risk");
+    });
+    revalidatePath("/dashboard/talent-risk");
+    return { status: "success", message: "Support action recorded." };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to record support action.";
+    return { status: "error", message };
+  }
 }
 
 export async function createExitRequest(formData: FormData) {
@@ -1504,12 +1529,12 @@ export async function finalizeExit(formData: FormData) {
 export async function uploadKnowledgeDocument(formData: FormData) {
   const { supabase, user } = await actor();
   const file = formData.get("file");
-  const title = String(formData.get("title") ?? "").trim();
+  const submittedTitle = String(formData.get("title") ?? "").trim();
   const employeeId = String(formData.get("employee_id") ?? "").trim();
   const requirementId = String(formData.get("requirement_id") ?? "").trim() || null;
-  if (!(file instanceof File) || file.size === 0 || !title || !employeeId)
-    throw new Error("Title, employee, and a file are required.");
-  if (title.length > 200 || file.name.length > 255)
+  if (!(file instanceof File) || file.size === 0 || !employeeId)
+    throw new Error("Employee and a document file are required.");
+  if (submittedTitle.length > 200 || file.name.length > 255)
     throw new Error("The title must be 200 characters or fewer and the file name 255 characters or fewer.");
   if (file.size > 10 * 1024 * 1024)
     throw new Error("Files must be smaller than 10 MB.");
@@ -1547,6 +1572,7 @@ export async function uploadKnowledgeDocument(formData: FormData) {
   if (employeeError || !employee) throw new Error("Employee record not found.");
   let requirement: {
     id: string;
+    name: string;
     department_id: string | null;
     employment_category: string | null;
     category_id: string | null;
@@ -1554,7 +1580,7 @@ export async function uploadKnowledgeDocument(formData: FormData) {
   if (requirementId) {
     const { data, error } = await supabase
       .from("knowledge_requirements")
-      .select("id,department_id,employment_category,category_id")
+      .select("id,name,department_id,employment_category,category_id")
       .eq("id", requirementId)
       .eq("active", true)
       .single();
@@ -1567,6 +1593,13 @@ export async function uploadKnowledgeDocument(formData: FormData) {
     ) {
       throw new Error("This knowledge requirement does not apply to the selected employee.");
     }
+  }
+  const title = requirement?.name ?? submittedTitle;
+  if (!title) {
+    throw new Error("Select a system requirement or enter a title for this general document.");
+  }
+  if (title.length > 200) {
+    throw new Error("The document title must be 200 characters or fewer.");
   }
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-").slice(-120);
   const path = `private/${employeeId}/${crypto.randomUUID()}-${safeName}`;
