@@ -62,8 +62,13 @@ export function OperationsPanel({
         setOpen(false);
       } catch (error) {
         setMessageIsError(true);
+        const rawMessage = error instanceof Error ? error.message : "";
         setMessage(
-          error instanceof Error ? error.message : "Unable to save record.",
+          /Minified React error|Server Components render|digest/i.test(rawMessage)
+            ? mode === "asset"
+              ? "We couldn’t confirm the asset was saved. Check the asset register before trying again. If it isn’t listed, please try again or contact your administrator."
+              : "We couldn’t confirm that this was saved. Check the relevant page before trying again, or contact your administrator."
+            : rawMessage || "We couldn’t save this record. Please try again.",
         );
       }
     });

@@ -25,6 +25,9 @@ export default async function Page() {
     redirect("/dashboard");
   }
   const today = getAssetBusinessDate();
+  const canUpdateAssetState = ["hr", "administrator", "ict", "library"].some((role) =>
+    userRole.toLowerCase().includes(role),
+  );
   const [assets, logs, dailyCheckIds, todayCount] = await Promise.all([
     getAssets(),
     getAssetDailyLogs(100),
@@ -172,9 +175,9 @@ export default async function Page() {
                   className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal"
                 >
                   <option value="daily_check">Daily check</option>
-                  <option value="movement">Movement</option>
                   <option value="maintenance">Maintenance</option>
-                  <option value="issue">Issue</option>
+                  {canUpdateAssetState && <option value="movement">Movement</option>}
+                  {canUpdateAssetState && <option value="issue">Report damage</option>}
                 </select>
               </label>
               <label className="text-sm font-medium">

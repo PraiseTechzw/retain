@@ -471,17 +471,25 @@ async function audit(
   entityId?: string,
   metadata: Record<string, unknown> = {},
 ) {
-  const adminClient = createAdminClient();
-  const { error } = await adminClient.from("audit_events").insert({
-    actor_id: userId,
-    action,
-    entity_type: entityType,
-    entity_id: entityId ?? null,
-    metadata,
-  });
-  if (error) {
+  try {
+    const adminClient = createAdminClient();
+    const { error } = await adminClient.from("audit_events").insert({
+      actor_id: userId,
+      action,
+      entity_type: entityType,
+      entity_id: entityId ?? null,
+      metadata,
+    });
+    if (error) {
+      console.error("Audit event write failed", {
+        code: error.code,
+        action,
+        entityType,
+      });
+    }
+  } catch (error) {
     console.error("Audit event write failed", {
-      code: error.code,
+      message: error instanceof Error ? error.message : "Unknown audit error",
       action,
       entityType,
     });
@@ -1012,6 +1020,9 @@ export async function recordAssetDailyLog(formData: FormData) {
   const notes = String(formData.get("notes") ?? "").trim() || null;
   if (!assetId || !["daily_check", "movement", "maintenance", "issue", "return"].includes(eventType)) {
     throw new Error("An asset and valid activity type are required.");
+  }
+  if (["movement", "issue"].includes(eventType)) {
+    await requireAnyRole(supabase, user, ["administrator", "hr", "ict", "library"]);
   }
   if (eventType === "movement" && !location) {
     throw new Error("A destination is required when recording asset movement.");
@@ -2050,6 +2061,7 @@ export async function createAsset(formData: FormData) {
     asset_type: asset.asset_type,
   });
   revalidatePath("/dashboard/assets");
+  revalidatePath("/dashboard/assets/activity");
 }
 
 export async function assignAsset(formData: FormData) {
@@ -2080,6 +2092,8 @@ export async function assignAsset(formData: FormData) {
     asset_id: assetId,
     action: "assigned",
     actor_id: user.id,
+    previous_status: "available",
+    new_status: "assigned",
     notes: `Assigned to ${employeeId}`,
   });
   if (historyError) throw new Error("Asset was assigned, but its history could not be recorded.");
@@ -2125,7 +2139,9 @@ export async function receiveAssetReturn(formData: FormData) {
   const { supabase, user } = await actor();
   await requireAnyRole(supabase, user, ["administrator", "hr", "ict", "library"]);
   const assetId = String(formData.get("asset_id") ?? "").trim();
+  const returnLocation = String(formData.get("return_location") ?? "").trim();
   if (!assetId) throw new Error("Asset is required.");
+  if (!returnLocation) throw new Error("Enter where the returned asset is being received.");
   const { data: asset, error: assetError } = await supabase
     .from("assets")
     .select("id, status")
@@ -2138,7 +2154,7 @@ export async function receiveAssetReturn(formData: FormData) {
   const receivedAt = new Date().toISOString();
   const { data: updated, error } = await supabase
     .from("assets")
-    .update({ status: "returned", returned_at: receivedAt, verified_at: null })
+    .update({ status: "returned", returned_at: receivedAt, verified_at: null, current_location: returnLocation })
     .eq("id", assetId)
     .in("status", ["assigned", "damaged"])
     .select("id")
@@ -2149,7 +2165,9 @@ export async function receiveAssetReturn(formData: FormData) {
     asset_id: assetId,
     action: "returned",
     actor_id: user.id,
-    notes: String(formData.get("notes") ?? "").trim() || "Return received for inspection.",
+    previous_status: asset.status,
+    new_status: "returned",
+    notes: `${String(formData.get("notes") ?? "").trim() || "Return received for inspection."} Received at: ${returnLocation}`,
   });
   if (historyError) throw new Error("Return was recorded, but the asset history could not be saved.");
   await audit(supabase, user.id, "returned", "asset", assetId);
@@ -2186,7 +2204,7 @@ export async function verifyAsset(formData: FormData) {
   if (!updated) throw new Error("The asset's state changed before the return could be verified.");
   const { error: historyError } = await supabase
     .from("asset_history")
-    .insert({ asset_id: assetId, action: "verified", actor_id: user.id, notes });
+    .insert({ asset_id: assetId, action: "verified", actor_id: user.id, previous_status: "returned", new_status: "verified", notes });
   if (historyError) throw new Error("Asset verification was saved, but its history could not be recorded.");
   await audit(supabase, user.id, "verified", "asset", assetId, {
     notes,

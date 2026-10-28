@@ -54,6 +54,7 @@ export default async function Page() {
                         {asset.status === "assigned" || asset.status === "damaged" ? (
                           <AssetActionForm kind="receive" successMessage="Return recorded. Verify the asset after inspection.">
                             <input type="hidden" name="asset_id" value={asset.id ?? ""} />
+                            <input name="return_location" required maxLength={160} aria-label="Received at location" placeholder="Received at…" className="mb-2 h-9 w-full min-w-36 rounded-lg border border-input bg-background px-2 text-xs" />
                             <button className="rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted">
                               Mark return received
                             </button>

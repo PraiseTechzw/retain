@@ -40,6 +40,12 @@ export default async function Page({
     .select("id,full_name,employee_number")
     .eq("employment_status", "active")
     .order("full_name");
+  const { data: assetHistory, error: historyError } = await supabase
+    .from("asset_history")
+    .select("id,action,notes,previous_status,new_status,created_at")
+    .eq("asset_id", id)
+    .order("created_at", { ascending: false });
+  if (historyError) throw new Error("Unable to load this asset’s activity history.");
 
   return (
     <DashboardShell userName={userName} userRole={userRole}>
@@ -68,6 +74,14 @@ export default async function Page({
             {canOperateAssets && ["assigned", "damaged"].includes(asset.status) && (
               <AssetActionForm kind="receive" successMessage="Return recorded. Verify the asset after inspection.">
                 <input type="hidden" name="asset_id" value={id} />
+                <label className="flex flex-col gap-1 text-sm font-medium">
+                  Received at
+                  <input name="return_location" required maxLength={160} placeholder="Storeroom or receiving office" className="h-10 rounded-lg border border-input bg-background px-3 text-sm font-normal" />
+                </label>
+                <label className="flex flex-col gap-1 text-sm font-medium">
+                  Inspection note <span className="font-normal text-muted-foreground">Optional</span>
+                  <input name="notes" maxLength={500} className="h-10 rounded-lg border border-input bg-background px-3 text-sm font-normal" />
+                </label>
                 <button className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">
                   Mark return received
                 </button>
@@ -116,6 +130,26 @@ export default async function Page({
             )}
           </div>
         </div>
+        <section className="mt-6 rounded-2xl border border-border/70 bg-card p-6">
+          <h2 className="text-lg font-semibold">Asset history</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Assignment, return, and verification milestones.</p>
+          {assetHistory?.length ? (
+            <ol className="mt-5 divide-y divide-border/60">
+              {assetHistory.map((entry) => (
+                <li key={entry.id} className="flex flex-wrap items-start justify-between gap-2 py-3 first:pt-0 last:pb-0">
+                  <div>
+                    <p className="text-sm font-semibold">{String(entry.action).replaceAll("_", " ")}</p>
+                    {(entry.previous_status || entry.new_status) && <p className="mt-0.5 text-xs text-muted-foreground">{entry.previous_status ?? "—"} → {entry.new_status ?? "—"}</p>}
+                    {entry.notes && <p className="mt-1 text-sm text-muted-foreground">{entry.notes}</p>}
+                  </div>
+                  <time className="text-xs text-muted-foreground" dateTime={entry.created_at}>
+                    {new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Harare" }).format(new Date(entry.created_at))}
+                  </time>
+                </li>
+              ))}
+            </ol>
+          ) : <p className="mt-5 text-sm text-muted-foreground">No asset history has been recorded yet.</p>}
+        </section>
       </PageFrame>
     </DashboardShell>
   );
