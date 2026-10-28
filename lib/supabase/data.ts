@@ -252,29 +252,50 @@ function isMissingColumnError(errorMessage: string, columnName: string) {
 
 export async function getEmployees(): Promise<EmployeeRecord[]> {
   const supabase = await createClient();
-  const baseQuery = supabase
-    .from("employees")
-    .select(
-      "id, user_id, employee_number, full_name, email, job_title, employment_status, employment_category, joined_on, exit_date, home_area, commute_distance_km, is_technical, department_id, departments(name)",
-    )
-    .order("created_at", { ascending: false });
+  const optionalColumns = [
+    "employment_category",
+    "home_area",
+    "commute_distance_km",
+    "is_technical",
+  ];
+  const selectedOptionalColumns = new Set(optionalColumns);
 
-  const { data, error } = await baseQuery;
-  if (!error) return data ?? [];
-
-  if (isMissingColumnError(error.message, "employment_category")) {
-    const fallback = await supabase
+  // Production databases can lag the app deployment. Retry only when Postgres
+  // explicitly identifies one of these additive employee columns as missing.
+  for (let attempt = 0; attempt <= optionalColumns.length; attempt += 1) {
+    const columns = [
+      "id",
+      "user_id",
+      "employee_number",
+      "full_name",
+      "email",
+      "job_title",
+      "employment_status",
+      ...optionalColumns.filter((column) => selectedOptionalColumns.has(column)),
+      "joined_on",
+      "exit_date",
+      "department_id",
+      "departments(name)",
+    ];
+    const { data, error } = await supabase
       .from("employees")
-      .select(
-        "id, user_id, employee_number, full_name, email, job_title, employment_status, joined_on, exit_date, home_area, commute_distance_km, is_technical, department_id, departments(name)",
-      )
+      .select(columns.join(", "))
       .order("created_at", { ascending: false });
 
-    if (fallback.error) throw new Error(fallback.error.message);
-    return fallback.data ?? [];
+    if (!error) return (data ?? []) as unknown as EmployeeRecord[];
+    const missingColumn = optionalColumns.find(
+      (column) =>
+        selectedOptionalColumns.has(column) &&
+        isMissingColumnError(error.message, column),
+    );
+    if (missingColumn) {
+      selectedOptionalColumns.delete(missingColumn);
+      continue;
+    }
+    throw new Error(error.message);
   }
 
-  throw new Error(error.message);
+  throw new Error("Unable to load employee records.");
 }
 
 export async function getDepartments(): Promise<DepartmentRecord[]> {
