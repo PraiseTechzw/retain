@@ -77,6 +77,29 @@ where clearance_departments is null or cardinality(clearance_departments) = 0;
 alter table public.exit_requests
   alter column clearance_departments set not null;
 
+-- Older/manual schemas may not have the unique key required by the original
+-- ON CONFLICT target. Keep the most complete copy of each department step,
+-- then enforce one normalized department row per exit request.
+with ranked_steps as (
+  select id,
+         row_number() over (
+           partition by exit_request_id, lower(btrim(department))
+           order by (status = 'approved') desc,
+                    approved_at desc nulls last,
+                    updated_at desc,
+                    created_at desc,
+                    id
+         ) as duplicate_rank
+  from public.clearance_steps
+)
+delete from public.clearance_steps step
+using ranked_steps ranked
+where step.id = ranked.id
+  and ranked.duplicate_rank > 1;
+
+create unique index if not exists clearance_steps_exit_request_department_uidx
+  on public.clearance_steps (exit_request_id, lower(btrim(department)));
+
 create or replace function public.set_exit_clearance_snapshot()
 returns trigger
 language plpgsql
@@ -109,7 +132,7 @@ begin
   insert into public.clearance_steps (exit_request_id, department, step_order, status)
   select new.id, item.department, item.ordinality::integer, 'pending'
   from unnest(new.clearance_departments) with ordinality as item(department, ordinality)
-  on conflict (exit_request_id, department) do nothing;
+  on conflict do nothing;
   return new;
 end;
 $$;
@@ -127,7 +150,7 @@ select er.id, item.department, item.ordinality::integer, 'pending'
 from public.exit_requests er
 cross join lateral unnest(er.clearance_departments) with ordinality as item(department, ordinality)
 where er.status not in ('completed', 'rejected', 'cancelled')
-on conflict (exit_request_id, department) do nothing;
+on conflict do nothing;
 
 create or replace function public.guard_exit_clearance_snapshot()
 returns trigger

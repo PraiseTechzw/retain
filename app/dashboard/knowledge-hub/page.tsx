@@ -25,8 +25,13 @@ function toneForStatus(status?: string | null) {
   return "default";
 }
 
-export default async function Page() {
+export default async function Page({
+  searchParams,
+}: {
+  searchParams: Promise<{ employeeId?: string; requirementId?: string }>;
+}) {
   const { userName, userRole, user } = await resolveDashboardUserContext();
+  const { employeeId: requestedEmployeeId, requirementId } = await searchParams;
   const isReviewer =
     userRole === "Administrator" ||
     userRole === "HR" ||
@@ -71,6 +76,12 @@ export default async function Page() {
       },
     ];
   });
+  const uploadEmployee = employeeOptions.find(
+    (employee) => employee.id === requestedEmployeeId,
+  );
+  const uploadRequirements = uploadEmployee
+    ? await getKnowledgeRequirementsForEmployee(uploadEmployee.id)
+    : allRequirements;
 
   const overview = employeeId
     ? await getKnowledgeOverviewForEmployee(employeeId)
@@ -91,7 +102,9 @@ export default async function Page() {
           <OperationsPanel
             mode="knowledge"
             employees={employeeOptions}
-            knowledgeRequirements={allRequirements.flatMap((requirement) =>
+            initialEmployeeId={uploadEmployee?.id}
+            initialRequirementId={requirementId}
+            knowledgeRequirements={uploadRequirements.flatMap((requirement) =>
               requirement.id && requirement.name
                 ? [{ id: requirement.id, name: requirement.name }]
                 : [],

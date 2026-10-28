@@ -30,11 +30,15 @@ export function OperationsPanel({
   employees = [],
   departments = [],
   knowledgeRequirements = [],
+  initialEmployeeId,
+  initialRequirementId,
 }: {
   mode: Mode;
   employees?: EmployeeOption[];
   departments?: DepartmentOption[];
   knowledgeRequirements?: KnowledgeRequirementOption[];
+  initialEmployeeId?: string;
+  initialRequirementId?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
@@ -260,7 +264,13 @@ export function OperationsPanel({
                     Requirement
                     <select
                       name="requirement_id"
-                      defaultValue=""
+                      defaultValue={
+                        knowledgeRequirements.some(
+                          (requirement) => requirement.id === initialRequirementId,
+                        )
+                          ? initialRequirementId
+                          : ""
+                      }
                       className="h-10 rounded-lg border border-input bg-background px-3 font-normal"
                     >
                       <option value="">General document</option>
@@ -276,6 +286,13 @@ export function OperationsPanel({
                     <select
                       name="employee_id"
                       required
+                      defaultValue={
+                        employees.some(
+                          (employee) => employee.id === initialEmployeeId,
+                        )
+                          ? initialEmployeeId
+                          : employees[0]?.id ?? ""
+                      }
                       className="h-10 rounded-lg border border-input bg-background px-3 font-normal"
                     >
                       {employees.map((employee) => (

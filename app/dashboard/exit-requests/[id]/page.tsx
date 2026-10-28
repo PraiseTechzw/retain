@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   DashboardShell,
   PageFrame,
@@ -30,6 +31,7 @@ type DocRow = {
   id: string;
   title: string;
   category?: string;
+  status: string;
   created_at: string;
 };
 
@@ -68,7 +70,7 @@ export default async function Page({
 
   const { data: docs } = await supabase
     .from("knowledge_documents")
-    .select("id,title,category,created_at")
+    .select("id,title,category,status,created_at")
     .eq("employee_id", employeeId);
 
   const { blocked, blockers } = await checkExitBlockers(id);
@@ -152,13 +154,26 @@ export default async function Page({
                     </div>
                   </div>
                 ))}
+                {!steps?.length && (
+                  <p className="text-sm text-muted-foreground">
+                    No clearance steps were found. Ask an administrator to verify that the exit-clearance migration completed successfully.
+                  </p>
+                )}
               </div>
             </div>
           </div>
 
           <div className="mt-6 grid gap-6 md:grid-cols-2">
             <div className="rounded-xl border p-4">
-              <p className="text-sm font-medium">Assigned Assets</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium">Assigned assets</p>
+                <Link
+                  href="/dashboard/assets"
+                  className="text-xs font-semibold text-primary hover:underline"
+                >
+                  Manage assets
+                </Link>
+              </div>
               <div className="mt-3 space-y-2">
                 {(assets ?? []).map((a: AssetRow) => (
                   <div
@@ -175,28 +190,56 @@ export default async function Page({
                     </Status>
                   </div>
                 ))}
+                {!assets?.length && (
+                  <p className="text-sm text-muted-foreground">
+                    No assets are currently assigned to this employee.
+                  </p>
+                )}
               </div>
             </div>
 
             <div className="rounded-xl border p-4">
-              <p className="text-sm font-medium">Knowledge Documents</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm font-medium">Knowledge handover</p>
+                {canApproveAsHr && employeeId && (
+                  <Link
+                    href={`/dashboard/knowledge-hub?employeeId=${encodeURIComponent(employeeId)}`}
+                    className="text-xs font-semibold text-primary hover:underline"
+                  >
+                    Upload or review documents
+                  </Link>
+                )}
+              </div>
               <div className="mt-3 space-y-2">
                 {(docs ?? []).map((d: DocRow) => (
                   <div
                     key={d.id}
                     className="flex items-center justify-between rounded-md border p-3"
                   >
-                    <div>
+                    <div className="min-w-0">
                       <p className="text-sm font-medium">{d.title}</p>
                       <p className="text-xs text-muted-foreground">
                         {d.category ?? "General"}
                       </p>
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      {new Date(d.created_at).toLocaleDateString()}
-                    </p>
+                    <Status
+                      tone={
+                        d.status === "approved"
+                          ? "green"
+                          : d.status === "rejected" || d.status === "revision_required"
+                            ? "red"
+                            : "amber"
+                      }
+                    >
+                      {d.status.replaceAll("_", " ")}
+                    </Status>
                   </div>
                 ))}
+                {!docs?.length && (
+                  <p className="text-sm text-muted-foreground">
+                    No handover documents have been submitted for this employee.
+                  </p>
+                )}
               </div>
             </div>
           </div>
