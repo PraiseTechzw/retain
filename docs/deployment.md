@@ -35,6 +35,7 @@ Optional public branding values such as `NEXT_PUBLIC_APP_NAME`, `NEXT_PUBLIC_ORG
 
 SQL migration files are under `supabase/migrations/` and now use unique 14-digit Supabase CLI version prefixes. The latest migrations add defense-in-depth controls:
 
+- `20261028000100_reconcile_employee_columns.sql` repairs missing employee fields in older or partially provisioned databases, including `phone`, `employment_category`, and `user_id`.
 - `20261011000000_security_leave_integrity.sql` removes stale permissive RLS policies, installs trusted profile creation, prevents overlapping leave and duplicate daily checks, and revokes internal RPC access.
 - `20261011000100_daily_digest_idempotency.sql` prevents duplicate in-app daily digests per user and date.
 - `20261011000200_exit_clearance_atomicity.sql` snapshots clearance requirements, provisions steps transactionally, blocks missing steps, and restricts finalization.
