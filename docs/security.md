@@ -28,7 +28,7 @@ Roles include Administrator, HR, Management, ICT, Library, Employee, Academic At
 - employees, Attachés, and Support Staff should reach only their own self-service data;
 - HR/admin access to identifiable employee and exit information should follow institutional policy;
 - commute area/distance should be collected at the minimum precision needed and restricted to authorized HR/management users; small heatmap groups are suppressed in the UI;
-- flight-risk scores are provisional, explainable indicators for human follow-up, not validated predictions or automated employment decisions;
+- the talent-support page does not score or rank employees; commute and service dates are contextual only, and support actions should be employee-centered;
 - knowledge-document files need ownership, reviewer-role, and no-self-review checks.
 
 The application has no separate University Council role. Do not infer that every Management account or Council member should see person-level analytics; define an approved read-only and minimized view before adding Council access.

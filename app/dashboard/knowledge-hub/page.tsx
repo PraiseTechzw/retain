@@ -106,7 +106,11 @@ export default async function Page({
             initialRequirementId={requirementId}
             knowledgeRequirements={uploadRequirements.flatMap((requirement) =>
               requirement.id && requirement.name
-                ? [{ id: requirement.id, name: requirement.name }]
+                ? [{
+                    id: requirement.id,
+                    name: requirement.name,
+                    description: requirement.description,
+                  }]
                 : [],
             )}
           />

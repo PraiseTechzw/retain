@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { DashboardShell, PageFrame, Status } from "@/components/dashboard-shell";
+import { DashboardShell, PageFrame } from "@/components/dashboard-shell";
 import {
   getRecordedCommuteDistance,
   getUpcomingServiceAnniversary,
@@ -8,7 +8,6 @@ import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { recordRetentionIntervention } from "@/lib/supabase/actions";
 import {
   getEmployees,
-  getLeaveRequests,
   getRetentionInterventions,
 } from "@/lib/supabase/data";
 
@@ -220,7 +219,7 @@ export default async function Page() {
                                 <option value="commute_support">Commute support</option>
                                 <option value="other">Other</option>
                               </select>
-                              <textarea name="action_notes" required rows={2} placeholder="Agreed action and context" className="w-full rounded-lg border border-input bg-background p-2 text-xs" />
+                              <textarea name="action_notes" required maxLength={2000} rows={2} placeholder="Agreed action and context" className="w-full rounded-lg border border-input bg-background p-2 text-xs" />
                               <div className="flex gap-2">
                                 <input name="follow_up_on" type="date" className="h-9 min-w-0 flex-1 rounded-lg border border-input bg-background px-2 text-xs" />
                                 <button className="rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground">

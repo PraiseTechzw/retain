@@ -13,7 +13,7 @@ The brief identifies fragmented paper processes for clearance, leave, equipment 
 
 ## Scope
 
-The system is intended to support employee records and recruitment mapping through digital exit, self-service leave and balance tracking, asset assignment and daily monitoring, ICT/Library verification, knowledge handover, role-based access for employees/Attachés/Support Staff, quarterly turnover analysis, commute groupings, a provisional flight-risk indicator, and management reporting.
+The system is intended to support employee records and recruitment mapping through digital exit, self-service leave and balance tracking, asset assignment and daily monitoring, ICT/Library verification, knowledge handover, role-based access for employees/Attachés/Support Staff, quarterly turnover analysis, aggregate commute groupings, HR support follow-ups, and management reporting. A validated employee attrition prediction is not implemented.
 
 Payroll processing, student management, and daily attendance are explicitly excluded. The brief also describes a final-salary clearance gate. In this repository, the digital exit gate does not itself instruct, block, or release payroll; that requires an approved payroll integration and is documented as a scope boundary rather than a delivered payment control.
 
@@ -22,7 +22,7 @@ Payroll processing, student management, and daily attendance are explicitly excl
 | Objective | Target in brief | Measurement or acceptance boundary |
 | --- | --- | --- |
 | Analyze attrition | Quarterly turnover-driver reports within 90 days of deployment. | Validate reporting logic and compare snapshots with approved HR data; code alone does not demonstrate the institutional outcome. |
-| Predict flight risk | Early-warning engine within nine months. | Current implementation is provisional and rule-based; HR must validate inputs, thresholds, bias, and outcomes before operational reliance. |
+| Predict flight risk | Early-warning engine within nine months. | Not implemented. A production prediction requires institution-approved outcome data, validation, fairness/privacy review, and governance. The current page is a support-action workspace and must not rank employees. |
 | Digitize clearance | Convert 100% of manual clearance forms within six months. | The app provides an exit/clearance workflow; the percentage converted is an adoption measure. |
 | Secure assets daily | 100% real-time visibility/accountability and clearance verification before final salary disbursement. | App supports assignment, logging, receipt, verification, and blocks digital exit finalization. Physical inventory coverage and payroll integration remain outside code validation. |
 | Streamline leave | Reduce application processing and approval turnaround by 35% within six months of daily usage. | The app records requests/reviews and can calculate elapsed turnaround; baseline and after-period measurements are required. |

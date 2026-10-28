@@ -780,12 +780,20 @@ export async function recordRetentionIntervention(formData: FormData) {
   const interventionType = String(formData.get("intervention_type") ?? "").trim();
   const actionNotes = String(formData.get("action_notes") ?? "").trim();
   const followUpOn = String(formData.get("follow_up_on") ?? "").trim() || null;
+  const followUpDate = followUpOn ? new Date(`${followUpOn}T00:00:00.000Z`) : null;
   if (
     !employeeId ||
     !["career_conversation", "workload_review", "development", "commute_support", "other"].includes(interventionType) ||
-    !actionNotes
+    !actionNotes ||
+    actionNotes.length > 2000 ||
+    (followUpOn && (
+      !/^\d{4}-\d{2}-\d{2}$/.test(followUpOn) ||
+      !followUpDate ||
+      Number.isNaN(followUpDate.getTime()) ||
+      followUpDate.toISOString().slice(0, 10) !== followUpOn
+    ))
   ) {
-    throw new Error("Enter an employee, intervention type, and action notes.");
+    throw new Error("Choose an employee and action, enter notes up to 2,000 characters, and provide a valid follow-up date.");
   }
 
   const { data: employee, error: employeeError } = await supabase

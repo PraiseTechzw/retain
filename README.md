@@ -11,10 +11,10 @@ CUT-ELAMS (the Retain application) is Chinhoyi University of Technology's web pl
 - **Asset accountability:** ICT and Library staff manage assignment, return receipt, verification, and daily activity logs for checks, movement, maintenance, issues, and returns.
 - **Digital exit clearance:** HR coordinates departmental steps. Finalization is blocked until applicable clearance steps are approved, assigned assets are returned and verified, and mandatory applicable knowledge documents are approved. Account deactivation is separately blocked until the digital exit is complete.
 - **Knowledge handover:** staff upload documents to private Supabase Storage; configured reviewers approve or request changes. Technical employees require an approved handover and configured applicable requirements before finalization.
-- **Analytics:** quarterly turnover/exit-driver reports, review-turnaround measures, commute-distance groupings, and a provisional rule-based flight-risk indicator.
+- **Analytics and support review:** quarterly turnover/exit-driver reports, review-turnaround measures, aggregate commute planning, and HR-recorded employee support actions. The app does not score or predict employee attrition.
 - **Administration and alerts:** administrators assign roles; HR manages permitted account/workflow operations; users receive in-app notifications and configurable scheduled email digests with audit events.
 
-The risk score is an **unvalidated HR review prompt**, not a prediction of an employee's intent or a basis for employment decisions. Its inputs, rules, and validation limits are documented in the [system overview](docs/system-overview.md).
+The support workspace records agreed follow-up actions and presents neutral service-date and commute context. It does not use approved leave, commute, or tenure to score or rank employees. Any future attrition model requires a separately approved, validated, and privacy-reviewed project.
 
 ## How it works
 

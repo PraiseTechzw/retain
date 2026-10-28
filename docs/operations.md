@@ -10,7 +10,7 @@ This runbook is for CUT HR, ICT/Library custodians, and the technical project ow
 - For each exit, use the blocker list to coordinate approvals, asset receipt/verification, and required knowledge handover. Required steps are captured when the request is submitted and cannot be changed afterward.
 - Finalize only when the database reports every check complete. Treat account deactivation as a separate action and retain its audit record.
 - HR can manage permitted account status and workflow operations but cannot change assigned roles or activate/deactivate Administrator/HR accounts. Only an Administrator can change roles or manage Administrator/HR account status.
-- Review flight-risk signals as a prompt for confidential human follow-up. Do not treat the score as a performance or employment decision.
+- Use the Talent Retention & Support page to record employee-agreed support actions and follow-up dates. The page does not predict attrition or rank employees.
 - Check missing technical-knowledge requirements before an exit; configure department/category requirements in advance.
 
 ### ICT and Library
@@ -65,7 +65,7 @@ Test an assigned asset with a daily check, without a check, an unassigned asset,
 
 ### Analytics and privacy
 
-Verify commute distance is one-way, home areas are generalized, small matrix groups are suppressed, reporting access is limited, and the flight-risk inputs match the documented rule. HR should review weights/thresholds for validity and bias before relying on operational outcomes. Establish operational baselines before claiming any adoption or turnaround target.
+Verify commute distance is one-way, home areas are generalized, small matrix groups are suppressed, and reporting access is limited. Do not use commute or service dates as a proxy for employee attrition. Establish operational baselines before claiming any adoption or turnaround target.
 
 ## Incident response
 

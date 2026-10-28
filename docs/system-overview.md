@@ -121,7 +121,7 @@ Delivery still depends on applying the migrations, setting Supabase Vault/Edge F
 
 - **Quarterly turnover:** the scheduled snapshot runs at 06:00 UTC on January 1, April 1, July 1, and October 1, for the previous quarter. The reports page also shows a live view and summary CSV export. Review denominator and duplicate-exit behavior with HR before using the result as an institutional metric.
 - **Leave turnaround:** displayed as elapsed time from request creation to review. Compare against a measured baseline before claiming the 35% objective.
-- **Flight risk:** server actions recompute the rule-based score from current approved leave, request frequency, tenure milestones, and commute distance rather than trusting a browser-submitted score. Current weights and thresholds are provisional and not statistically validated. HR must review bias and outcomes; never use the score as an automatic employment decision.
+- **Talent support:** HR records agreed support actions and follow-up dates. The page may show neutral service-date and commute context and aggregate commute planning; it does not score or rank employees. A validated attrition prediction is not implemented.
 - **Commute view:** groups generalized employee home areas and one-way distance bands; groups smaller than five people are suppressed in the matrix. It is tabular, not a geographic map, and still involves sensitive location-related data. Restrict access and confirm the approved minimum data granularity.
 
 ## Roles and responsibility boundaries

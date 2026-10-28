@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { ChevronDown, LoaderCircle, UserRoundPlus, X } from "lucide-react";
+import { Check, ChevronDown, FileText, LoaderCircle, Upload, UserRoundPlus, X } from "lucide-react";
 import {
   createAsset,
   createEmployee,
@@ -16,7 +16,7 @@ type EmployeeOption = {
   full_name: string;
 };
 type DepartmentOption = { id: string; name: string };
-type KnowledgeRequirementOption = { id: string; name: string };
+type KnowledgeRequirementOption = { id: string; name: string; description?: string | null };
 
 const labels: Record<Mode, string> = {
   employee: "Add employee",
@@ -44,6 +44,9 @@ export function OperationsPanel({
   const [message, setMessage] = useState("");
   const [messageIsError, setMessageIsError] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedRequirementId, setSelectedRequirementId] = useState(initialRequirementId ?? "");
+  const selectedRequirement = knowledgeRequirements.find((requirement) => requirement.id === selectedRequirementId);
 
   function submit(formData: FormData) {
     setMessage("");
@@ -63,6 +66,7 @@ export function OperationsPanel({
                 ? "Exit request created successfully."
                 : "Document uploaded successfully.",
         );
+        setSelectedFile(null);
         setOpen(false);
       } catch (error) {
         setMessageIsError(true);
@@ -104,7 +108,7 @@ export function OperationsPanel({
         >
           <div
             className={`flex max-h-[calc(100dvh-2rem)] w-full ${
-              mode === "employee" ? "max-w-2xl" : "max-w-lg"
+              mode === "employee" || mode === "knowledge" ? "max-w-2xl" : "max-w-lg"
             } flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-2xl`}
           >
             <div className="flex items-start justify-between border-b border-border/70 px-6 py-5">
@@ -126,11 +130,19 @@ export function OperationsPanel({
                       Add the key details first. You can include optional details below.
                     </p>
                   )}
+                  {mode === "knowledge" && (
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Add the handover document to the matching requirement so HR can review and track it.
+                    </p>
+                  )}
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  setSelectedFile(null);
+                  setOpen(false);
+                }}
                 disabled={pending}
                 aria-label="Close dialog"
                 className="rounded-lg p-2 text-muted-foreground transition hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50 disabled:opacity-50"
@@ -258,22 +270,20 @@ export function OperationsPanel({
               )}
               {mode === "knowledge" && (
                 <>
-                  <Field name="title" label="Document title" required />
-                  <Field name="category" label="Category" />
-                  <label className="flex flex-col gap-1.5 text-sm font-medium">
-                    Requirement
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <Field name="title" label="Document title" required maxLength={200} placeholder="e.g. Current projects handover — October 2026" />
+                    </div>
+                    <label className="flex flex-col gap-1.5 text-sm font-medium">
+                    Handover requirement
                     <select
                       name="requirement_id"
-                      defaultValue={
-                        knowledgeRequirements.some(
-                          (requirement) => requirement.id === initialRequirementId,
-                        )
-                          ? initialRequirementId
-                          : ""
-                      }
+                      required
+                      value={selectedRequirementId}
+                      onChange={(event) => setSelectedRequirementId(event.target.value)}
                       className="h-10 rounded-lg border border-input bg-background px-3 font-normal"
                     >
-                      <option value="">General document</option>
+                      <option value="">Choose a requirement</option>
                       {knowledgeRequirements.map((requirement) => (
                         <option key={requirement.id} value={requirement.id}>
                           {requirement.name}
@@ -282,7 +292,7 @@ export function OperationsPanel({
                     </select>
                   </label>
                   <label className="flex flex-col gap-1.5 text-sm font-medium">
-                    Employee
+                    Employee record
                     <select
                       name="employee_id"
                       required
@@ -295,6 +305,7 @@ export function OperationsPanel({
                       }
                       className="h-10 rounded-lg border border-input bg-background px-3 font-normal"
                     >
+                      {!employees.length && <option value="">No employee record available</option>}
                       {employees.map((employee) => (
                         <option key={employee.id} value={employee.id}>
                           {employee.employee_number} · {employee.full_name}
@@ -302,19 +313,39 @@ export function OperationsPanel({
                       ))}
                     </select>
                   </label>
-                  <label className="flex flex-col gap-1.5 text-sm font-medium">
-                    File
+                  </div>
+                  {selectedRequirement && (
+                    <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                      <p className="text-sm font-semibold">{selectedRequirement.name}</p>
+                      {selectedRequirement.description && (
+                        <p className="mt-1 text-sm leading-6 text-muted-foreground">{selectedRequirement.description}</p>
+                      )}
+                    </div>
+                  )}
+                  <label className="flex flex-col gap-2 text-sm font-medium">
+                    Supporting document
                     <input
                       name="file"
                       type="file"
                       required
                       accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx"
-                      className="rounded-lg border border-input bg-background p-2 text-sm font-normal"
+                      onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                      className="block w-full cursor-pointer rounded-xl border border-border bg-background text-sm file:mr-4 file:cursor-pointer file:border-0 file:bg-muted file:px-4 file:py-3 file:font-semibold file:text-foreground hover:file:bg-muted/70"
                     />
-                    <span className="text-xs font-normal text-muted-foreground">
-                      PDF, Word, Excel, or PowerPoint; maximum 10 MB.
-                    </span>
                   </label>
+                  <div className="flex items-start gap-3 rounded-xl border border-border/70 bg-muted/30 p-4">
+                    {selectedFile ? <FileText aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-primary" /> : <Upload aria-hidden="true" className="mt-0.5 size-5 shrink-0 text-primary" />}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold">{selectedFile ? selectedFile.name : "Choose a file to upload"}</p>
+                      <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        {selectedFile ? `${(selectedFile.size / (1024 * 1024)).toFixed(2)} MB · Ready to upload` : "PDF, Word, Excel, or PowerPoint · Maximum 10 MB"}
+                      </p>
+                    </div>
+                    {selectedFile && <Check aria-hidden="true" className="size-5 shrink-0 text-emerald-600" />}
+                  </div>
+                  <p className="text-xs leading-5 text-muted-foreground">
+                    Documents are stored privately. Upload the final handover file and use approved institutional storage links for restricted records. Do not include passwords or secret keys.
+                  </p>
                 </>
               )}
               {open && message && (
@@ -323,11 +354,11 @@ export function OperationsPanel({
                 </p>
               )}
               <button
-                disabled={pending}
+                disabled={pending || (mode === "knowledge" && employees.length === 0)}
                 className="sticky bottom-0 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {pending && <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />}
-                {pending ? "Saving…" : mode === "asset" ? "Add asset to inventory" : mode === "employee" ? "Add employee" : mode === "exit" ? "Create exit request" : "Save record"}
+                {pending ? (mode === "knowledge" ? "Uploading securely…" : "Saving…") : mode === "asset" ? "Add asset to inventory" : mode === "employee" ? "Add employee" : mode === "exit" ? "Create exit request" : "Upload handover document"}
               </button>
             </form>
           </div>
