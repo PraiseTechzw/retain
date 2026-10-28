@@ -7,7 +7,6 @@ import { normalizeUserRole } from "@/lib/auth-role";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { appConfig } from "@/lib/system";
-import { assessFlightRisk, type FlightRiskLeave } from "@/lib/analytics/flight-risk";
 
 const DEFAULT_CLEARANCE_DEPARTMENTS = [
   "ICT",
@@ -791,42 +790,18 @@ export async function recordRetentionIntervention(formData: FormData) {
 
   const { data: employee, error: employeeError } = await supabase
     .from("employees")
-    .select("id, full_name, employee_number, employment_status, job_title, joined_on, home_area, commute_distance_km, departments(name)")
+    .select("id, employment_status")
     .eq("id", employeeId)
     .single();
   if (employeeError || !employee) throw new Error("Employee record not found.");
   if (String(employee.employment_status).toLowerCase() !== "active") {
     throw new Error("Retention interventions can only be recorded for active employees.");
   }
-  const { data: leaveRequests, error: leaveError } = await supabase
-    .from("leave_requests")
-    .select("employee_id, requested_days, starts_on, status")
-    .eq("employee_id", employeeId)
-    .eq("status", "approved");
-  if (leaveError) throw new Error("Unable to calculate the current review signal.");
-  const department = Array.isArray(employee.departments)
-    ? employee.departments[0]
-    : employee.departments;
-  const assessment = assessFlightRisk(
-    {
-      id: employee.id,
-      full_name: employee.full_name,
-      employee_number: employee.employee_number,
-      employment_status: employee.employment_status,
-      job_title: employee.job_title,
-      joined_on: employee.joined_on,
-      department_name: department?.name ?? null,
-      home_area: employee.home_area,
-      commute_distance_km: employee.commute_distance_km,
-    },
-    (leaveRequests ?? []) as FlightRiskLeave[],
-  );
-
   const { data: intervention, error } = await supabase
     .from("retention_interventions")
     .insert({
       employee_id: employeeId,
-      risk_score: assessment.score,
+      risk_score: null,
       intervention_type: interventionType,
       action_notes: actionNotes,
       follow_up_on: followUpOn,
@@ -837,7 +812,6 @@ export async function recordRetentionIntervention(formData: FormData) {
   if (error) throw new Error("Unable to save the retention intervention.");
   await audit(supabase, user.id, "recorded", "retention_intervention", intervention.id, {
     employee_id: employeeId,
-    risk_score: assessment.score,
     intervention_type: interventionType,
   });
   revalidatePath("/dashboard/talent-risk");

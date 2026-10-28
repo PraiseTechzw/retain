@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { DashboardShell, PageFrame, Status } from "@/components/dashboard-shell";
-import { assessFlightRisk } from "@/lib/analytics/flight-risk";
+import {
+  getRecordedCommuteDistance,
+  getUpcomingServiceAnniversary,
+} from "@/lib/analytics/retention-support";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { recordRetentionIntervention } from "@/lib/supabase/actions";
 import {
@@ -9,7 +12,7 @@ import {
   getRetentionInterventions,
 } from "@/lib/supabase/data";
 
-function commuteBand(distance: number | null | undefined) {
+function commuteBand(distance: number | null) {
   if (distance === null || distance === undefined) return "Not recorded";
   if (distance >= 50) return "50+ km";
   if (distance >= 25) return "25–49 km";
@@ -31,10 +34,7 @@ export default async function Page() {
   if (!["hr", "administrator", "management"].some((role) => userRole.toLowerCase().includes(role))) {
     redirect("/dashboard");
   }
-  const [employees, leaveRequests] = await Promise.all([
-    getEmployees(),
-    getLeaveRequests(),
-  ]);
+  const employees = await getEmployees();
   const canRecordInterventions = ["hr", "administrator"].some((role) =>
     userRole.toLowerCase().includes(role),
   );
@@ -58,9 +58,11 @@ export default async function Page() {
         commute_distance_km: employee.commute_distance_km,
       };
     });
-  const assessments = activeEmployees
-    .map((employee) => assessFlightRisk(employee, leaveRequests))
-    .sort((a, b) => b.score - a.score);
+  const supportRows = activeEmployees.map((employee) => ({
+    employee,
+    anniversary: getUpcomingServiceAnniversary(employee.joined_on),
+    commuteDistance: getRecordedCommuteDistance(employee),
+  }));
   const heatmap = new Map<
     string,
     { label: string; bands: Map<string, number>; total: number }
@@ -68,7 +70,7 @@ export default async function Page() {
   activeEmployees.forEach((employee) => {
     const area = employee.home_area?.trim().replace(/\s+/g, " ") || "Area not recorded";
     const areaKey = area.toLocaleLowerCase("en");
-    const band = commuteBand(employee.commute_distance_km);
+    const band = commuteBand(getRecordedCommuteDistance(employee));
     const row = heatmap.get(areaKey) ?? {
       label: area,
       bands: new Map<string, number>(),
@@ -114,36 +116,48 @@ export default async function Page() {
   return (
     <DashboardShell userName={userName} userRole={userRole}>
       <PageFrame
-        title="Talent risk & commute heatmap"
-        description="Early-warning indicators combine approved leave patterns, tenure milestones, and recorded commute burden for HR review."
+        title="Talent retention & support"
+        description="Review agreed support actions and workforce-planning context with employees. This page does not predict attrition or rank employees."
       >
         <div className="space-y-6">
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">
-            <p className="font-semibold">Provisional rule-based indicator — not a validated prediction</p>
+            <p className="font-semibold">A support-planning workspace, not a flight-risk score</p>
             <p className="mt-1">
-              Initial weights: annual approved leave days (up to 25 points), leave-request frequency (up to 15), tenure milestone within six months (15), and one-way commute distance (up to 25). Scores are normalized to 0–100. Validate thresholds with HR before using them for employment decisions.
+              Commute distance and service dates are shown as neutral context only. Leave use is not scored or ranked. Discuss support needs directly, record agreed actions, and do not use this page to make employment decisions.
             </p>
           </div>
 
           <section className="grid gap-4 md:grid-cols-3">
-            {(["High", "Medium", "Low"] as const).map((level) => (
-              <div key={level} className="rounded-2xl border border-border/70 bg-card p-5">
-                <p className="text-sm text-muted-foreground">{level} review signal</p>
-                <p className="mt-2 text-3xl font-semibold">
-                  {assessments.filter((assessment) => assessment.level === level).length}
-                </p>
-              </div>
-            ))}
+            <div className="rounded-2xl border border-border/70 bg-card p-5">
+              <p className="text-sm text-muted-foreground">Active employees</p>
+              <p className="mt-2 text-3xl font-semibold">{activeEmployees.length}</p>
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-card p-5">
+              <p className="text-sm text-muted-foreground">Service anniversaries in six months</p>
+              <p className="mt-2 text-3xl font-semibold">
+                {supportRows.filter((row) => row.anniversary).length}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-border/70 bg-card p-5">
+              <p className="text-sm text-muted-foreground">Follow-ups scheduled in 30 days</p>
+              <p className="mt-2 text-3xl font-semibold">
+                {interventions.filter((item) => {
+                  if (!item.follow_up_on) return false;
+                  const days = (new Date(`${item.follow_up_on}T00:00:00Z`).getTime() - Date.now()) / 86_400_000;
+                  return days >= 0 && days <= 30;
+                }).length}
+              </p>
+            </div>
           </section>
 
           <section className="overflow-hidden rounded-2xl border border-border/70 bg-card">
             <div className="border-b border-border/70 p-5">
-              <h2 className="text-lg font-semibold">Early-warning queue</h2>
+              <h2 className="text-lg font-semibold">Support review</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                No score should be used as an employment decision without individual review.
+                Review context with the employee and record a specific, agreed follow-up.
               </p>
             </div>
-            {assessments.length ? (
+            {supportRows.length ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
@@ -151,42 +165,54 @@ export default async function Page() {
                       {[
                         "Employee",
                         "Department",
-                        "Score",
-                        "Signal",
-                        "Inputs",
-                        "Recent intervention",
-                        ...(canRecordInterventions ? ["Record intervention"] : []),
+                        "Service date",
+                        "Commute context",
+                        "Latest support action",
+                        "Follow-up",
+                        ...(canRecordInterventions ? ["Record support action"] : []),
                       ].map((title) => (
                         <th key={title} className="px-4 py-3 font-semibold">{title}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
-                    {assessments.map((assessment) => (
-                      <tr key={assessment.employee.id}>
+                    {supportRows.map(({ employee, anniversary, commuteDistance }) => {
+                      const latest = interventionsByEmployee.get(employee.id)?.[0];
+                      return (
+                      <tr key={employee.id}>
                         <td className="px-4 py-3">
-                          <p className="font-medium">{assessment.employee.full_name}</p>
-                          <p className="text-xs text-muted-foreground">{assessment.employee.employee_number} · {assessment.employee.job_title ?? "Role not recorded"}</p>
+                          <p className="font-medium">{employee.full_name}</p>
+                          <p className="text-xs text-muted-foreground">{employee.employee_number} · {employee.job_title ?? "Role not recorded"}</p>
                         </td>
-                        <td className="px-4 py-3">{assessment.employee.department_name}</td>
-                        <td className="px-4 py-3 font-semibold">{assessment.score}/100</td>
                         <td className="px-4 py-3">
-                          <Status tone={assessment.level === "High" ? "amber" : assessment.level === "Low" ? "green" : "blue"}>
-                            {assessment.level}
-                          </Status>
-                        </td>
-                        <td className="min-w-64 px-4 py-3 text-xs text-muted-foreground">
-                          {assessment.signals.join(" · ")}
+                          {employee.department_name}
                         </td>
                         <td className="min-w-48 px-4 py-3 text-xs text-muted-foreground">
-                          {interventionsByEmployee.get(assessment.employee.id)?.[0]
-                            ? `${interventionsByEmployee.get(assessment.employee.id)![0].intervention_type.replaceAll("_", " ")} · ${new Date(interventionsByEmployee.get(assessment.employee.id)![0].created_at).toLocaleDateString()}`
-                            : "No action recorded"}
+                          {anniversary
+                            ? `${anniversary.yearsOfService}-year service anniversary · ${new Date(`${anniversary.date}T00:00:00Z`).toLocaleDateString("en-GB", { dateStyle: "medium", timeZone: "UTC" })}`
+                            : employee.joined_on
+                              ? "No anniversary in the next six months"
+                              : "Start date not recorded"}
+                        </td>
+                        <td className="min-w-40 px-4 py-3 text-xs text-muted-foreground">
+                          {commuteDistance === null
+                            ? "Not recorded"
+                            : `${commuteDistance} km one way`}
+                        </td>
+                        <td className="min-w-48 px-4 py-3 text-xs text-muted-foreground">
+                          {latest
+                            ? <>{latest.intervention_type.replaceAll("_", " ")} · {latest.action_notes}</>
+                            : "No support action recorded"}
+                        </td>
+                        <td className="min-w-32 px-4 py-3 text-xs text-muted-foreground">
+                          {latest?.follow_up_on
+                            ? new Date(`${latest.follow_up_on}T00:00:00Z`).toLocaleDateString("en-GB", { dateStyle: "medium", timeZone: "UTC" })
+                            : "Not scheduled"}
                         </td>
                         {canRecordInterventions && (
                           <td className="min-w-72 px-4 py-3">
                             <form action={recordRetentionIntervention} className="space-y-2">
-                              <input type="hidden" name="employee_id" value={assessment.employee.id} />
+                              <input type="hidden" name="employee_id" value={employee.id} />
                               <select name="intervention_type" required className="h-9 w-full rounded-lg border border-input bg-background px-2 text-xs">
                                 <option value="career_conversation">Career conversation</option>
                                 <option value="workload_review">Workload review</option>
@@ -198,14 +224,14 @@ export default async function Page() {
                               <div className="flex gap-2">
                                 <input name="follow_up_on" type="date" className="h-9 min-w-0 flex-1 rounded-lg border border-input bg-background px-2 text-xs" />
                                 <button className="rounded-lg bg-primary px-3 text-xs font-semibold text-primary-foreground">
-                                  Record
+                                  Record action
                                 </button>
                               </div>
                             </form>
                           </td>
                         )}
                       </tr>
-                    ))}
+                    );})}
                   </tbody>
                 </table>
               </div>
@@ -216,9 +242,9 @@ export default async function Page() {
 
           <section className="overflow-hidden rounded-2xl border border-border/70 bg-card">
             <div className="border-b border-border/70 p-5">
-              <h2 className="text-lg font-semibold">Commute burden heatmap</h2>
+              <h2 className="text-lg font-semibold">Commute planning snapshot</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Shading compares employee counts across one-way commute bands. Use broad locality names, not street addresses; cells smaller than five are suppressed and small-area rows are pooled.
+                Aggregated commute information for service planning only. Use broad locality names, not street addresses; cells smaller than five are suppressed and small-area rows are pooled.
               </p>
             </div>
             {visibleAreas.length ? (

@@ -129,7 +129,7 @@ export type QuarterlyTurnoverRecord = {
 export type RetentionInterventionRecord = {
   id: string;
   employee_id: string;
-  risk_score: number;
+  risk_score: number | null;
   intervention_type: string;
   action_notes: string;
   follow_up_on: string | null;
