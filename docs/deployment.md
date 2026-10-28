@@ -62,7 +62,7 @@ The repository has no checked-in `supabase/config.toml` or local database test h
 
 ## Knowledge-document Storage
 
-The app expects a private Supabase Storage bucket named `knowledge-documents`. The upload action limits files to less than 10 MB, allows PDF/Word/Excel/PowerPoint formats with a matching extension and MIME type, validates the employee and applicable requirement, writes the object under a private employee path, and creates a database row. This is not malware scanning. Download uses a signed URL that expires after five minutes. If the database insert fails after an upload, the app attempts to remove the orphaned object.
+Migration `20261028000300_configure_knowledge_document_storage.sql` creates or updates the private Supabase Storage bucket named `knowledge-documents` with a 10 MiB limit and the PDF/Word/Excel/PowerPoint MIME types accepted by the app. Apply this migration to the affected Supabase project if Storage returns HTTP 400 for a document upload; bucket restrictions are checked before the upload action can create its database row. The upload action validates the extension and MIME type, employee and applicable requirement, writes the object under a private employee path, and creates a database row. This is not malware scanning. Download uses a signed URL that expires after five minutes. If the database insert fails after an upload, the app attempts to remove the orphaned object.
 
 Before go-live, verify that the bucket exists, is private, has suitable size/MIME restrictions, and has policies consistent with the server action and database authorization model. Test owner upload, reviewer read/review, cross-employee denial, and inactive-user denial directly against the staging project.
 

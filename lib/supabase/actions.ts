@@ -1618,7 +1618,17 @@ export async function uploadKnowledgeDocument(formData: FormData) {
       contentType: validatedMimeType,
       upsert: false,
     });
-  if (uploadError) throw new Error("Unable to upload document.");
+  if (uploadError) {
+    if (uploadError.message.toLowerCase().includes("mime type")) {
+      throw new Error(
+        "Supabase Storage rejected this document type. Apply the latest Storage migration, then try again.",
+      );
+    }
+    if (uploadError.message.toLowerCase().includes("exceeded the maximum allowed size")) {
+      throw new Error("This document exceeds the Storage bucket's 10 MB upload limit.");
+    }
+    throw new Error("Unable to upload document. Check the knowledge-documents bucket configuration.");
+  }
   const { data, error } = await supabase
     .from("knowledge_documents")
     .insert({
