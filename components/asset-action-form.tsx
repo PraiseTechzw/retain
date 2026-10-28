@@ -38,7 +38,7 @@ export function AssetActionForm({
     event.preventDefault();
     const form = event.currentTarget;
     const formData = new FormData(form);
-    setFeedback("");
+    setFeedback("Saving…");
     setFailed(false);
     startTransition(async () => {
       try {

@@ -6,7 +6,7 @@ import {
   Status,
 } from "@/components/dashboard-shell";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
-import { receiveAssetReturn, verifyAsset } from "@/lib/supabase/actions";
+import { AssetActionForm } from "@/components/asset-action-form";
 import { getAssets } from "@/lib/supabase/data";
 
 export default async function Page() {
@@ -16,7 +16,7 @@ export default async function Page() {
   }
   const assets = await getAssets();
   const pendingReturns = assets.filter((asset) =>
-    ["assigned", "returned"].includes(String(asset.status).toLowerCase()),
+    ["assigned", "damaged", "returned"].includes(String(asset.status).toLowerCase()),
   );
 
   return (
@@ -45,26 +45,26 @@ export default async function Page() {
                       <td className="px-4 py-3 font-medium">{asset.asset_tag} · {asset.asset_type}</td>
                       <td className="px-4 py-3">{employee?.full_name ?? "Unassigned"}</td>
                       <td className="px-4 py-3">
-                        <Status tone={asset.status === "verified" ? "green" : "amber"}>
+                        <Status tone={asset.status === "returned" ? "blue" : "amber"}>
                           {asset.status}
                         </Status>
                       </td>
                       <td className="px-4 py-3">{asset.current_location ?? "Not recorded"}</td>
                       <td className="px-4 py-3">
-                        {asset.status === "assigned" ? (
-                          <form action={receiveAssetReturn}>
+                        {asset.status === "assigned" || asset.status === "damaged" ? (
+                          <AssetActionForm kind="receive" successMessage="Return recorded. Verify the asset after inspection.">
                             <input type="hidden" name="asset_id" value={asset.id ?? ""} />
                             <button className="rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted">
                               Mark return received
                             </button>
-                          </form>
+                          </AssetActionForm>
                         ) : (
-                          <form action={verifyAsset}>
+                          <AssetActionForm kind="verify" successMessage="Asset return verified. Release it from the asset record when ready for reassignment.">
                             <input type="hidden" name="asset_id" value={asset.id ?? ""} />
                             <button className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground">
                               Verify received asset
                             </button>
-                          </form>
+                          </AssetActionForm>
                         )}
                       </td>
                     </tr>

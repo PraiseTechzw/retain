@@ -5,14 +5,10 @@ import {
 } from "@/components/dashboard-shell";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
-import {
-  assignAsset,
-  receiveAssetReturn,
-  verifyAsset,
-} from "@/lib/supabase/actions";
+import { notFound, redirect } from "next/navigation";
+import { AssetActionForm } from "@/components/asset-action-form";
 
-type EmployeeRow = { id: string; full_name: string };
+type EmployeeRow = { id: string; full_name: string; employee_number: string };
 
 export default async function Page({
   params,
@@ -35,12 +31,13 @@ export default async function Page({
     )
     .eq("id", id)
     .single();
+  if (!asset) notFound();
   const assignedEmployee = Array.isArray(asset?.employees)
     ? (asset.employees[0] ?? null)
     : (asset?.employees ?? null);
   const { data: employees } = await supabase
     .from("employees")
-    .select("id,full_name")
+    .select("id,full_name,employee_number")
     .eq("employment_status", "active")
     .order("full_name");
 
@@ -57,6 +54,7 @@ export default async function Page({
           <p className="mt-1 text-sm text-muted-foreground">
             Assigned to {assignedEmployee?.full_name ?? "—"}
           </p>
+          {asset.description && <p className="mt-3 max-w-2xl text-sm text-muted-foreground">{asset.description}</p>}
           <div className="mt-6">
             <Status tone={asset?.status === "verified" ? "green" : "amber"}>
               {asset?.status}
@@ -67,45 +65,54 @@ export default async function Page({
           </div>
 
           <div className="mt-8 flex gap-3">
-            {canOperateAssets && asset?.status === "assigned" && (
-              <form action={receiveAssetReturn}>
+            {canOperateAssets && ["assigned", "damaged"].includes(asset.status) && (
+              <AssetActionForm kind="receive" successMessage="Return recorded. Verify the asset after inspection.">
                 <input type="hidden" name="asset_id" value={id} />
-                <button className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+                <button className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">
                   Mark return received
                 </button>
-              </form>
+              </AssetActionForm>
             )}
-            {canOperateAssets && asset?.status === "returned" && (
-              <form action={verifyAsset}>
+            {canOperateAssets && asset.status === "returned" && (
+              <AssetActionForm kind="verify" successMessage="Return verified. Release the asset when it is ready for reassignment.">
                 <input type="hidden" name="asset_id" value={id} />
-                <button className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+                <button className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">
                   Verify return
                 </button>
-              </form>
+              </AssetActionForm>
             )}
-            {asset?.status === "verified" && (
-              <Status tone="green">Return verified · {asset.verified_at ? new Date(asset.verified_at).toLocaleDateString() : "date unavailable"}</Status>
+            {canOperateAssets && asset.status === "verified" && (
+              <AssetActionForm kind="release" successMessage="Asset released to inventory and ready for a new assignment.">
+                <input type="hidden" name="asset_id" value={id} />
+                <button className="rounded-xl border border-border px-4 py-2.5 text-sm font-semibold hover:bg-muted">
+                  Release for reassignment
+                </button>
+              </AssetActionForm>
+            )}
+            {asset.status === "verified" && (
+              <Status tone="green">Return verified · {asset.verified_at ? new Intl.DateTimeFormat("en", { dateStyle: "medium", timeZone: "Africa/Harare" }).format(new Date(asset.verified_at)) : "date unavailable"}</Status>
             )}
 
-            {canOperateAssets && asset?.status === "available" && (
-              <form action={assignAsset} className="flex items-center gap-2">
+            {canOperateAssets && asset.status === "available" && (
+              <AssetActionForm kind="assign" successMessage="Asset assigned to the selected employee." className="flex flex-wrap items-center gap-2">
               <input type="hidden" name="asset_id" value={id} />
               <select
                 name="employee_id"
                 required
-                className="rounded-md border px-2 py-1"
+                className="h-10 rounded-lg border border-input bg-background px-3 text-sm"
               >
                 <option value="">Assign to...</option>
                 {(employees ?? []).map((e: EmployeeRow) => (
                   <option key={e.id} value={e.id}>
-                    {e.full_name}
+                    {e.employee_number} · {e.full_name}
                   </option>
                 ))}
               </select>
-              <button className="rounded-md bg-secondary px-3 py-1 text-sm font-medium text-secondary-foreground">
+              <button className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">
                 Assign
               </button>
-            </form>
+                {!employees?.length && <p className="w-full text-sm text-muted-foreground">There are no active employees available to assign this asset to.</p>}
+            </AssetActionForm>
             )}
           </div>
         </div>

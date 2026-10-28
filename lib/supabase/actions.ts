@@ -2083,6 +2083,37 @@ export async function assignAsset(formData: FormData) {
   });
   revalidatePath("/dashboard/assets");
   revalidatePath(`/dashboard/assets/${assetId}`);
+  revalidatePath("/dashboard/assets/activity");
+}
+
+export async function releaseVerifiedAsset(formData: FormData) {
+  const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, ["administrator", "hr", "ict", "library"]);
+  const assetId = String(formData.get("asset_id") ?? "").trim();
+  if (!assetId) throw new Error("Choose an asset to release.");
+  const { data: updated, error } = await supabase
+    .from("assets")
+    .update({ assigned_to: null, status: "available", returned_at: null, verified_at: null })
+    .eq("id", assetId)
+    .eq("status", "verified")
+    .select("id")
+    .maybeSingle();
+  if (error) throw new Error("We couldn’t release this asset for reassignment. Please try again.");
+  if (!updated) throw new Error("Only a returned and verified asset can be released for reassignment.");
+  const { error: historyError } = await supabase.from("asset_history").insert({
+    asset_id: assetId,
+    action: "released",
+    actor_id: user.id,
+    previous_status: "verified",
+    new_status: "available",
+    notes: "Released after return verification for future assignment.",
+  });
+  if (historyError) throw new Error("The asset was released, but its history could not be recorded. Contact an administrator.");
+  await audit(supabase, user.id, "released", "asset", assetId);
+  revalidatePath("/dashboard/assets");
+  revalidatePath(`/dashboard/assets/${assetId}`);
+  revalidatePath("/dashboard/assets/returns");
+  revalidatePath("/dashboard/assets/activity");
 }
 
 export async function receiveAssetReturn(formData: FormData) {
@@ -2096,15 +2127,15 @@ export async function receiveAssetReturn(formData: FormData) {
     .eq("id", assetId)
     .single();
   if (assetError || !asset) throw new Error("Asset not found.");
-  if (asset.status !== "assigned") {
-    throw new Error("Only currently assigned assets can be marked as received.");
+  if (!["assigned", "damaged"].includes(asset.status)) {
+    throw new Error("Only an assigned asset can be marked as received.");
   }
   const receivedAt = new Date().toISOString();
   const { data: updated, error } = await supabase
     .from("assets")
     .update({ status: "returned", returned_at: receivedAt, verified_at: null })
     .eq("id", assetId)
-    .eq("status", "assigned")
+    .in("status", ["assigned", "damaged"])
     .select("id")
     .maybeSingle();
   if (error) throw new Error("Unable to record asset return.");
@@ -2119,6 +2150,7 @@ export async function receiveAssetReturn(formData: FormData) {
   await audit(supabase, user.id, "returned", "asset", assetId);
   revalidatePath("/dashboard/assets");
   revalidatePath(`/dashboard/assets/${assetId}`);
+  revalidatePath("/dashboard/assets/returns");
   revalidatePath("/dashboard/exit-requests");
 }
 
@@ -2156,6 +2188,8 @@ export async function verifyAsset(formData: FormData) {
   });
   revalidatePath("/dashboard/assets");
   revalidatePath(`/dashboard/assets/${assetId}`);
+  revalidatePath("/dashboard/assets/returns");
+  revalidatePath("/dashboard/exit-requests");
 }
 
 export async function createHandover(formData: FormData) {

@@ -38,6 +38,15 @@ export default async function Page() {
       >
         {asset.status}
       </Status>,
+      asset.status === "available" ? (
+        <Link href={`/dashboard/assets/${asset.id}`} className="text-sm font-semibold text-primary hover:underline">
+          Assign asset
+        </Link>
+      ) : (
+        <Link href={`/dashboard/assets/${asset.id}`} className="text-sm font-medium text-muted-foreground hover:text-foreground">
+          View record
+        </Link>
+      ),
     ];
   });
   return (
@@ -56,7 +65,7 @@ export default async function Page() {
       >
         {assets.length ? (
           <DataTable
-            columns={["Asset", "Type", "Assigned employee", "Current location", "Status"]}
+            columns={["Asset", "Type", "Assigned employee", "Current location", "Status", "Action"]}
             rows={rows}
           />
         ) : (

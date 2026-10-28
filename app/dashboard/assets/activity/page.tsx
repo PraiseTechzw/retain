@@ -7,6 +7,8 @@ import {
 } from "@/components/dashboard-shell";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { recordAssetDailyLog } from "@/lib/supabase/actions";
+import { AssetActionForm } from "@/components/asset-action-form";
+import { getAssetBusinessDate } from "@/lib/asset-date";
 import {
   getAssetDailyLogs,
   getAssetActivityCount,
@@ -23,7 +25,7 @@ export default async function Page() {
   ) {
     redirect("/dashboard");
   }
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getAssetBusinessDate();
   const [assets, logs, dailyCheckIds, todayCount] = await Promise.all([
     getAssets(),
     getAssetDailyLogs(100),
@@ -111,7 +113,7 @@ export default async function Page() {
                         {asset.current_location ?? "Location not recorded"}
                       </p>
                     </div>
-                    <form action={recordAssetDailyLog}>
+                    <AssetActionForm kind="log" successMessage="Today’s check was recorded.">
                       <input
                         type="hidden"
                         name="asset_id"
@@ -126,7 +128,7 @@ export default async function Page() {
                       <button className="rounded-lg border border-border px-3 py-2 text-xs font-semibold hover:bg-muted">
                         Log today&apos;s check
                       </button>
-                    </form>
+                    </AssetActionForm>
                   </div>
                 ))}
               </div>
@@ -141,8 +143,9 @@ export default async function Page() {
 
           <section className="rounded-2xl border border-border/70 bg-card p-5">
             <h2 className="text-lg font-semibold">Record asset activity</h2>
-            <form
-              action={recordAssetDailyLog}
+            <AssetActionForm
+              kind="log"
+              successMessage="Asset activity was recorded."
               className="mt-4 grid gap-3 md:grid-cols-3"
             >
               <label className="text-sm font-medium">
@@ -171,7 +174,6 @@ export default async function Page() {
                   <option value="movement">Movement</option>
                   <option value="maintenance">Maintenance</option>
                   <option value="issue">Issue</option>
-                  <option value="return">Return received (log only)</option>
                 </select>
               </label>
               <label className="text-sm font-medium">
@@ -203,7 +205,7 @@ export default async function Page() {
                   Save activity
                 </button>
               </div>
-            </form>
+            </AssetActionForm>
           </section>
 
           <section className="overflow-hidden rounded-2xl border border-border/70 bg-card">
