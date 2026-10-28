@@ -833,6 +833,15 @@ export async function recordRetentionIntervention(
       .single();
     if (error) {
       console.error("Unable to save retention support action", error);
+      if (
+        error.code === "23502" &&
+        error.message.toLowerCase().includes("risk_score")
+      ) {
+        return {
+          status: "error",
+          message: "The database still requires the retired risk score field. Apply migration 20261028000200_remove_unvalidated_retention_scores.sql, then retry.",
+        };
+      }
       return {
         status: "error",
         message: "Unable to save this action. Confirm the latest database migration is applied, then try again.",

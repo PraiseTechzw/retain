@@ -588,15 +588,47 @@ export async function getQuarterlyTurnoverSummary(): Promise<QuarterlyTurnoverRe
     );
 }
 
-export async function getRetentionInterventions(): Promise<RetentionInterventionRecord[]> {
+export async function getRetentionInterventions(): Promise<{
+  records: RetentionInterventionRecord[];
+  available: boolean;
+  actionReady: boolean;
+}> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("retention_interventions")
     .select("id, employee_id, intervention_type, action_notes, follow_up_on, created_at")
     .order("created_at", { ascending: false })
     .limit(200);
-  if (error) throw new Error(error.message);
-  return (data ?? []) as RetentionInterventionRecord[];
+  if (error) {
+    const missingTable =
+      error.message.toLowerCase().includes("retention_interventions") &&
+      (error.message.toLowerCase().includes("schema cache") ||
+        error.message.toLowerCase().includes("does not exist") ||
+        error.code === "PGRST205" ||
+        error.code === "42P01");
+    if (missingTable) {
+      console.error("Talent Support is missing the retention_interventions table. Apply the lifecycle operations migration.");
+      return { records: [], available: false, actionReady: false };
+    }
+    throw new Error(error.message);
+  }
+  const { error: retiredScoreError } = await supabase
+    .from("retention_interventions")
+    .select("risk_score")
+    .limit(0);
+  const hasRetiredScoreColumn = !retiredScoreError;
+  if (
+    retiredScoreError &&
+    !retiredScoreError.message.toLowerCase().includes("risk_score") &&
+    retiredScoreError.code !== "PGRST204"
+  ) {
+    throw new Error(retiredScoreError.message);
+  }
+  return {
+    records: (data ?? []) as RetentionInterventionRecord[],
+    available: true,
+    actionReady: !hasRetiredScoreColumn,
+  };
 }
 
 export async function getKnowledgeDocuments(): Promise<

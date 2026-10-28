@@ -39,7 +39,8 @@ export default async function Page() {
   const canRecordInterventions = ["hr", "administrator"].some((role) =>
     userRole.toLowerCase().includes(role),
   );
-  const interventions = await getRetentionInterventions();
+  const interventionResult = await getRetentionInterventions();
+  const interventions = interventionResult.records;
   const activeEmployees = employees
     .filter((employee) => employee.id && employee.full_name && employee.employee_number)
     .filter((employee) => String(employee.employment_status).toLowerCase() === "active")
@@ -128,6 +129,21 @@ export default async function Page() {
             </p>
           </div>
 
+          {(!interventionResult.available || !interventionResult.actionReady) && (
+            <div role="status" className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">
+              <p className="font-semibold">
+                {interventionResult.available
+                  ? "The database still has the retired risk score field"
+                  : "Support action history is not configured yet"}
+              </p>
+              <p className="mt-1">
+                {interventionResult.available
+                  ? <>Apply the Supabase migration <code>20261028000200_remove_unvalidated_retention_scores.sql</code> before recording support actions. Existing support history remains available below.</>
+                  : <>Apply the Supabase migration <code>20261006000900_lifecycle_operations.sql</code> to enable support action history and follow-up recording. Employee support context remains available below.</>}
+              </p>
+            </div>
+          )}
+
           <section className="grid gap-4 md:grid-cols-3">
             <div className="rounded-2xl border border-border/70 bg-card p-5">
               <p className="text-sm text-muted-foreground">Active employees</p>
@@ -170,7 +186,7 @@ export default async function Page() {
                         "Commute context",
                         "Latest support action",
                         "Follow-up",
-                        ...(canRecordInterventions ? ["Record support action"] : []),
+                        ...(canRecordInterventions && interventionResult.actionReady ? ["Record support action"] : []),
                       ].map((title) => (
                         <th key={title} className="px-4 py-3 font-semibold">{title}</th>
                       ))}
@@ -210,7 +226,7 @@ export default async function Page() {
                             ? new Date(`${latest.follow_up_on}T00:00:00Z`).toLocaleDateString("en-GB", { dateStyle: "medium", timeZone: "UTC" })
                             : "Not scheduled"}
                         </td>
-                        {canRecordInterventions && (
+                        {canRecordInterventions && interventionResult.actionReady && (
                           <td className="min-w-72 px-4 py-3">
                             <RetentionSupportActionForm
                               employeeId={employee.id}
