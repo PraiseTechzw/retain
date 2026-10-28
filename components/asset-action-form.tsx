@@ -17,7 +17,7 @@ const actionByKind = {
   receive: receiveAssetReturn,
   verify: verifyAsset,
   release: releaseVerifiedAsset,
-} satisfies Record<ActionKind, (formData: FormData) => Promise<void>>;
+} satisfies Record<ActionKind, (formData: FormData) => Promise<void | { ok: true } | { ok: false; message: string }>>;
 
 export function AssetActionForm({
   kind,
@@ -42,7 +42,12 @@ export function AssetActionForm({
     setFailed(false);
     startTransition(async () => {
       try {
-        await actionByKind[kind](formData);
+        const result = await actionByKind[kind](formData);
+        if (result && !result.ok) {
+          setFailed(true);
+          setFeedback(result.message);
+          return;
+        }
         setFeedback(successMessage);
         if (kind === "log") form.reset();
       } catch (error) {
@@ -67,5 +72,64 @@ export function AssetActionForm({
         </p>
       )}
     </form>
+  );
+}
+
+export type AssetActivityOption = {
+  id: string;
+  asset_tag: string;
+  asset_type: string;
+  assigned: boolean;
+};
+
+export function AssetActivityFields({
+  assets,
+  canUpdateAssetState,
+}: {
+  assets: AssetActivityOption[];
+  canUpdateAssetState: boolean;
+}) {
+  const [eventType, setEventType] = useState("daily_check");
+  const [assetId, setAssetId] = useState(assets.find((asset) => asset.assigned)?.id ?? "");
+  const selectableAssets = eventType === "daily_check" ? assets.filter((asset) => asset.assigned) : assets;
+
+  return (
+    <>
+      <label className="text-sm font-medium">
+        Asset
+        <select
+          name="asset_id"
+          required
+          value={assetId}
+          onChange={(event) => setAssetId(event.target.value)}
+          className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal"
+        >
+          <option value="">{eventType === "daily_check" && !selectableAssets.length ? "No assigned assets available" : "Choose asset"}</option>
+          {selectableAssets.map((asset) => (
+            <option key={asset.id} value={asset.id}>{asset.asset_tag} · {asset.asset_type}</option>
+          ))}
+        </select>
+      </label>
+      <label className="text-sm font-medium">
+        Event
+        <select
+          name="event_type"
+          required
+          value={eventType}
+          onChange={(event) => {
+            const nextEventType = event.target.value;
+            const nextAssets = nextEventType === "daily_check" ? assets.filter((asset) => asset.assigned) : assets;
+            setEventType(nextEventType);
+            if (!nextAssets.some((asset) => asset.id === assetId)) setAssetId(nextAssets[0]?.id ?? "");
+          }}
+          className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal"
+        >
+          <option value="daily_check">Daily check</option>
+          <option value="maintenance">Maintenance</option>
+          {canUpdateAssetState && <option value="movement">Movement</option>}
+          {canUpdateAssetState && <option value="issue">Report damage</option>}
+        </select>
+      </label>
+    </>
   );
 }

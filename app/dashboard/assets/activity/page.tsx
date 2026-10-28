@@ -6,7 +6,7 @@ import {
   Status,
 } from "@/components/dashboard-shell";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
-import { AssetActionForm } from "@/components/asset-action-form";
+import { AssetActionForm, AssetActivityFields } from "@/components/asset-action-form";
 import { getAssetBusinessDate } from "@/lib/asset-date";
 import {
   getAssetDailyLogs,
@@ -152,34 +152,15 @@ export default async function Page() {
               successMessage="Asset activity was recorded."
               className="mt-4 grid gap-3 md:grid-cols-3"
             >
-              <label className="text-sm font-medium">
-                Asset
-                <select
-                  name="asset_id"
-                  required
-                  className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal"
-                >
-                  <option value="">Choose asset</option>
-                  {assets.map((asset) => (
-                    <option key={asset.id} value={asset.id ?? ""}>
-                      {asset.asset_tag} · {asset.asset_type}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-sm font-medium">
-                Event
-                <select
-                  name="event_type"
-                  required
-                  className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal"
-                >
-                  <option value="daily_check">Daily check</option>
-                  <option value="maintenance">Maintenance</option>
-                  {canUpdateAssetState && <option value="movement">Movement</option>}
-                  {canUpdateAssetState && <option value="issue">Report damage</option>}
-                </select>
-              </label>
+              <AssetActivityFields
+                assets={assets.flatMap((asset) => asset.id ? [{
+                  id: asset.id,
+                  asset_tag: asset.asset_tag ?? "",
+                  asset_type: asset.asset_type ?? "",
+                  assigned: asset.status === "assigned" && Boolean(asset.assigned_to),
+                }] : [])}
+                canUpdateAssetState={canUpdateAssetState}
+              />
               <label className="text-sm font-medium">
                 Date
                 <input

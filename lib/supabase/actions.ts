@@ -1145,7 +1145,7 @@ export async function recordAssetDailyLog(formData: FormData) {
     .single();
   if (assetError || !asset) throw new Error("Asset not found.");
   if (eventType === "daily_check" && (!asset.assigned_to || asset.status !== "assigned")) {
-    throw new Error("Daily checks are only required for assets currently assigned to an employee.");
+    return { ok: false as const, message: "Daily checks are only for assets currently assigned to an employee. Choose an assigned asset or select another activity." };
   }
   if (eventType === "issue" && !["available", "assigned"].includes(asset.status)) {
     throw new Error("This asset can’t be reported as damaged in its current status.");
@@ -1203,6 +1203,7 @@ export async function recordAssetDailyLog(formData: FormData) {
   revalidatePath("/dashboard/assets/activity");
   revalidatePath("/dashboard/assets/returns");
   revalidatePath("/dashboard/exit-requests");
+  return { ok: true as const };
 }
 
 export async function createRecruitmentOpening(formData: FormData) {
