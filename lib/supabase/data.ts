@@ -257,6 +257,7 @@ export async function getEmployees(): Promise<EmployeeRecord[]> {
   const supabase = await createClient();
   const optionalColumns = [
     "user_id",
+    "phone",
     "employment_category",
     "home_area",
     "commute_distance_km",
@@ -308,6 +309,7 @@ export async function getEmployeeByLookup(
   const supabase = await createClient();
   const optionalColumns = [
     "user_id",
+    "phone",
     "employment_category",
     "home_area",
     "commute_distance_km",

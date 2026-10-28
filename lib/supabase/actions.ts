@@ -140,13 +140,19 @@ async function ensureEmployeeRecord(
         appConfig.defaultUserName,
     ).trim() || appConfig.defaultUserName;
 
-  const { data: existingEmployee } = await supabase
+  const { data: existingEmployee, error: existingEmployeeError } = await supabase
     .from("employees")
     .select(
       "id, employee_number, full_name, email, department_id, job_title, employment_status, user_id",
     )
     .eq("email", email)
     .maybeSingle();
+  if (existingEmployeeError) {
+    if (existingEmployeeError.code === "42703" || existingEmployeeError.code === "PGRST204") {
+      throw new Error("Employee account setup is incomplete. Ask your administrator to apply the latest Supabase migrations.");
+    }
+    throw new Error("Unable to check for an existing employee account.");
+  }
 
   if (existingEmployee) {
     if (existingEmployee.user_id && existingEmployee.user_id !== user.id) {
@@ -196,6 +202,10 @@ async function ensureEmployeeRecord(
     if (/duplicate key|already exists|duplicate/i.test(error.message)) {
       return existingEmployee;
     }
+    if (error.code === "42703" || error.code === "PGRST204") {
+      throw new Error("Employee account setup is incomplete. Ask your administrator to apply the latest Supabase migrations.");
+    }
+    console.error("Employee account provisioning failed", { code: error.code });
     throw new Error("Unable to create employee record for this user.");
   }
 
@@ -572,17 +582,19 @@ async function saveEmployeeRecord(formData: FormData) {
   const missingLifecycleColumn =
     employeeInsert.error &&
     (employeeInsert.error.code === "42703" || employeeInsert.error.code === "PGRST204") &&
-    /home_area|commute_distance_km|is_technical/i.test(employeeInsert.error.message);
+    /phone|home_area|commute_distance_km|is_technical/i.test(employeeInsert.error.message);
   const hasLifecycleDetails = Boolean(
-    employee.home_area || commuteDistance !== null || employee.is_technical,
+    employee.phone || employee.home_area || commuteDistance !== null || employee.is_technical,
   );
   if (missingLifecycleColumn && !hasLifecycleDetails) {
     const {
+      phone,
       home_area,
       commute_distance_km,
       is_technical,
       ...coreEmployee
     } = employee;
+    void phone;
     void home_area;
     void commute_distance_km;
     void is_technical;
