@@ -37,6 +37,8 @@ create policy asset_tracking_events_insert_scope
     created_by = auth.uid()
     and public.current_app_role() in ('administrator', 'hr', 'ict', 'library')
     and source in ('barcode', 'rfid', 'manual')
+    and recorded_at >= now() - interval '1 day'
+    and recorded_at <= now() + interval '5 minutes'
   );
 
 create or replace function public.apply_asset_tracking_event()

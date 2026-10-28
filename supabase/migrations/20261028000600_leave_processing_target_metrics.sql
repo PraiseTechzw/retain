@@ -19,7 +19,8 @@ declare
   v_current_average numeric;
   v_reviewed_count bigint;
   v_pending_count bigint;
-  v_start date := (current_date - interval '6 months')::date;
+  v_start date;
+  v_end date;
 begin
   if v_role not in ('administrator', 'hr', 'management') then
     raise exception 'Not authorized to view leave processing metrics';
@@ -33,13 +34,23 @@ begin
   from public.system_settings setting
   where setting.key = 'leave_processing_baseline_days';
 
+  select case
+    when setting.value ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then setting.value::date
+    else null
+  end
+  into v_start
+  from public.system_settings setting
+  where setting.key = 'leave_processing_baseline_recorded_on';
+  v_start := coalesce(v_start, (current_date - interval '6 months')::date);
+  v_end := least(current_date, (v_start + interval '6 months')::date);
+
   select
     avg(greatest(0, extract(epoch from (request.reviewed_at - request.created_at)) / 86400)),
     count(*)
   into v_current_average, v_reviewed_count
   from public.leave_requests request
   where request.reviewed_at >= v_start::timestamptz
-    and request.reviewed_at < (current_date + 1)::timestamptz;
+    and request.reviewed_at < (v_end + 1)::timestamptz;
 
   select count(*)
   into v_pending_count
@@ -56,7 +67,7 @@ begin
       else null
     end,
     v_start,
-    current_date;
+    v_end;
 end;
 $$;
 

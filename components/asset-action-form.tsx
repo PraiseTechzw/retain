@@ -50,8 +50,8 @@ export function AssetActionForm({
           setFeedback(result.message);
           return;
         }
-        setFeedback(successMessage);
-        if (kind === "log") form.reset();
+        setFeedback(result && result.ok ? (result.message ?? successMessage) : successMessage);
+        if (kind === "log" || kind === "track") form.reset();
       } catch (error) {
         setFailed(true);
         setFeedback(

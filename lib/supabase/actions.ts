@@ -1239,10 +1239,16 @@ export async function recordAssetTrackingEvent(formData: FormData) {
     console.error("Asset tracking event failed", { code: error.code });
     throw new Error("Unable to record the asset check-in. Please try again.");
   }
-  await audit(supabase, user.id, "tracked", "asset", asset.id, { source, location });
+  let message: string | undefined;
+  try {
+    await audit(supabase, user.id, "tracked", "asset", asset.id, { source, location });
+  } catch (error) {
+    console.error("Asset check-in saved but audit event failed", error);
+    message = "Check-in saved, but its audit record could not be saved. Please contact your administrator.";
+  }
   revalidatePath("/dashboard/assets");
   revalidatePath("/dashboard/assets/activity");
-  return { ok: true as const };
+  return { ok: true as const, message };
 }
 
 export async function createRecruitmentOpening(formData: FormData) {
@@ -2151,9 +2157,15 @@ export async function saveSystemSetting(formData: FormData) {
       throw new Error("This system setting is not supported.");
   }
 
+  const settingRows = key === "leave_processing_baseline_days"
+    ? [
+        { key, value },
+        { key: "leave_processing_baseline_recorded_on", value: new Date().toISOString().slice(0, 10) },
+      ]
+    : [{ key, value }];
   const { error } = await supabase
     .from("system_settings")
-    .upsert({ key, value }, { onConflict: "key" });
+    .upsert(settingRows, { onConflict: "key" });
 
   if (error) throw new Error("Unable to save system setting.");
 

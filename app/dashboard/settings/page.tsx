@@ -437,7 +437,7 @@ export default async function Page() {
                   Set the pre-deployment baseline
                 </h2>
                 <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-                  Enter the institution’s measured average leave review time before deployment, in calendar days. Reports compare it with requests reviewed in the latest six-month period. The 35% improvement target is measured from this baseline.
+                  Enter the institution’s measured average leave review time before deployment, in calendar days. Saving the baseline starts the six-month measurement window used by Reports. The 35% improvement target is measured from this baseline.
                 </p>
                 <form action={saveSystemSetting} className="mt-5 flex flex-wrap items-end gap-3">
                   <input type="hidden" name="key" value="leave_processing_baseline_days" />
