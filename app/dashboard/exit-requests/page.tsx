@@ -48,6 +48,13 @@ export default async function Page() {
         {request.status}
       </Status>,
       request.last_day ?? "—",
+      <Link
+        key="review"
+        href={`/dashboard/exit-requests/${request.id}`}
+        className="font-semibold text-primary hover:underline"
+      >
+        Review request
+      </Link>,
     ];
   });
   return (
@@ -59,7 +66,7 @@ export default async function Page() {
       >
         {requests.length ? (
           <DataTable
-            columns={["Employee", "Reason", "Status", "Last day"]}
+            columns={["Employee", "Reason", "Status", "Last day", "Action"]}
             rows={rows}
           />
         ) : (

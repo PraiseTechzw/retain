@@ -1254,11 +1254,20 @@ export async function approveClearance(formData: FormData) {
   const id = String(formData.get("clearance_id") ?? "");
   if (!id) throw new Error("Clearance step is required.");
   // Role-based check: only allow department officers or admins/HR
-  const { data: stepData } = await supabase
+  const { data: stepData, error: stepError } = await supabase
     .from("clearance_steps")
-    .select("id,department,exit_request_id")
+    .select("id,department,exit_request_id,status")
     .eq("id", id)
     .single();
+  if (stepError || !stepData) {
+    throw new Error("This clearance step could not be found. Refresh the page and try again.");
+  }
+  if (stepData.status === "approved") {
+    revalidatePath("/dashboard/clearances");
+    revalidatePath(`/dashboard/clearances/${stepData.exit_request_id}`);
+    revalidatePath(`/dashboard/exit-requests/${stepData.exit_request_id}`);
+    return;
+  }
   const stepDept = stepData?.department ?? "";
   const userRole = await resolveEffectiveUserRole(supabase, user);
   const normalizedRole = userRole.toLowerCase();
@@ -1291,6 +1300,7 @@ export async function approveClearance(formData: FormData) {
   revalidatePath("/dashboard/clearances");
   if (stepData?.exit_request_id) {
     revalidatePath(`/dashboard/clearances/${stepData.exit_request_id}`);
+    revalidatePath(`/dashboard/exit-requests/${stepData.exit_request_id}`);
   }
 }
 
@@ -1309,6 +1319,11 @@ export async function checkExitBlockers(exitRequestId: string) {
     .select("id, department_id, employment_category, is_technical")
     .eq("id", exitReq.employee_id)
     .single();
+  if (employeeError?.code === "42703" || /employment_category.*(does not exist|could not find|schema cache)/i.test(employeeError?.message ?? "")) {
+    throw new Error(
+      "Exit clearance setup is incomplete: the employees.employment_category column is missing. Ask your administrator to apply the latest Supabase migrations, then reload this page.",
+    );
+  }
   if (employeeError || !employee) throw new Error("Employee record not found.");
 
   const { data: steps, error: stepsError } = await supabase

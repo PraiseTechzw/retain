@@ -1,8 +1,10 @@
 import {
   DashboardShell,
+  EmptyState,
   PageFrame,
   Status,
 } from "@/components/dashboard-shell";
+import Link from "next/link";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
 import { approveClearance } from "@/lib/supabase/actions";
@@ -31,15 +33,37 @@ export default async function Page({
     .select("id,department,status,comments,approved_by,approved_at")
     .eq("exit_request_id", id)
     .order("step_order", { ascending: true });
+  const { data: request } = await supabase
+    .from("exit_requests")
+    .select("id, status, last_day, employees!employee_id(full_name, employee_number)")
+    .eq("id", id)
+    .maybeSingle();
+  const employee = Array.isArray(request?.employees)
+    ? request.employees[0]
+    : request?.employees;
+  const role = userRole.trim().toLowerCase();
 
   return (
     <DashboardShell userName={userName} userRole={userRole}>
       <PageFrame
-        title="Clearance approval"
-        description={`Clearance ${id} · Department actions and audit trail.`}
+        title="Exit clearance approvals"
+        description={`${employee?.employee_number ?? "Employee"} · ${employee?.full_name ?? "Exit request"} · Review each department step below.`}
       >
         <div className="rounded-2xl border border-border/70 bg-card p-6">
-          <h2 className="font-semibold">Exit clearance</h2>
+          <h2 className="font-semibold">Department clearances</h2>
+          {request && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Request status: {request.status} · Last working day: {request.last_day ?? "Not set"}
+            </p>
+          )}
+          {request && (
+            <Link
+              href={`/dashboard/exit-requests/${id}`}
+              className="mt-3 inline-flex text-sm font-semibold text-primary hover:underline"
+            >
+              View full exit request and blockers
+            </Link>
+          )}
           <div className="mt-6 flex flex-col gap-3">
             {(steps ?? []).map((s: ClearanceStep) => (
               <div
@@ -64,18 +88,32 @@ export default async function Page({
                   >
                     {s.status}
                   </Status>
-                  {s.status !== "approved" && (
+                  {s.status !== "approved" && canApprove(role, s.department) && (
                     <form action={approveClearance}>
                       <input type="hidden" name="clearance_id" value={s.id} />
-                      <button className="btn">Approve</button>
+                      <button className="btn" type="submit">Approve {s.department}</button>
                     </form>
                   )}
                 </div>
               </div>
             ))}
+            {!steps?.length && (
+              <EmptyState label="department clearance steps" />
+            )}
           </div>
         </div>
       </PageFrame>
     </DashboardShell>
   );
+}
+
+function canApprove(role: string, department: string) {
+  const normalizedDepartment = department.toLowerCase();
+  if (role === "hr" || role === "administrator") return true;
+  if (role === "management") return normalizedDepartment.includes("department head");
+  if (role === "ict") {
+    return normalizedDepartment.includes("ict") || normalizedDepartment.includes("information and communication technology");
+  }
+  if (role === "library") return normalizedDepartment.includes("librar");
+  return false;
 }

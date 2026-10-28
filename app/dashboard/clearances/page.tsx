@@ -38,6 +38,13 @@ export default async function Page() {
         {step.status}
       </Status>,
       step.comments ?? "Awaiting review",
+      <Link
+        key="review"
+        href={`/dashboard/clearances/${step.exit_request_id}`}
+        className="font-semibold text-primary hover:underline"
+      >
+        Review clearances
+      </Link>,
     ];
   });
   return (
@@ -48,7 +55,7 @@ export default async function Page() {
       >
         {steps.length ? (
           <DataTable
-            columns={["Employee", "Department", "Status", "Notes"]}
+            columns={["Employee", "Department", "Status", "Notes", "Action"]}
             rows={rows}
           />
         ) : (

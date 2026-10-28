@@ -6,7 +6,11 @@ import {
 import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
 import { notFound } from "next/navigation";
-import { checkExitBlockers, finalizeExit } from "@/lib/supabase/actions";
+import {
+  approveClearance,
+  checkExitBlockers,
+  finalizeExit,
+} from "@/lib/supabase/actions";
 
 type ClearanceStep = {
   id: string;
@@ -68,6 +72,9 @@ export default async function Page({
     .eq("employee_id", employeeId);
 
   const { blocked, blockers } = await checkExitBlockers(id);
+  const canApproveAsHr = ["hr", "administrator"].includes(
+    userRole.trim().toLowerCase(),
+  );
 
   return (
     <DashboardShell userName={userName} userRole={userRole}>
@@ -100,7 +107,12 @@ export default async function Page({
             </div>
 
             <div className="rounded-xl border p-4 md:col-span-2">
-              <p className="text-sm font-medium">Clearance Steps</p>
+              <p className="text-sm font-medium">Department clearances</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                {canApproveAsHr
+                  ? "HR approves the department clearance steps below. The exit request is finalized after every clearance, asset return, and required handover is complete."
+                  : "Each department must approve its clearance before HR can finalize the exit request."}
+              </p>
               <div className="mt-3 space-y-2">
                 {(steps ?? []).map((s: ClearanceStep) => (
                   <div
@@ -113,17 +125,31 @@ export default async function Page({
                         {s.comments ?? ""}
                       </p>
                     </div>
-                    <Status
-                      tone={
-                        s.status === "approved"
-                          ? "green"
-                          : s.status === "rejected"
-                            ? "red"
-                            : "amber"
-                      }
-                    >
-                      {s.status}
-                    </Status>
+                    <div className="flex items-center gap-3">
+                      <Status
+                        tone={
+                          s.status === "approved"
+                            ? "green"
+                            : s.status === "rejected"
+                              ? "red"
+                              : "amber"
+                        }
+                      >
+                        {s.status}
+                      </Status>
+                      {canApproveAsHr && s.status !== "approved" && (
+                        <form action={approveClearance}>
+                          <input
+                            type="hidden"
+                            name="clearance_id"
+                            value={s.id}
+                          />
+                          <button className="btn" type="submit">
+                            Approve {s.department}
+                          </button>
+                        </form>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -203,12 +229,18 @@ export default async function Page({
           </div>
 
           <div className="mt-6 flex justify-end">
-            <form action={finalizeExit}>
-              <input type="hidden" name="exit_request_id" value={id} />
-              <button disabled={blocked} className="btn-primary">
-                Finalize Exit
-              </button>
-            </form>
+            {canApproveAsHr ? (
+              <form action={finalizeExit}>
+                <input type="hidden" name="exit_request_id" value={id} />
+                <button disabled={blocked} className="btn-primary">
+                  Finalize exit request
+                </button>
+              </form>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                HR finalizes this request after all clearance blockers are resolved.
+              </p>
+            )}
           </div>
         </div>
       </PageFrame>
