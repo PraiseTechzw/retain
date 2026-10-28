@@ -33,6 +33,8 @@ Optional public branding values such as `NEXT_PUBLIC_APP_NAME`, `NEXT_PUBLIC_ORG
 
 ## Database migration rollout
 
+For a disposable local Supabase stack, `supabase/config.toml` enables `supabase/seed.sql`. After starting the local stack, `supabase db reset` applies local migrations and then loads fictional demo rows. This reset is destructive to the local database; never add `--linked`, and never run it against the institution's project. The seed creates directory/workflow examples but intentionally creates no Auth users, private document objects, credentials, or real employee records.
+
 SQL migration files are under `supabase/migrations/` and now use unique 14-digit Supabase CLI version prefixes. The latest migrations add defense-in-depth controls:
 
 - `20261028000100_reconcile_employee_columns.sql` repairs missing employee fields in older or partially provisioned databases, including `phone`, `employment_category`, and `user_id`.
@@ -58,7 +60,7 @@ Before using the Supabase CLI on any existing project:
 7. Apply only after the database owner approves the rollout. Never apply this migration set to production from an unreviewed workstation.
 8. After applying to staging, run the role-by-role acceptance scenarios in [Operations](operations.md) before considering production.
 
-The repository has no checked-in `supabase/config.toml` or local database test harness. Migration execution and live RLS validation are not claimed as completed here. Keep environment-specific project references out of source files.
+The repository has no automated local database test harness. Migration execution and live RLS validation are not claimed as completed here. Keep environment-specific project references out of source files.
 
 ## Knowledge-document Storage
 
@@ -67,6 +69,10 @@ Migrations `20261028000300_configure_knowledge_document_storage.sql` and `202610
 ### Leave target measurement and asset tracking
 
 Apply migrations `20261028000600_leave_processing_target_metrics.sql` and `20261028000700_asset_live_tracking.sql` before deploying the six-month leave comparison or the live asset check-in workflow. An Administrator must enter the pre-deployment average leave review time (calendar days) in Settings using an institution-approved baseline; saving it starts the six-month measurement window. Reports compares it with requests reviewed during that window. Without a verified baseline, the percentage reduction is intentionally unavailable.
+
+Apply `20261028000800_reconcile_asset_status_constraint.sql` before running the demo seed on an existing database. Some older asset tables retain a check constraint that rejects the `verified` status required by the return-verification workflow. The migration stops with the set of any other unrecognized statuses so they can be mapped before changing the constraint.
+
+Apply `20261028000900_reconcile_exit_request_status_constraint.sql` as well. Older `exit_requests` tables may retain a status check that rejects workflow states such as `clearance`; this migration reconciles it to the complete set used by the current application and stops if it finds other unmapped statuses.
 
 The asset register receives live database updates from barcode/RFID/manual check-ins and daily asset activity. To connect a GPS/MDM provider, set the server-only `ASSET_TRACKING_WEBHOOK_SECRET` and configure that provider to send `POST` requests to `/api/integrations/asset-tracking` over HTTPS with `Authorization: Bearer <secret>` and JSON fields `asset_tag`, `location`, optional ISO `recorded_at`, and optional idempotency `event_id`. The provider must map its device identifier to the asset's exact `asset_tag` and provide an approved area/zone label; this endpoint does not store GPS coordinates. Rotate the secret if exposed. Do not consider the GPS/MDM objective operational until a real provider is connected and its coverage is reconciled with the asset register.
 

@@ -1,0 +1,5 @@
+project_id = "cut-elams-local"
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
