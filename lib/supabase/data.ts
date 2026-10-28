@@ -245,14 +245,17 @@ function isMissingColumnError(errorMessage: string, columnName: string) {
   const normalized = errorMessage.toLowerCase();
   return (
     normalized.includes("column") &&
-    normalized.includes("does not exist") &&
-    normalized.includes(columnName.toLowerCase())
+    normalized.includes(columnName.toLowerCase()) &&
+    (normalized.includes("does not exist") ||
+      normalized.includes("could not find") ||
+      normalized.includes("schema cache"))
   );
 }
 
 export async function getEmployees(): Promise<EmployeeRecord[]> {
   const supabase = await createClient();
   const optionalColumns = [
+    "user_id",
     "employment_category",
     "home_area",
     "commute_distance_km",

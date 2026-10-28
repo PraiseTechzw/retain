@@ -512,7 +512,7 @@ function parseOptionalDate(value: string, label: string) {
   return normalized;
 }
 
-export async function createEmployee(formData: FormData) {
+async function saveEmployeeRecord(formData: FormData) {
   const { supabase, user } = await actor();
   await requireAnyRole(supabase, user, ["administrator", "hr"]);
   const commuteDistanceValue = String(
@@ -609,8 +609,43 @@ export async function createEmployee(formData: FormData) {
   await audit(supabase, user.id, "created", "employee", data.id, {
     employee_number: employee.employee_number,
   });
-  revalidatePath("/dashboard/employees");
-  revalidatePath("/dashboard");
+}
+
+export async function createEmployee(
+  formData: FormData,
+): Promise<{ ok: boolean; message?: string }> {
+  let saved = false;
+  try {
+    await saveEmployeeRecord(formData);
+    saved = true;
+    try {
+      revalidatePath("/dashboard/employees");
+      revalidatePath("/dashboard");
+    } catch (error) {
+      console.error("Employee record saved, but page refresh failed", {
+        message: error instanceof Error ? error.message : "Unknown refresh error",
+      });
+      return {
+        ok: true,
+        message: "Employee added. Refresh the employee list if the new record doesn’t appear yet.",
+      };
+    }
+    return { ok: true };
+  } catch (error) {
+    const rawMessage = error instanceof Error ? error.message : "";
+    if (saved) {
+      return {
+        ok: true,
+        message: "Employee added. Refresh the employee list if the new record doesn’t appear yet.",
+      };
+    }
+    return {
+      ok: false,
+      message: /Server Components render|Minified React error|digest/i.test(rawMessage)
+        ? "We couldn’t complete the employee request. Please try again or contact your administrator."
+        : rawMessage || "We couldn’t add this employee. Please try again.",
+    };
+  }
 }
 
 export async function updateEmployeeRecord(formData: FormData) {
