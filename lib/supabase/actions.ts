@@ -1016,8 +1016,9 @@ export async function recordAssetDailyLog(formData: FormData) {
   if (eventType === "movement" && !location) {
     throw new Error("A destination is required when recording asset movement.");
   }
-  const dateValue = loggedOn || new Date().toISOString().slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue) || Number.isNaN(new Date(`${dateValue}T12:00:00Z`).getTime())) {
+  const dateValue = loggedOn || getAssetBusinessDate();
+  const parsedDate = new Date(`${dateValue}T12:00:00Z`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue) || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== dateValue) {
     throw new Error("Enter a valid activity date.");
   }
   if (eventType === "return") {
@@ -1036,8 +1037,11 @@ export async function recordAssetDailyLog(formData: FormData) {
   if (eventType === "daily_check" && (!asset.assigned_to || asset.status !== "assigned")) {
     throw new Error("Daily checks are only required for assets currently assigned to an employee.");
   }
-  if (eventType === "issue" && ["retired", "lost", "verified"].includes(asset.status)) {
+  if (eventType === "issue" && !["available", "assigned"].includes(asset.status)) {
     throw new Error("This asset can’t be reported as damaged in its current status.");
+  }
+  if (eventType === "issue" && !notes) {
+    throw new Error("Add a short note describing the reported damage.");
   }
   const { data, error } = await supabase
     .from("asset_daily_logs")
@@ -1060,7 +1064,8 @@ export async function recordAssetDailyLog(formData: FormData) {
     const { error: statusError } = await supabase
       .from("assets")
       .update({ status: "damaged" })
-      .eq("id", assetId);
+      .eq("id", assetId)
+      .eq("status", asset.status);
     if (statusError) throw new Error("The issue was logged, but the asset status could not be updated. Contact an administrator.");
     const { error: historyError } = await supabase.from("asset_history").insert({
       asset_id: assetId,

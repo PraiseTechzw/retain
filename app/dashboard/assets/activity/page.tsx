@@ -6,7 +6,6 @@ import {
   Status,
 } from "@/components/dashboard-shell";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
-import { recordAssetDailyLog } from "@/lib/supabase/actions";
 import { AssetActionForm } from "@/components/asset-action-form";
 import { getAssetBusinessDate } from "@/lib/asset-date";
 import {
@@ -47,7 +46,7 @@ export default async function Page() {
     <DashboardShell userName={userName} userRole={userRole}>
       <PageFrame
         title="Daily asset monitoring"
-        description="Log daily checks, movement, maintenance, issues, and return events for university equipment."
+        description="Log daily checks, movement, maintenance, and damage reports. Asset returns are received and verified separately."
         action={
           <Link
             href="/dashboard/assets"
@@ -100,8 +99,9 @@ export default async function Page() {
             </div>
             {missingDailyChecks.length ? (
               <div className="divide-y divide-border/60">
-                {missingDailyChecks.map((asset) => (
-                  <div
+                {missingDailyChecks.map((asset) => {
+                  const employee = Array.isArray(asset.employees) ? asset.employees[0] : asset.employees;
+                  return <div
                     key={asset.id}
                     className="flex flex-wrap items-center justify-between gap-3 px-5 py-3"
                   >
@@ -112,6 +112,7 @@ export default async function Page() {
                       <p className="text-xs text-muted-foreground">
                         {asset.current_location ?? "Location not recorded"}
                       </p>
+                      {employee?.full_name && <p className="text-xs text-muted-foreground">Assigned to {employee.full_name}</p>}
                     </div>
                     <AssetActionForm kind="log" successMessage="Today’s check was recorded.">
                       <input
@@ -129,8 +130,8 @@ export default async function Page() {
                         Log today&apos;s check
                       </button>
                     </AssetActionForm>
-                  </div>
-                ))}
+                  </div>;
+                })}
               </div>
             ) : (
               <p className="p-5 text-sm text-muted-foreground">
