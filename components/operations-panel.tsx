@@ -275,7 +275,7 @@ export function OperationsPanel({
                       <Field name="title" label="Document title" required maxLength={200} placeholder="e.g. Current projects handover — October 2026" />
                     </div>
                     <label className="flex flex-col gap-1.5 text-sm font-medium">
-                    Handover requirement
+                    Handover requirement <span className="font-normal text-muted-foreground">Optional for general documents</span>
                     <select
                       name="requirement_id"
                       required
@@ -283,7 +283,7 @@ export function OperationsPanel({
                       onChange={(event) => setSelectedRequirementId(event.target.value)}
                       className="h-10 rounded-lg border border-input bg-background px-3 font-normal"
                     >
-                      <option value="">Choose a requirement</option>
+                      <option value="">General document · no requirement</option>
                       {knowledgeRequirements.map((requirement) => (
                         <option key={requirement.id} value={requirement.id}>
                           {requirement.name}

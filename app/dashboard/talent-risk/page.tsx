@@ -29,6 +29,8 @@ const commuteBands = [
 const minimumHeatmapCellSize = 5;
 
 export default async function Page() {
+  const now = new Date();
+  const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const { userName, userRole } = await resolveDashboardUserContext();
   if (!["hr", "administrator", "management"].some((role) => userRole.toLowerCase().includes(role))) {
     redirect("/dashboard");
@@ -59,7 +61,7 @@ export default async function Page() {
     });
   const supportRows = activeEmployees.map((employee) => ({
     employee,
-    anniversary: getUpcomingServiceAnniversary(employee.joined_on),
+    anniversary: getUpcomingServiceAnniversary(employee.joined_on, now),
     commuteDistance: getRecordedCommuteDistance(employee),
   }));
   const heatmap = new Map<
@@ -142,7 +144,7 @@ export default async function Page() {
               <p className="mt-2 text-3xl font-semibold">
                 {interventions.filter((item) => {
                   if (!item.follow_up_on) return false;
-                  const days = (new Date(`${item.follow_up_on}T00:00:00Z`).getTime() - Date.now()) / 86_400_000;
+                  const days = (new Date(`${item.follow_up_on}T00:00:00Z`).getTime() - today.getTime()) / 86_400_000;
                   return days >= 0 && days <= 30;
                 }).length}
               </p>
