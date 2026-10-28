@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { getAssetBusinessDate } from "@/lib/asset-date";
 import { normalizeUserRole } from "@/lib/auth-role";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -1019,8 +1020,12 @@ export async function recordAssetDailyLog(formData: FormData) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue) || Number.isNaN(new Date(`${dateValue}T12:00:00Z`).getTime())) {
     throw new Error("Enter a valid activity date.");
   }
-  if (eventType === "daily_check" && dateValue !== new Date().toISOString().slice(0, 10)) {
-    throw new Error("Daily checks can only be logged for today's UTC date.");
+  if (eventType === "return") {
+    throw new Error("Use Asset return verification to receive and verify an issued asset.");
+  }
+  const todayInHarare = getAssetBusinessDate();
+  if (eventType === "daily_check" && dateValue !== todayInHarare) {
+    throw new Error("Daily checks can only be logged for today.");
   }
   const { data: asset, error: assetError } = await supabase
     .from("assets")
@@ -1030,6 +1035,9 @@ export async function recordAssetDailyLog(formData: FormData) {
   if (assetError || !asset) throw new Error("Asset not found.");
   if (eventType === "daily_check" && (!asset.assigned_to || asset.status !== "assigned")) {
     throw new Error("Daily checks are only required for assets currently assigned to an employee.");
+  }
+  if (eventType === "issue" && ["retired", "lost", "verified"].includes(asset.status)) {
+    throw new Error("This asset can’t be reported as damaged in its current status.");
   }
   const { data, error } = await supabase
     .from("asset_daily_logs")
@@ -1048,6 +1056,22 @@ export async function recordAssetDailyLog(formData: FormData) {
     throw new Error("A daily check has already been recorded for this asset today.");
   }
   if (error) throw new Error("Unable to record asset activity.");
+  if (eventType === "issue") {
+    const { error: statusError } = await supabase
+      .from("assets")
+      .update({ status: "damaged" })
+      .eq("id", assetId);
+    if (statusError) throw new Error("The issue was logged, but the asset status could not be updated. Contact an administrator.");
+    const { error: historyError } = await supabase.from("asset_history").insert({
+      asset_id: assetId,
+      action: "reported_damaged",
+      actor_id: user.id,
+      previous_status: asset.status,
+      new_status: "damaged",
+      notes,
+    });
+    if (historyError) throw new Error("The issue was logged, but its status history could not be saved.");
+  }
   if (location) {
     const { error: locationError } = await supabase
       .from("assets")
@@ -1062,6 +1086,8 @@ export async function recordAssetDailyLog(formData: FormData) {
   });
   revalidatePath("/dashboard/assets");
   revalidatePath("/dashboard/assets/activity");
+  revalidatePath("/dashboard/assets/returns");
+  revalidatePath("/dashboard/exit-requests");
 }
 
 export async function createRecruitmentOpening(formData: FormData) {

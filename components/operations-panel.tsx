@@ -52,7 +52,7 @@ export function OperationsPanel({
         if (mode === "knowledge") await uploadKnowledgeDocument(formData);
         setMessage(
           mode === "asset"
-            ? "Asset added to your inventory. You can assign it from its asset record."
+            ? "Asset added to your inventory. Assign it to an employee to include it in their exit return checks. Issued assets must be returned and verified before exit clearance can be finalized."
             : mode === "employee"
               ? "Employee added successfully."
               : mode === "exit"
@@ -236,7 +236,7 @@ export function OperationsPanel({
               {mode === "asset" && (
                 <>
                   <p className="text-sm text-muted-foreground">
-                    Record the identifying details so your team can find and track this item. It will be added as available and can be assigned later.
+                    Record the identifying details so your team can find and track this item. It will be added as available. Assets assigned to employees are checked during exit clearance and must be returned and verified before finalization.
                   </p>
                   <Field name="asset_tag" label="Asset tag or serial number" required placeholder="e.g. ICT-LT-0042" maxLength={80} />
                   <Field name="asset_type" label="Asset type" required placeholder="e.g. Laptop, projector, office furniture" maxLength={120} />
