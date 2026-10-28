@@ -11,22 +11,24 @@ CUT-ELAMS is a proposed talent-intelligence and employee-lifecycle system for Ch
 
 The brief identifies fragmented paper processes for clearance, leave, equipment movement, and employee records. Physical clearance forms can delay approvals and asset return. Paper-bound exit data also makes it difficult to analyze turnover patterns or preserve institutional knowledge.
 
-## Scope
+## Governing scope
 
-The system is intended to support employee records and recruitment mapping through digital exit, self-service leave and balance tracking, asset assignment and daily monitoring, ICT/Library verification, knowledge handover, role-based access for employees/Attachés/Support Staff, quarterly turnover analysis, aggregate commute groupings, HR support follow-ups, and management reporting. A validated employee attrition prediction is not implemented.
+The latest product-owner objectives are the governing product scope. CUT-ELAMS should deliver the six outcomes below and the workflows necessary to achieve them. Features outside those outcomes are not automatically in scope merely because they exist in the current implementation; see the [requirements audit](requirements-audit.md) for implementation gaps and additional modules.
 
-Payroll processing, student management, and daily attendance are explicitly excluded. The brief also describes a final-salary clearance gate. In this repository, the digital exit gate does not itself instruct, block, or release payroll; that requires an approved payroll integration and is documented as a scope boundary rather than a delivered payment control.
+The current app can block digital exit finalization when clearance requirements are incomplete, but it does not instruct, block, or release a salary payment. Payroll control is not one of the latest six objectives; if it is reinstated, it requires an institutional payroll owner and approved integration.
 
-## Objectives from the brief
+## Governing objectives supplied by the product owner
 
-| Objective | Target in brief | Measurement or acceptance boundary |
+| Objective | Target | Measurement or acceptance boundary |
 | --- | --- | --- |
-| Analyze attrition | Quarterly turnover-driver reports within 90 days of deployment. | Validate reporting logic and compare snapshots with approved HR data; code alone does not demonstrate the institutional outcome. |
-| Predict flight risk | Early-warning engine within nine months. | Not implemented. A production prediction requires institution-approved outcome data, validation, fairness/privacy review, and governance. The current page is a support-action workspace and must not rank employees. |
-| Digitize clearance | Convert 100% of manual clearance forms within six months. | The app provides an exit/clearance workflow; the percentage converted is an adoption measure. |
-| Secure assets daily | 100% real-time visibility/accountability and clearance verification before final salary disbursement. | App supports assignment, logging, receipt, verification, and blocks digital exit finalization. Physical inventory coverage and payroll integration remain outside code validation. |
-| Streamline leave | Reduce application processing and approval turnaround by 35% within six months of daily usage. | The app records requests/reviews and can calculate elapsed turnaround; baseline and after-period measurements are required. |
-| Prevent knowledge loss | Require technical handover before account deactivation. | App finalization checks approved applicable handover; technical requirements must be configured, tested, and maintained. |
+| Analyze attrition | Generate automated quarterly turnover reports within 90 days to analyze attrition drivers. | Validate reporting logic, schedule, access, and snapshots against approved HR data; source code alone does not demonstrate the operational target. |
+| Predict flight risk | Deploy an Early Warning Engine within nine months to predict staff flight risk. | No predictive model is currently implemented. Any model requires institution-approved outcome data, prospective validation, privacy/fairness review, human oversight, and governance before operational use. |
+| Digitize clearance | Convert 100% of manual clearance forms into a digital workflow within six months. | The app provides digital exit and clearance workflows; the percentage converted is an adoption measure. |
+| Secure assets | Achieve 100% real-time asset tracking through daily logging and automated exit checks. | The app records daily logs and scan/manual/GPS-MDM events and refreshes asset status live. Physical coverage depends on staff check-ins or a connected GPS/MDM provider; coverage must be measured operationally. |
+| Streamline leave | Cut leave processing times by 35% within six months of platform deployment. | The app compares a recorded pre-deployment baseline with the rolling six-month review-time average. The baseline must be entered and the target must be validated against operational records. |
+| Prevent knowledge loss | Require documentation upload by all technical staff before account deactivation. | The app supports required technical handover checks before digital exit completion and authorized deactivation; applicability and completion must be validated operationally. |
+
+The original project proposal also described recruitment and other functions. Those are not among these six governing objectives and require an explicit decision before they are treated as in-scope product requirements.
 
 ## Implementation traceability
 

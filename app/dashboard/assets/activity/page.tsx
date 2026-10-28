@@ -7,6 +7,7 @@ import {
 } from "@/components/dashboard-shell";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { AssetActionForm, AssetActivityFields } from "@/components/asset-action-form";
+import { AssetLiveRefresh } from "@/components/asset-live-refresh";
 import { getAssetBusinessDate } from "@/lib/asset-date";
 import {
   getAssetDailyLogs,
@@ -60,6 +61,7 @@ export default async function Page() {
         }
       >
         <div className="space-y-6">
+          <AssetLiveRefresh />
           <section className="grid gap-4 md:grid-cols-4">
             <div className="rounded-2xl border border-border/70 bg-card p-5">
               <p className="text-sm text-muted-foreground">
@@ -144,6 +146,36 @@ export default async function Page() {
               </p>
             )}
           </section>
+
+          {canUpdateAssetState && (
+            <section className="rounded-2xl border border-border/70 bg-card p-5">
+              <h2 className="text-lg font-semibold">Scan or check in an asset</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Scan a barcode or RFID tag into the asset tag field, or enter the tag manually. The latest location is reflected in the register as soon as the event is saved.
+              </p>
+              <AssetActionForm kind="track" successMessage="Asset check-in recorded. The live register has been updated." className="mt-4 grid gap-3 md:grid-cols-3">
+                <label className="text-sm font-medium">
+                  Asset tag or serial number
+                  <input name="asset_tag" required maxLength={80} autoFocus className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal" />
+                </label>
+                <label className="text-sm font-medium">
+                  Scan method
+                  <select name="source" required defaultValue="barcode" className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal">
+                    <option value="barcode">Barcode scan</option>
+                    <option value="rfid">RFID scan</option>
+                    <option value="manual">Manual check-in</option>
+                  </select>
+                </label>
+                <label className="text-sm font-medium">
+                  Current location or zone
+                  <input name="location" required maxLength={180} placeholder="ICT storeroom · Shelf A" className="mt-1.5 h-10 w-full rounded-lg border border-input bg-background px-3 font-normal" />
+                </label>
+                <div className="md:col-span-3">
+                  <button className="rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground">Record check-in</button>
+                </div>
+              </AssetActionForm>
+            </section>
+          )}
 
           <section className="rounded-2xl border border-border/70 bg-card p-5">
             <h2 className="text-lg font-semibold">Record asset activity</h2>

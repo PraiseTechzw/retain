@@ -8,7 +8,7 @@ import {
 import { resolveDashboardUserContext } from "@/lib/auth-role";
 import {
   getAuditEvents,
-  getLeaveRequests,
+  getLeaveProcessingTargetMetrics,
   getQuarterlyTurnoverSummary,
   getReportDashboardSnapshot,
 } from "@/lib/supabase/data";
@@ -87,12 +87,12 @@ export default async function Page({
   ) {
     redirect("/dashboard");
   }
-  const [snapshot, quarterlyTurnover, auditEvents, leaveRequests] =
+  const [snapshot, quarterlyTurnover, auditEvents, leaveMetrics] =
     await Promise.all([
       getReportDashboardSnapshot(),
       getQuarterlyTurnoverSummary(),
       getAuditEvents(5),
-      getLeaveRequests(),
+      getLeaveProcessingTargetMetrics(),
     ]);
 
   const selectedReport =
@@ -149,42 +149,14 @@ export default async function Page({
           `${quarter.exits} exits / ${quarter.active_headcount} average staff · ${quarter.attrition_rate_pct ?? "N/A"}% · driver: ${quarter.top_exit_reason ?? "Not recorded"}${quarter.generated_at ? ` · snapshot ${new Date(quarter.generated_at).toLocaleDateString()}` : " · live"}`,
         ]);
       case "leave-turnaround": {
-        const reviewed = leaveRequests.filter((request) => request.reviewed_at);
-        const averageTurnaroundDays = reviewed.length
-          ? reviewed.reduce((sum, request) => {
-              const elapsed =
-                new Date(request.reviewed_at!).getTime() -
-                new Date(request.created_at).getTime();
-              return sum + Math.max(0, elapsed / 86400000);
-            }, 0) / reviewed.length
-          : null;
         return [
-          [
-            "Pending requests",
-            leaveRequests.filter((request) => request.status === "pending")
-              .length,
-          ],
-          [
-            "Approved requests",
-            leaveRequests.filter((request) => request.status === "approved")
-              .length,
-          ],
-          [
-            "Rejected requests",
-            leaveRequests.filter((request) => request.status === "rejected")
-              .length,
-          ],
-          ["Reviewed requests", reviewed.length],
-          [
-            "Average review turnaround",
-            averageTurnaroundDays === null
-              ? "No reviewed requests"
-              : `${averageTurnaroundDays.toFixed(1)} days`,
-          ],
-          [
-            "Target",
-            "Reduce baseline average turnaround by 35% within six months",
-          ],
+          ["Baseline average review time", leaveMetrics.baseline_days == null ? "Set in Settings" : `${leaveMetrics.baseline_days.toFixed(1)} days`],
+          ["Average review time · rolling six months", leaveMetrics.current_average_days == null ? "No reviewed requests in period" : `${leaveMetrics.current_average_days.toFixed(1)} days`],
+          ["Reduction against baseline", leaveMetrics.reduction_percent == null ? "Baseline required" : `${leaveMetrics.reduction_percent.toFixed(1)}%`],
+          ["Target", "35% reduction within six months of deployment"],
+          ["Reviewed requests in period", leaveMetrics.reviewed_request_count],
+          ["Pending requests", leaveMetrics.pending_request_count],
+          ["Measurement period", leaveMetrics.measurement_start && leaveMetrics.measurement_end ? `${leaveMetrics.measurement_start} to ${leaveMetrics.measurement_end}` : "Unavailable"],
         ];
       }
       case "workforce":

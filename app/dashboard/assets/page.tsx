@@ -7,6 +7,7 @@ import {
   Status,
 } from "@/components/dashboard-shell";
 import { OperationsPanel } from "@/components/operations-panel";
+import { AssetLiveRefresh } from "@/components/asset-live-refresh";
 import { getAssets } from "@/lib/supabase/data";
 import { resolveDashboardUserContext } from "@/lib/auth-role";
 import { redirect } from "next/navigation";
@@ -32,6 +33,9 @@ export default async function Page() {
       asset.asset_type,
       employee?.full_name ?? "Unassigned",
       asset.current_location ?? "Not recorded",
+      asset.last_seen_at
+        ? new Date(asset.last_seen_at).toLocaleString("en", { dateStyle: "medium", timeStyle: "short", timeZone: "Africa/Harare" })
+        : "No check-in yet",
       <Status
         key="status"
         tone={asset.status === "verified" ? "green" : "amber"}
@@ -65,12 +69,13 @@ export default async function Page() {
       >
         {assets.length ? (
           <DataTable
-            columns={["Asset", "Type", "Assigned employee", "Current location", "Status", "Action"]}
+            columns={["Asset", "Type", "Assigned employee", "Current location", "Last seen (CAT)", "Status", "Action"]}
             rows={rows}
           />
         ) : (
           <EmptyState label="assets" />
         )}
+        <AssetLiveRefresh />
       </PageFrame>
     </DashboardShell>
   );

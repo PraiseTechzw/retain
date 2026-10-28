@@ -59,6 +59,8 @@ export type AssetRecord = {
   returned_at?: string | null;
   verified_at?: string | null;
   current_location?: string | null;
+  last_seen_at?: string | null;
+  last_tracking_source?: string | null;
   assigned_to?: string | null;
   employees?: EmployeeRecord | EmployeeRecord[] | null;
 };
@@ -89,6 +91,16 @@ export type LeaveBalanceRecord = {
   entitled_days: number;
   carried_over_days: number;
   updated_at: string;
+};
+
+export type LeaveProcessingTargetMetrics = {
+  baseline_days: number | null;
+  current_average_days: number | null;
+  reviewed_request_count: number;
+  pending_request_count: number;
+  reduction_percent: number | null;
+  measurement_start: string;
+  measurement_end: string;
 };
 
 export type AssetDailyLogRecord = {
@@ -431,7 +443,7 @@ export async function getAssets(): Promise<AssetRecord[]> {
   const { data, error } = await supabase
     .from("assets")
     .select(
-      "id, asset_tag, asset_type, description, status, returned_at, verified_at, current_location, assigned_to",
+      "id, asset_tag, asset_type, description, status, returned_at, verified_at, current_location, assigned_to, last_seen_at, last_tracking_source",
     )
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
@@ -472,6 +484,22 @@ export async function getLeaveRequests(): Promise<LeaveRequestRecord[]> {
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []) as LeaveRequestRecord[];
+}
+
+export async function getLeaveProcessingTargetMetrics(): Promise<LeaveProcessingTargetMetrics> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_leave_processing_target_metrics");
+  if (error) throw new Error(error.message);
+  const row = (data?.[0] ?? {}) as Partial<LeaveProcessingTargetMetrics>;
+  return {
+    baseline_days: row.baseline_days == null ? null : Number(row.baseline_days),
+    current_average_days: row.current_average_days == null ? null : Number(row.current_average_days),
+    reviewed_request_count: Number(row.reviewed_request_count ?? 0),
+    pending_request_count: Number(row.pending_request_count ?? 0),
+    reduction_percent: row.reduction_percent == null ? null : Number(row.reduction_percent),
+    measurement_start: String(row.measurement_start ?? ""),
+    measurement_end: String(row.measurement_end ?? ""),
+  };
 }
 
 export async function getLeaveBalances(): Promise<LeaveBalanceRecord[]> {

@@ -429,6 +429,36 @@ export default async function Page() {
                 </div>
               </section>
               </div>
+              <section className="rounded-2xl border border-border/70 bg-card p-6">
+                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                  Leave target measurement
+                </p>
+                <h2 className="mt-2 text-xl font-semibold">
+                  Set the pre-deployment baseline
+                </h2>
+                <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
+                  Enter the institution’s measured average leave review time before deployment, in calendar days. Reports compare it with requests reviewed in the latest six-month period. The 35% improvement target is measured from this baseline.
+                </p>
+                <form action={saveSystemSetting} className="mt-5 flex flex-wrap items-end gap-3">
+                  <input type="hidden" name="key" value="leave_processing_baseline_days" />
+                  <label className="block min-w-56 flex-1 text-sm font-medium text-foreground">
+                    Baseline average (days)
+                    <input
+                      name="value"
+                      type="number"
+                      min="0.1"
+                      max="3650"
+                      step="0.1"
+                      required
+                      defaultValue={settingsMap.leave_processing_baseline_days ?? ""}
+                      className="mt-2 h-10 w-full rounded-xl border border-input bg-background px-3 text-sm"
+                    />
+                  </label>
+                  <button className="h-10 rounded-xl border border-border px-4 text-sm font-medium hover:bg-muted">
+                    Save baseline
+                  </button>
+                </form>
+              </section>
             </SettingsSection>
           )}
 

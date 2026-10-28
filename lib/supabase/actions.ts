@@ -1206,6 +1206,45 @@ export async function recordAssetDailyLog(formData: FormData) {
   return { ok: true as const };
 }
 
+export async function recordAssetTrackingEvent(formData: FormData) {
+  const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, ["administrator", "hr", "ict", "library"]);
+  const assetTag = String(formData.get("asset_tag") ?? "").trim();
+  const source = String(formData.get("source") ?? "").trim();
+  const location = String(formData.get("location") ?? "").trim();
+  if (!assetTag || assetTag.length > 80) {
+    return { ok: false as const, message: "Scan or enter a valid asset tag." };
+  }
+  if (!["barcode", "rfid", "manual"].includes(source)) {
+    return { ok: false as const, message: "Choose barcode, RFID, or manual check-in." };
+  }
+  if (!location || location.length > 180) {
+    return { ok: false as const, message: "Enter the asset’s current location or area." };
+  }
+  const { data: asset, error: assetError } = await supabase
+    .from("assets")
+    .select("id")
+    .eq("asset_tag", assetTag)
+    .maybeSingle();
+  if (assetError) throw new Error("Unable to check this asset tag. Please try again.");
+  if (!asset) return { ok: false as const, message: "No asset matches that tag. Check the scan and try again." };
+
+  const { error } = await supabase.from("asset_tracking_events").insert({
+    asset_id: asset.id,
+    source,
+    location,
+    created_by: user.id,
+  });
+  if (error) {
+    console.error("Asset tracking event failed", { code: error.code });
+    throw new Error("Unable to record the asset check-in. Please try again.");
+  }
+  await audit(supabase, user.id, "tracked", "asset", asset.id, { source, location });
+  revalidatePath("/dashboard/assets");
+  revalidatePath("/dashboard/assets/activity");
+  return { ok: true as const };
+}
+
 export async function createRecruitmentOpening(formData: FormData) {
   const { supabase, user } = await actor();
   await requireAnyRole(supabase, user, ["administrator", "hr", "management"]);
@@ -2100,6 +2139,14 @@ export async function saveSystemSetting(formData: FormData) {
       }
       value = rawValue;
       break;
+    case "leave_processing_baseline_days": {
+      const days = Number(rawValue);
+      if (!Number.isFinite(days) || days <= 0 || days > 3650) {
+        throw new Error("Enter a measured baseline greater than 0 and no more than 3,650 days.");
+      }
+      value = String(days);
+      break;
+    }
     default:
       throw new Error("This system setting is not supported.");
   }

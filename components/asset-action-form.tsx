@@ -5,15 +5,17 @@ import {
   assignAsset,
   recordAssetDailyLog,
   receiveAssetReturn,
+  recordAssetTrackingEvent,
   releaseVerifiedAsset,
   verifyAsset,
 } from "@/lib/supabase/actions";
 
-type ActionKind = "assign" | "log" | "receive" | "verify" | "release";
+type ActionKind = "assign" | "log" | "track" | "receive" | "verify" | "release";
 
 const actionByKind = {
   assign: assignAsset,
   log: recordAssetDailyLog,
+  track: recordAssetTrackingEvent,
   receive: receiveAssetReturn,
   verify: verifyAsset,
   release: releaseVerifiedAsset,
