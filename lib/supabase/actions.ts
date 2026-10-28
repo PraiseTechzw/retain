@@ -2168,38 +2168,68 @@ export async function createInterview(formData: FormData) {
   revalidatePath(`/dashboard/exit-requests/${exitRequestId}`);
 }
 
-export async function createAsset(formData: FormData) {
-  const { supabase, user } = await actor();
-  await requireAnyRole(supabase, user, ["administrator", "hr", "ict", "library"]);
-  const asset = {
-    asset_tag: String(formData.get("asset_tag") ?? "").trim(),
-    asset_type: String(formData.get("asset_type") ?? "").trim(),
-    current_location: String(formData.get("current_location") ?? "").trim() || null,
-    description: String(formData.get("description") ?? "").trim() || null,
-    status: "available",
-  };
-  if (!asset.asset_tag || !asset.asset_type)
-    throw new Error("Enter an asset tag and asset type to continue.");
-  const { data, error } = await supabase
-    .from("assets")
-    .insert(asset)
-    .select("id")
-    .single();
-  if (error?.code === "23505")
-    throw new Error("That asset tag is already in use. Check the tag and try again.");
-  if (error?.code === "42703" || error?.code === "PGRST204") {
-    throw new Error("Asset setup is incomplete in the database. Ask your administrator to apply the latest Supabase migrations.");
+export async function createAsset(formData: FormData): Promise<{ ok: true; message?: string } | { ok: false; message: string }> {
+  try {
+    const { supabase, user } = await actor();
+    await requireAnyRole(supabase, user, ["administrator", "hr", "ict", "library"]);
+    const asset = {
+      asset_tag: String(formData.get("asset_tag") ?? "").trim(),
+      asset_type: String(formData.get("asset_type") ?? "").trim(),
+      current_location: String(formData.get("current_location") ?? "").trim() || null,
+      description: String(formData.get("description") ?? "").trim() || null,
+      status: "available",
+    };
+    if (!asset.asset_tag || !asset.asset_type)
+      return { ok: false, message: "Enter an asset tag and asset type to continue." };
+
+    const { data: existing, error: lookupError } = await supabase
+      .from("assets")
+      .select("id")
+      .eq("asset_tag", asset.asset_tag)
+      .maybeSingle();
+    if (lookupError) {
+      console.error("Asset tag check failed", { code: lookupError.code });
+      return { ok: false, message: "We couldn’t check that asset tag. Please try again." };
+    }
+    if (existing)
+      return { ok: false, message: "This asset tag is already in use. Enter a different tag." };
+
+    const { data, error } = await supabase
+      .from("assets")
+      .insert(asset)
+      .select("id")
+      .single();
+    if (error?.code === "23505")
+      return { ok: false, message: "This asset tag is already in use. Enter a different tag." };
+    if (error?.code === "42703" || error?.code === "PGRST204") {
+      return { ok: false, message: "Asset setup is incomplete. Ask your administrator to apply the latest database migrations." };
+    }
+    if (error) {
+      console.error("Asset creation failed", { code: error.code });
+      return { ok: false, message: "We couldn’t add this asset. Check the details and try again." };
+    }
+    let message: string | undefined;
+    try {
+      await audit(supabase, user.id, "created", "asset", data.id, {
+        asset_tag: asset.asset_tag,
+        asset_type: asset.asset_type,
+      });
+    } catch (error) {
+      console.error("Asset was created but its audit event failed", error);
+      message = "Asset added, but its audit record could not be saved. Please contact your administrator.";
+    }
+    revalidatePath("/dashboard/assets");
+    revalidatePath("/dashboard/assets/activity");
+    return { ok: true, message };
+  } catch (error) {
+    console.error("Asset creation action failed", error);
+    return {
+      ok: false,
+      message: error instanceof Error && /authorized|sign in|account/i.test(error.message)
+        ? error.message
+        : "We couldn’t add this asset. Please try again or contact your administrator.",
+    };
   }
-  if (error) {
-    console.error("Asset creation failed", { code: error.code });
-    throw new Error("We couldn’t add this asset right now. Check the details and try again.");
-  }
-  await audit(supabase, user.id, "created", "asset", data.id, {
-    asset_tag: asset.asset_tag,
-    asset_type: asset.asset_type,
-  });
-  revalidatePath("/dashboard/assets");
-  revalidatePath("/dashboard/assets/activity");
 }
 
 export async function assignAsset(formData: FormData) {

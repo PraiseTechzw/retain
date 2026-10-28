@@ -57,13 +57,22 @@ export function OperationsPanel({
     setMessageIsError(false);
     startTransition(async () => {
       try {
+        let actionMessage: string | undefined;
         if (mode === "employee") await createEmployee(formData);
         if (mode === "exit") await createExitRequest(formData);
-        if (mode === "asset") await createAsset(formData);
+        if (mode === "asset") {
+          const result = await createAsset(formData);
+          if (!result.ok) {
+            setMessageIsError(true);
+            setMessage(result.message);
+            return;
+          }
+          actionMessage = result.message;
+        }
         if (mode === "knowledge") await uploadKnowledgeDocument(formData);
         setMessage(
           mode === "asset"
-            ? "Asset added to your inventory. Assign it to an employee to include it in their exit return checks. Issued assets must be returned and verified before exit clearance can be finalized."
+            ? actionMessage ?? "Asset added to your inventory. Assign it to an employee to include it in their exit return checks. Issued assets must be returned and verified before exit clearance can be finalized."
             : mode === "employee"
               ? "Employee added successfully."
               : mode === "exit"
