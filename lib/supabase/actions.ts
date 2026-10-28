@@ -2000,19 +2000,23 @@ export async function createAsset(formData: FormData) {
   const asset = {
     asset_tag: String(formData.get("asset_tag") ?? "").trim(),
     asset_type: String(formData.get("asset_type") ?? "").trim(),
+    current_location: String(formData.get("current_location") ?? "").trim() || null,
     description: String(formData.get("description") ?? "").trim() || null,
     status: "available",
   };
   if (!asset.asset_tag || !asset.asset_type)
-    throw new Error("Asset tag and type are required.");
+    throw new Error("Enter an asset tag and asset type to continue.");
   const { data, error } = await supabase
     .from("assets")
     .insert(asset)
     .select("id")
     .single();
-  if (error) throw new Error("Unable to create asset.");
+  if (error?.code === "23505")
+    throw new Error("That asset tag is already in use. Check the tag and try again.");
+  if (error) throw new Error("We couldn’t add this asset right now. Please try again.");
   await audit(supabase, user.id, "created", "asset", data.id, {
     asset_tag: asset.asset_tag,
+    asset_type: asset.asset_type,
   });
   revalidatePath("/dashboard/assets");
 }

@@ -38,19 +38,30 @@ export function OperationsPanel({
 }) {
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageIsError, setMessageIsError] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function submit(formData: FormData) {
     setMessage("");
+    setMessageIsError(false);
     startTransition(async () => {
       try {
         if (mode === "employee") await createEmployee(formData);
         if (mode === "exit") await createExitRequest(formData);
         if (mode === "asset") await createAsset(formData);
         if (mode === "knowledge") await uploadKnowledgeDocument(formData);
-        setMessage("Saved successfully.");
+        setMessage(
+          mode === "asset"
+            ? "Asset added to your inventory. You can assign it from its asset record."
+            : mode === "employee"
+              ? "Employee added successfully."
+              : mode === "exit"
+                ? "Exit request created successfully."
+                : "Document uploaded successfully.",
+        );
         setOpen(false);
       } catch (error) {
+        setMessageIsError(true);
         setMessage(
           error instanceof Error ? error.message : "Unable to save record.",
         );
@@ -69,8 +80,8 @@ export function OperationsPanel({
       </button>
       {message && (
         <p
-          role="status"
-          className={`text-xs text-muted-foreground ${open ? "sr-only" : ""}`}
+          role={messageIsError ? "alert" : "status"}
+          className={`text-xs ${messageIsError ? "text-destructive" : "text-muted-foreground"} ${open ? "sr-only" : ""}`}
         >
           {message}
         </p>
@@ -224,9 +235,16 @@ export function OperationsPanel({
               )}
               {mode === "asset" && (
                 <>
-                  <Field name="asset_tag" label="Asset tag" required />
-                  <Field name="asset_type" label="Asset type" required />
-                  <Field name="description" label="Description" />
+                  <p className="text-sm text-muted-foreground">
+                    Record the identifying details so your team can find and track this item. It will be added as available and can be assigned later.
+                  </p>
+                  <Field name="asset_tag" label="Asset tag or serial number" required placeholder="e.g. ICT-LT-0042" maxLength={80} />
+                  <Field name="asset_type" label="Asset type" required placeholder="e.g. Laptop, projector, office furniture" maxLength={120} />
+                  <Field name="current_location" label="Current location" placeholder="e.g. Main office · ICT storeroom" maxLength={160} />
+                  <label className="flex flex-col gap-1.5 text-sm font-medium">
+                    Description <span className="font-normal text-muted-foreground">Optional details such as make, model, or condition</span>
+                    <textarea name="description" rows={3} maxLength={1000} placeholder="Add any details that will help identify or manage this asset." className="rounded-lg border border-input bg-background p-3 font-normal outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" />
+                  </label>
                 </>
               )}
               {mode === "knowledge" && (
@@ -287,7 +305,7 @@ export function OperationsPanel({
                 className="sticky bottom-0 inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {pending && <LoaderCircle aria-hidden="true" className="size-4 animate-spin" />}
-                {pending ? "Saving…" : mode === "employee" ? "Add employee" : "Save record"}
+                {pending ? "Saving…" : mode === "asset" ? "Add asset to inventory" : mode === "employee" ? "Add employee" : mode === "exit" ? "Create exit request" : "Save record"}
               </button>
             </form>
           </div>
