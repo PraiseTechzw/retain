@@ -1,5 +1,8 @@
 import { DashboardShell, PageFrame, Status } from "@/components/dashboard-shell";
-import { resolveDashboardUserContext } from "@/lib/auth-role";
+import {
+  getRoleKey,
+  resolveDashboardUserContext,
+} from "@/lib/auth-role";
 import {
   getEmployees,
   getLeaveBalances,
@@ -45,14 +48,11 @@ export default async function Page() {
     getLeaveBalances(),
     getEmployees(),
   ]);
-  const isReviewer = ["hr", "administrator"].some((role) =>
-    userRole.toLowerCase().includes(role),
-  );
+  const isReviewer = getRoleKey(userRole) !== "employee";
   const supabase = await createClient();
   const { data: authUser } = await supabase.auth.getUser();
-  const email = authUser.user?.email?.toLowerCase();
   const ownEmployee = employees.find(
-    (employee) => employee.email?.toLowerCase() === email,
+    (employee) => employee.user_id === authUser.user?.id,
   );
   const requests = isReviewer
     ? allRequests
@@ -76,8 +76,12 @@ export default async function Page() {
   return (
     <DashboardShell userName={userName} userRole={userRole}>
       <PageFrame
-        title="Leave management"
-        description="Apply for leave, review request status, and track configured annual balances."
+        title={isReviewer ? "Leave management" : "My leave"}
+        description={
+          isReviewer
+            ? "Review employee applications, set balances, and monitor leave decisions."
+            : "Apply for leave and track your applications and annual balance."
+        }
       >
         <div className="space-y-6">
           <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(340px,.8fr)]">

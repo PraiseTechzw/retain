@@ -5,7 +5,7 @@ import { appConfig } from "@/lib/system";
 
 export const metadata: Metadata = {
   title: `${appConfig.appName} | ${appConfig.organization}`,
-  description: `Secure employee exit, clearance, and institutional knowledge preservation for ${appConfig.organization}.`,
+  description: `Secure human resource management and employee retention insights for ${appConfig.organization}.`,
   generator: "v0.app",
   icons: {
     icon: "/cut-logo.png",

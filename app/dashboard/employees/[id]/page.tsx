@@ -3,7 +3,10 @@ import {
   PageFrame,
   Status,
 } from "@/components/dashboard-shell";
-import { resolveDashboardUserContext } from "@/lib/auth-role";
+import {
+  resolveDashboardUserContext,
+  roleHasCapability,
+} from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
 import { updateEmployeeRiskProfile } from "@/lib/supabase/actions";
 import { getEmployeeByLookup } from "@/lib/supabase/data";
@@ -16,9 +19,7 @@ export default async function Page({
   params: Promise<{ id: string }>;
 }) {
   const { user, userName, userRole } = await resolveDashboardUserContext();
-  const canManageEmployee = ["hr", "administrator"].some((role) =>
-    userRole.toLowerCase().includes(role),
-  );
+  const canManageEmployee = roleHasCapability(userRole, "manageEmployees");
   const { id } = await params;
   const supabase = await createClient();
 
@@ -52,9 +53,7 @@ export default async function Page({
           departments: null,
         }
       : null);
-  const hasStaffDirectoryAccess = ["hr", "administrator", "management"].some(
-    (role) => userRole.toLowerCase().includes(role),
-  );
+  const hasStaffDirectoryAccess = canManageEmployee;
   const isOwnEmployeeRecord =
     fallbackEmployee?.id === user?.id ||
     fallbackEmployee?.user_id === user?.id ||
@@ -169,7 +168,7 @@ export default async function Page({
               <section className="rounded-2xl border border-border/70 bg-card p-6">
                 <h2 className="text-lg font-semibold">Commute details for risk review</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Optional HR-maintained indicators. Access is restricted to HR and administrators.
+                  Optional HR-maintained indicators. Access is restricted to HR, HR managers, and administrators.
                 </p>
                 <form action={updateEmployeeRiskProfile} className="mt-4 grid gap-3 md:grid-cols-3">
                   <input type="hidden" name="employee_id" value={fallbackEmployee.id} />

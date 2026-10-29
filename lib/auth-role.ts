@@ -1,41 +1,31 @@
 import { createClient } from "@/lib/supabase/server";
 import { appConfig } from "@/lib/system";
 import { redirect } from "next/navigation";
+import {
+  normalizeUserRole,
+  roleHasCapability,
+  type DashboardCapability,
+} from "@/lib/role-utils";
 
-export type UserRole =
-  | "Administrator"
-  | "HR"
-  | "ICT"
-  | "Library"
-  | "Management"
-  | "Academic Attaché"
-  | "Support Staff"
-  | "Employee";
+export {
+  getRoleKey,
+  normalizeUserRole,
+  roleHasCapability,
+} from "@/lib/role-utils";
+export type {
+  DashboardCapability,
+  RoleKey,
+  UserRole,
+} from "@/lib/role-utils";
 
-export function normalizeUserRole(role: string | null | undefined): string {
-  const trimmed = role?.trim();
-
-  if (!trimmed) {
-    return "Employee";
+export async function requireDashboardCapability(
+  capability: DashboardCapability,
+) {
+  const context = await resolveDashboardUserContext();
+  if (!roleHasCapability(context.userRole, capability)) {
+    redirect("/dashboard");
   }
-
-  const normalized = trimmed.toLowerCase();
-  const exactRoles: Record<string, string> = {
-    admin: "Administrator",
-    administrator: "Administrator",
-    hr: "HR",
-    ict: "ICT",
-    "information and communication technology": "ICT",
-    library: "Library",
-    "library services": "Library",
-    management: "Management",
-    "academic attaché": "Academic Attaché",
-    "academic attache": "Academic Attaché",
-    "support staff": "Support Staff",
-    employee: "Employee",
-  };
-
-  return exactRoles[normalized] ?? trimmed;
+  return context;
 }
 
 export async function resolveDashboardUserContext() {
@@ -47,7 +37,7 @@ export async function resolveDashboardUserContext() {
 
   const { data: profile, error } = await supabase
     .from("profiles")
-    .select("full_name, role, active")
+    .select("full_name, role, active, department_id")
     .eq("id", user.id)
     .maybeSingle();
   if (error) throw new Error("Unable to verify account profile.");

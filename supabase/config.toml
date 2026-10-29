@@ -1,4 +1,4 @@
-project_id = "cut-elams-local"
+project_id = "cut-hrmers-local"
 
 [db.seed]
 enabled = true

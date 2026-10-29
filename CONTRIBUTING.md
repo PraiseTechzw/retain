@@ -1,6 +1,6 @@
-# Contributing to CUT-ELAMS
+# Contributing to CUT-HRMERS
 
-Thank you for helping improve CUT-ELAMS. Changes should preserve employee privacy, least-privilege access, and clear separation between application behavior and institutional policy.
+Thank you for helping improve CUT-HRMERS. Changes should preserve employee privacy, least-privilege access, and clear separation between application behavior and institutional policy.
 
 ## Before you start
 

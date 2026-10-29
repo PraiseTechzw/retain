@@ -1,170 +1,295 @@
 import { redirect } from "next/navigation";
 import { DashboardShell, PageFrame } from "@/components/dashboard-shell";
-import { DashboardOverview } from "@/components/dashboard/overview";
-import { normalizeUserRole } from "@/lib/auth-role";
-import { getGreeting } from "@/lib/system";
+import {
+  RoleDashboardOverview,
+  type DashboardAction,
+  type DashboardDeparture,
+  type DashboardMetric,
+} from "@/components/dashboard/role-overview";
+import {
+  getRoleKey,
+  resolveDashboardUserContext,
+} from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
 
+const openExitStatuses = [
+  "draft",
+  "submitted",
+  "under_review",
+  "clearance",
+  "blocked",
+  "eligible_for_finalization",
+];
+
 export default async function Page() {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { user, profile, userName, userRole } =
+    await resolveDashboardUserContext();
+  const role = getRoleKey(userRole);
 
-  if (!user) {
-    redirect("/auth/login");
-  }
-
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("department_id, full_name, role, active")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (!profile?.department_id) {
+  if (!profile.department_id) {
     redirect("/onboard?next=/dashboard");
   }
 
-  const [
-    { count: employeeCount },
-    { count: exitCount },
-    { count: clearanceCount },
-    { count: documentCount },
-    { data: clearanceSteps },
-    { data: recentRequests },
-  ] = await Promise.all([
-    supabase
+  const supabase = await createClient();
+  let metrics: DashboardMetric[];
+  let actions: DashboardAction[];
+  let departures: DashboardDeparture[] = [];
+  let unlinkedEmployee = false;
+
+  if (role === "employee") {
+    const { data: employee, error: employeeError } = await supabase
       .from("employees")
-      .select("*", { count: "exact", head: true })
-      .eq("employment_status", "active"),
-    supabase
-      .from("exit_requests")
-      .select("*", { count: "exact", head: true })
-      .in("status", [
-        "draft",
-        "submitted",
-        "under_review",
-        "clearance",
-        "blocked",
-        "eligible_for_finalization",
-      ]),
-    supabase
-      .from("clearance_steps")
-      .select("*", { count: "exact", head: true })
-      .eq("status", "pending"),
-    supabase
-      .from("knowledge_documents")
-      .select("*", { count: "exact", head: true }),
-    supabase.from("clearance_steps").select("status"),
-    supabase
-      .from("exit_requests")
-      .select("id, status, last_day, employees(full_name, employee_number)")
-      .in("status", [
-        "draft",
-        "submitted",
-        "under_review",
-        "clearance",
-        "blocked",
-        "eligible_for_finalization",
-      ])
-      .order("last_day", { ascending: true, nullsFirst: false })
-      .limit(5),
-  ]);
+      .select("id")
+      .eq("user_id", user.id)
+      .maybeSingle();
 
-  const userName =
-    profile?.full_name ||
-    (user?.user_metadata?.full_name as string | undefined) ||
-    user?.email?.split("@")[0] ||
-    "User";
-  const userRole = normalizeUserRole(
-    profile?.active !== false ? profile?.role || "Employee" : "Employee",
-  );
+    if (employeeError) {
+      throw new Error("Unable to load your employee record.");
+    }
 
-  const completedClearances = (clearanceSteps ?? []).filter(
-    (step) => step.status === "approved",
-  ).length;
-  const pendingClearances = (clearanceSteps ?? []).filter(
-    (step) =>
-      step.status === "pending" ||
-      step.status === "in_progress" ||
-      step.status === "blocked",
-  ).length;
+    unlinkedEmployee = !employee;
+    const [leaveRequests, hrRequests, exitRequests] = employee
+      ? await Promise.all([
+          supabase
+            .from("leave_requests")
+            .select("id", { count: "exact", head: true })
+            .eq("employee_id", employee.id)
+            .eq("status", "pending"),
+          supabase
+            .from("employee_requests")
+            .select("id", { count: "exact", head: true })
+            .eq("employee_id", employee.id)
+            .in("status", ["submitted", "in_progress"]),
+          supabase
+            .from("employee_requests")
+            .select("id", { count: "exact", head: true })
+            .eq("employee_id", employee.id)
+            .eq("request_type", "exit_request")
+            .in("status", ["submitted", "in_progress"]),
+        ])
+      : [{ count: 0 }, { count: 0 }, { count: 0 }];
 
-  const metrics = [
-    {
-      label: "Active employees",
-      value: employeeCount ?? 0,
-      description: "Current workforce records",
-      href: "/dashboard/employees",
-      icon: "employees",
-      tone: "blue",
-    },
-    {
-      label: "Open exit requests",
-      value: exitCount ?? 0,
-      description: "Transitions in progress",
-      href: "/dashboard/exit-requests",
-      icon: "exits",
-      tone: "amber",
-    },
-    {
-      label: "Clearances to review",
-      value: clearanceCount ?? 0,
-      description: "Pending department actions",
-      href: "/dashboard/clearances",
-      icon: "clearances",
-      tone: "violet",
-    },
-    {
-      label: "Knowledge records",
-      value: documentCount ?? 0,
-      description: "Documents retained",
-      href: "/dashboard/knowledge-hub",
-      icon: "knowledge",
-      tone: "emerald",
-    },
-  ] as const;
+    if (leaveRequests.error || hrRequests.error || exitRequests.error) {
+      throw new Error("Unable to load your personal dashboard.");
+    }
 
-  const departures = (recentRequests ?? []).map((request) => {
-    const employee = Array.isArray(request.employees)
-      ? request.employees[0]
-      : request.employees;
-    return {
-      id: request.id,
-      employeeName: employee?.full_name ?? "Unknown employee",
-      employeeNumber: employee?.employee_number ?? "No employee number",
-      status: request.status,
-      lastDay: request.last_day,
-    };
-  });
+    metrics = [
+      {
+        label: "Leave awaiting review",
+        value: leaveRequests.count ?? 0,
+        description: "Your pending leave applications",
+        href: "/dashboard/leave",
+        icon: "leave",
+      },
+      {
+        label: "Open HR requests",
+        value: hrRequests.count ?? 0,
+        description: "Requests submitted to Human Resources",
+        href: "/dashboard/requests",
+        icon: "requests",
+      },
+      {
+        label: "Exit support requests",
+        value: exitRequests.count ?? 0,
+        description: "Exit-related requests sent to HR",
+        href: "/dashboard/requests",
+        icon: "exits",
+      },
+    ];
+    actions = [
+      {
+        href: "/dashboard/leave",
+        title: "Apply for leave",
+        description: "Submit an application and follow its status.",
+        icon: "leave",
+      },
+      {
+        href: "/dashboard/requests",
+        title: "Contact HR",
+        description: "Request a document, profile correction, or HR support.",
+        icon: "requests",
+      },
+      {
+        href: "/profile",
+        title: "My profile",
+        description: "Review your personal profile information.",
+        icon: "employees",
+      },
+    ];
+  } else {
+    const [
+      { count: employeeCount, error: employeeError },
+      { count: exitCount, error: exitError },
+      { count: leaveCount, error: leaveError },
+      { count: requestCount, error: requestError },
+      { data: recentRequests, error: recentRequestsError },
+      { count: userCount, error: userError },
+    ] = await Promise.all([
+      supabase
+        .from("employees")
+        .select("id", { count: "exact", head: true })
+        .eq("employment_status", "active"),
+      supabase
+        .from("exit_cases")
+        .select("id", { count: "exact", head: true })
+        .in("status", openExitStatuses),
+      supabase
+        .from("leave_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending"),
+      supabase
+        .from("employee_requests")
+        .select("id", { count: "exact", head: true })
+        .in("status", ["submitted", "in_progress"]),
+      supabase
+        .from("exit_cases")
+        .select("id, status, last_day, employees(full_name, employee_number)")
+        .in("status", openExitStatuses)
+        .order("last_day", { ascending: true, nullsFirst: false })
+        .limit(5),
+      role === "administrator"
+        ? supabase
+            .from("profiles")
+            .select("id", { count: "exact", head: true })
+            .eq("active", true)
+        : Promise.resolve({ count: null, error: null }),
+    ]);
+
+    if (
+      employeeError ||
+      exitError ||
+      leaveError ||
+      requestError ||
+      recentRequestsError ||
+      userError
+    ) {
+      throw new Error("Unable to load the operational dashboard.");
+    }
+
+    metrics = [
+      ...(role === "administrator"
+        ? [
+            {
+              label: "Active accounts",
+              value: userCount ?? 0,
+              description: "Profiles with current system access",
+              href: "/dashboard/user-management",
+              icon: "users" as const,
+            },
+          ]
+        : []),
+      {
+        label: "Active employees",
+        value: employeeCount ?? 0,
+        description: "Current workforce records",
+        href: "/dashboard/employees",
+        icon: "employees",
+      },
+      {
+        label: "Open exit cases",
+        value: exitCount ?? 0,
+        description: "Transitions requiring follow-up",
+        href: "/dashboard/exit-requests",
+        icon: "exits",
+      },
+      {
+        label: "Pending leave",
+        value: leaveCount ?? 0,
+        description: "Applications awaiting a decision",
+        href: "/dashboard/leave",
+        icon: "leave",
+      },
+      {
+        label: "Open HR requests",
+        value: requestCount ?? 0,
+        description: "Employee queries and follow-ups",
+        href: "/dashboard/requests",
+        icon: "requests",
+      },
+    ];
+
+    actions =
+      role === "administrator"
+        ? [
+            {
+              href: "/dashboard/user-management",
+              title: "Access & roles",
+              description: "Review accounts and administer role assignments.",
+              icon: "users",
+            },
+            {
+              href: "/dashboard/reports",
+              title: "Institutional reports",
+              description: "Review workforce and operational indicators.",
+              icon: "reports",
+            },
+            {
+              href: "/dashboard/settings",
+              title: "System settings",
+              description: "Configure organization-wide workflows.",
+              icon: "settings",
+            },
+          ]
+        : [
+            {
+              href: "/dashboard/employees",
+              title: "Employee register",
+              description: "Maintain staff records and employment details.",
+              icon: "employees",
+            },
+            {
+              href: "/dashboard/leave",
+              title: "Leave review",
+              description: "Review applications and maintain balances.",
+              icon: "leave",
+            },
+            {
+              href: "/dashboard/requests",
+              title: "HR service queue",
+              description: "Respond to employee requests and follow-ups.",
+              icon: "requests",
+            },
+          ];
+
+    departures = (recentRequests ?? []).map((request) => {
+      const employee = Array.isArray(request.employees)
+        ? request.employees[0]
+        : request.employees;
+      return {
+        id: request.id,
+        employeeName: employee?.full_name ?? "Unknown employee",
+        employeeNumber: employee?.employee_number ?? "No employee number",
+        status: request.status,
+        lastDay: request.last_day,
+      };
+    });
+  }
 
   return (
     <DashboardShell userName={userName} userRole={userRole}>
       <PageFrame
-        title={getGreeting(userName)}
+        title={`Good ${getGreetingPeriod()}, ${userName.split(" ")[0]}`}
         description={
-          userRole === "Employee"
-            ? "Here is the continuity information relevant to your role and department."
-            : "Here is what is happening across your institutional continuity workspace."
-        }
-        action={
-          <a
-            href="/dashboard/reports"
-            className="inline-flex items-center justify-center rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition hover:bg-primary/90"
-          >
-            View reports
-          </a>
+          role === "employee"
+            ? "Your self-service workspace for leave, HR support, and profile information."
+            : `Your ${userRole} workspace for workforce operations and timely decisions.`
         }
       >
-        <DashboardOverview
-          metrics={[...metrics]}
+        <RoleDashboardOverview
+          audience={userRole}
+          metrics={metrics}
+          actions={actions}
           departures={departures}
-          clearanceTotal={(clearanceSteps ?? []).length}
-          clearanceApproved={completedClearances}
-          clearancePending={pendingClearances}
-          userRole={userRole}
+          unlinkedEmployee={unlinkedEmployee}
         />
       </PageFrame>
     </DashboardShell>
   );
+}
+
+function getGreetingPeriod() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "morning";
+  if (hour < 18) return "afternoon";
+  return "evening";
 }

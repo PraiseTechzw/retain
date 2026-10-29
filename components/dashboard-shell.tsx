@@ -5,72 +5,27 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-  Activity,
-  BarChart3,
-  BookOpen,
-  BriefcaseBusiness,
   CalendarDays,
   ChevronDown,
   ClipboardCheck,
-  FileText,
   LayoutDashboard,
   LogOut,
   Menu,
-  PackageCheck,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
   Settings2,
-  ShieldCheck,
   Users,
   X,
 } from "lucide-react";
 import { signOut } from "@/lib/supabase/actions";
 import { appConfig, getInitials } from "@/lib/system";
+import { getRoleKey, normalizeUserRole, type RoleKey } from "@/lib/role-utils";
 import { NotificationCenter } from "@/components/notification-center";
 import { UserPreferencesProvider } from "@/components/user-preferences";
 
 function resolveDisplayRole(userRole?: string | null) {
-  if (!userRole) {
-    return appConfig.defaultRole;
-  }
-
-  const value = userRole.trim();
-  if (!value) {
-    return appConfig.defaultRole;
-  }
-
-  const lower = value.toLowerCase();
-
-  if (lower === "admin" || lower.includes("administrator")) {
-    return "Administrator";
-  }
-
-  if (lower.includes("hr")) {
-    return "HR";
-  }
-
-  if (lower.includes("ict")) {
-    return "ICT";
-  }
-
-  if (lower.includes("library")) {
-    return "Library";
-  }
-
-  if (lower.includes("attache") || lower.includes("attaché")) {
-    return "Academic Attaché";
-  }
-
-  if (lower.includes("support")) {
-    return "Support Staff";
-  }
-
-  if (lower.includes("management") || lower.includes("operations")) {
-    return "Management";
-  }
-
-  return value;
+  return normalizeUserRole(userRole || appConfig.defaultRole);
 }
 
 const navItems = [
@@ -78,96 +33,59 @@ const navItems = [
     "Overview",
     "/dashboard",
     LayoutDashboard,
-    ["employee", "hr", "administrator", "management"],
+    ["employee", "hr", "administrator", "hr_manager"],
   ],
   ["Users", "/dashboard/user-management", Users, ["administrator", "hr"]],
   [
     "Employees",
     "/dashboard/employees",
     Users,
-    ["hr", "administrator", "management"],
+    ["hr", "administrator", "hr_manager"],
   ],
   [
-    "Exit Requests",
+    "Exit cases",
     "/dashboard/exit-requests",
     ClipboardCheck,
-    ["employee", "hr", "administrator", "management"],
+    ["hr", "administrator", "hr_manager"],
   ],
   [
     "Leave",
     "/dashboard/leave",
     CalendarDays,
-    [
-      "employee",
-      "academic attaché",
-      "support staff",
-      "ict",
-      "library",
-      "management",
-      "hr",
-      "administrator",
-    ],
+    ["employee", "hr", "administrator", "hr_manager"],
   ],
   [
-    "Clearances",
-    "/dashboard/clearances",
-    ShieldCheck,
-    ["employee", "hr", "administrator", "management"],
-  ],
-  [
-    "Assets",
-    "/dashboard/assets",
-    PackageCheck,
-    ["hr", "administrator", "management", "ict", "library"],
-  ],
-  [
-    "Asset Activity",
-    "/dashboard/assets/activity",
-    Activity,
-    ["hr", "administrator", "management", "ict", "library"],
-  ],
-  [
-    "Knowledge Hub",
-    "/dashboard/knowledge-hub",
-    BookOpen,
-    ["employee", "hr", "administrator", "management", "ict", "library"],
-  ],
-  [
-    "Analytics",
-    "/dashboard/analytics",
-    BarChart3,
-    ["hr", "administrator", "management"],
-  ],
-  [
-    "Talent Support",
-    "/dashboard/talent-risk",
-    Activity,
-    ["hr", "administrator", "management"],
-  ],
-  [
-    "Recruitment",
-    "/dashboard/recruitment",
-    BriefcaseBusiness,
-    ["hr", "administrator", "management"],
+    "HR Requests",
+    "/dashboard/requests",
+    ClipboardCheck,
+    ["employee", "hr", "administrator", "hr_manager"],
   ],
   [
     "Reports",
     "/dashboard/reports",
-    FileText,
-    ["hr", "administrator", "management"],
+    Settings2,
+    ["hr", "administrator", "hr_manager"],
   ],
-  ["Settings", "/dashboard/settings", Settings2, ["hr", "administrator"]],
+  [
+    "Settings",
+    "/dashboard/settings",
+    Settings2,
+    ["employee", "hr", "administrator", "hr_manager"],
+  ],
 ] as const;
 
-function canAccessNavItem(userRole: string, allowedRoles: readonly string[]) {
-  const normalizedRole = userRole.toLowerCase();
-  return allowedRoles.some(
-    (role) =>
-      normalizedRole.includes(role) ||
-      (role === "employee" &&
-        (normalizedRole.includes("academic attaché") ||
-          normalizedRole.includes("support staff"))),
-  );
+function canAccessNavItem(userRole: string, allowedRoles: readonly RoleKey[]) {
+  return allowedRoles.includes(getRoleKey(userRole));
+}
+
+function getNavLabel(label: string, href: string, userRole: string) {
+  if (href === "/dashboard/requests" && getRoleKey(userRole) === "employee") {
+    return "My HR requests";
+  }
+  if (href === "/dashboard/settings" && getRoleKey(userRole) === "employee") {
+    return "My settings";
+  }
+  return label;
 }
 
 function SidebarNav({
@@ -275,7 +193,9 @@ function SidebarNav({
                       strokeWidth={active ? 2.35 : 2}
                     />
                   </span>
-                  <span className={collapsed ? "lg:hidden" : ""}>{label}</span>
+                  <span className={collapsed ? "lg:hidden" : ""}>
+                    {getNavLabel(label, href, userRole)}
+                  </span>
                   {active && (
                     <span
                       className={`absolute right-3 size-1.5 rounded-full bg-primary-foreground ${collapsed ? "lg:hidden" : ""}`}
@@ -357,10 +277,12 @@ export function DashboardShell({
   }, []);
 
   const searchResults = searchQuery.trim()
-    ? navItems.filter(([label, , , allowedRoles]) => {
+    ? navItems.filter(([label, href, , allowedRoles]) => {
+        const navLabel = getNavLabel(label, href, displayRole);
         const matchesQuery = label
           .toLowerCase()
-          .includes(searchQuery.trim().toLowerCase());
+          .includes(searchQuery.trim().toLowerCase()) ||
+          navLabel.toLowerCase().includes(searchQuery.trim().toLowerCase());
 
         return matchesQuery && canAccessNavItem(displayRole, allowedRoles);
       })
@@ -425,7 +347,7 @@ export function DashboardShell({
                     }
                   }}
                   aria-label="Search workspace"
-                  placeholder="Search employees, requests, assets..."
+                  placeholder="Search workspace pages..."
                   className="h-11 w-full rounded-xl border border-input bg-card/80 pl-10 pr-20 text-sm outline-none shadow-sm transition placeholder:text-muted-foreground/70 focus:border-primary focus:ring-2 focus:ring-primary/15"
                 />
                 <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 rounded-md border border-border bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground xl:block">
@@ -448,7 +370,7 @@ export function DashboardShell({
                           <span className="flex size-7 items-center justify-center rounded-md bg-muted text-muted-foreground">
                             <Icon className="size-4" />
                           </span>
-                          {label}
+                          {getNavLabel(label, href, displayRole)}
                         </Link>
                       ))}
                     </div>

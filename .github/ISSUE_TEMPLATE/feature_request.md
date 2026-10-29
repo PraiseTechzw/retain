@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Propose an improvement to CUT-ELAMS
+about: Propose an improvement to CUT-HRMERS
 labels: enhancement
 ---
 

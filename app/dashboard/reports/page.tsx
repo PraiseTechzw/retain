@@ -5,14 +5,13 @@ import {
   PageFrame,
   Status,
 } from "@/components/dashboard-shell";
-import { resolveDashboardUserContext } from "@/lib/auth-role";
+import { requireDashboardCapability } from "@/lib/auth-role";
 import {
   getAuditEvents,
   getLeaveProcessingTargetMetrics,
   getQuarterlyTurnoverSummary,
   getReportDashboardSnapshot,
 } from "@/lib/supabase/data";
-import { redirect } from "next/navigation";
 
 const reportCatalog = [
   {
@@ -78,15 +77,8 @@ export default async function Page({
     : "workforce";
   const exportFormat = params.format === "csv" ? "csv" : "preview";
 
-  const { user, userName, userRole } = await resolveDashboardUserContext();
-  if (!user) redirect("/auth/login");
-  if (
-    !["hr", "administrator", "management"].some((role) =>
-      userRole.toLowerCase().includes(role),
-    )
-  ) {
-    redirect("/dashboard");
-  }
+  const { userName, userRole } =
+    await requireDashboardCapability("viewReports");
   const [snapshot, quarterlyTurnover, auditEvents, leaveMetrics] =
     await Promise.all([
       getReportDashboardSnapshot(),

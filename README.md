@@ -1,18 +1,16 @@
-# CUT-ELAMS
+# CUT-HRMERS
 
-CUT-ELAMS (the Retain application) is Chinhoyi University of Technology's web platform for employee lifecycle workflows, leave, asset accountability, knowledge handover, and HR/management reporting.
+CUT-HRMERS is Chinhoyi University of Technology's Human Resource Management and Employee Retention System. It supports daily HR administration, employee self-service, leave, appointments, contracts, employee relations, engagement, retention, exits, and workforce reporting.
 
 > **Deployment status:** application code and database migrations are in this repository. A successful local build does not prove that migrations, Supabase Storage policies, scheduled jobs, email delivery, or role access have been validated in the institution's live project. Follow the deployment and acceptance checklists before production use.
 
 ## What the system does
 
-- **Employee records and recruitment mapping:** manage employee profiles and planned openings by role, department, category, position count, start date, and pipeline stage. Openings are planning records, not candidate application tracking.
-- **Leave self-service:** employees request leave; HR configures year/type balances and reviews requests. Server and database checks enforce the configured balance rules.
-- **Asset accountability:** ICT and Library staff manage assignment, return receipt, verification, and daily activity logs for checks, movement, maintenance, issues, and returns.
-- **Digital exit clearance:** HR coordinates departmental steps. Finalization is blocked until applicable clearance steps are approved, assigned assets are returned and verified, and mandatory applicable knowledge documents are approved. Account deactivation is separately blocked until the digital exit is complete.
-- **Knowledge handover:** staff upload documents to private Supabase Storage; configured reviewers approve or request changes. Technical employees require an approved handover and configured applicable requirements before finalization.
-- **Analytics and support review:** quarterly turnover/exit-driver reports, review-turnaround measures, aggregate commute planning, and HR-recorded employee support actions. The app does not score or predict employee attrition.
-- **Administration and alerts:** administrators assign roles; HR manages permitted account/workflow operations; users receive in-app notifications and configurable scheduled email digests with audit events.
+- **Employee records:** academic and non-academic staff register, appointments, contracts, and employment status.
+- **Employee self-service:** leave applications and HR requests, with HR processing and notifications.
+- **Daily HR operations:** contracts, probation, onboarding, employee relations, and authorised case management.
+- **Engagement and retention:** check-ins, surveys, retention actions, and aggregated workforce insight.
+- **HR exit management:** HR records exits, interviews, internal completion steps, and exit trends.
 
 The support workspace records agreed follow-up actions and presents neutral service-date and commute context. It does not use approved leave, commute, or tenure to score or rank employees. Any future attrition model requires a separately approved, validated, and privacy-reviewed project.
 

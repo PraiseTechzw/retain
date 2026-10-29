@@ -8,10 +8,11 @@ import {
 } from "@/components/dashboard-shell";
 import { OperationsPanel } from "@/components/operations-panel";
 import { getEmployees, getExitRequests } from "@/lib/supabase/data";
-import { resolveDashboardUserContext } from "@/lib/auth-role";
+import { requireDashboardCapability } from "@/lib/auth-role";
 
 export default async function Page() {
-  const { userName, userRole } = await resolveDashboardUserContext();
+  const { userName, userRole } =
+    await requireDashboardCapability("manageExitCases");
   const [requests, employeeRows] = await Promise.all([
     getExitRequests(),
     getEmployees(),

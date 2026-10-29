@@ -8,20 +8,14 @@ import {
 } from "@/components/dashboard-shell";
 import { OperationsPanel } from "@/components/operations-panel";
 import { getDepartments, getEmployees } from "@/lib/supabase/data";
-import { resolveDashboardUserContext } from "@/lib/auth-role";
-import { redirect } from "next/navigation";
+import { requireDashboardCapability } from "@/lib/auth-role";
 
 export default async function Page() {
-  const { userName, userRole } = await resolveDashboardUserContext();
-  if (!["hr", "administrator", "management"].some((role) => userRole.toLowerCase().includes(role))) {
-    redirect("/dashboard");
-  }
-  const canCreateEmployees = ["hr", "administrator"].some((role) =>
-    userRole.toLowerCase().includes(role),
-  );
+  const { userName, userRole } =
+    await requireDashboardCapability("manageEmployees");
   const [employees, departments] = await Promise.all([
     getEmployees(),
-    canCreateEmployees ? getDepartments() : Promise.resolve([]),
+    getDepartments(),
   ]);
   const rows = employees.map((employee) => {
     const department = Array.isArray(employee.departments)
@@ -42,7 +36,7 @@ export default async function Page() {
       >
         {employee.employment_status}
       </Status>,
-      employee.joined_on ?? "—",
+      employee.appointment_date ?? "—",
     ];
   });
   return (
@@ -51,23 +45,21 @@ export default async function Page() {
         title="Employee Management"
         description="Maintain employee records and monitor institutional transitions."
         action={
-          canCreateEmployees ? (
-            <OperationsPanel
-              mode="employee"
-              departments={departments.flatMap((department) =>
-                department.id && department.name
-                  ? [{ id: department.id, name: department.name }]
-                  : [],
-              )}
-            />
-          ) : undefined
+          <OperationsPanel
+            mode="employee"
+            departments={departments.flatMap((department) =>
+              department.id && department.name
+                ? [{ id: department.id, name: department.name }]
+                : [],
+            )}
+          />
         }
       >
         {employees.length === 0 ? (
           <EmptyState label="employees" />
         ) : (
           <DataTable
-            columns={["Employee", "Role & department", "Status", "Joined"]}
+            columns={["Employee", "Role & department", "Status", "Appointment"]}
             rows={rows}
           />
         )}

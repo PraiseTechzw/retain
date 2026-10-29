@@ -1,12 +1,12 @@
 export const appConfig = {
-  appName: process.env.NEXT_PUBLIC_APP_NAME || "CUT-ELAMS",
-  shortName: process.env.NEXT_PUBLIC_APP_SHORT_NAME || "CUT-ELAMS",
+  appName: process.env.NEXT_PUBLIC_APP_NAME || "CUT-HRMERS",
+  shortName: process.env.NEXT_PUBLIC_APP_SHORT_NAME || "CUT-HRMERS",
   workspaceLabel:
     process.env.NEXT_PUBLIC_WORKSPACE_LABEL ||
     "Chinhoyi University of Technology",
   subtitle:
     process.env.NEXT_PUBLIC_APP_SUBTITLE ||
-    "Employee Lifecycle & Asset Management",
+    "Human Resource Management & Employee Retention",
   organization:
     process.env.NEXT_PUBLIC_ORGANIZATION_NAME ||
     "Chinhoyi University of Technology",
@@ -18,13 +18,9 @@ export const appConfig = {
 
 export const defaultSystemSettings = {
   organization_name: appConfig.organization,
-  default_clearance_departments: [
-    "ICT",
-    "Library",
-    "Finance",
-    "Department head",
-    "Knowledge",
-  ],
+  // Kept temporarily so existing database settings can be read during the
+  // CUT-HRMERS transition. The clearance workflow is no longer exposed.
+  default_clearance_departments: [],
   notification_channel: "email",
   retention_days: "2555",
   security_mode: "standard",
@@ -35,41 +31,25 @@ export type SystemSettingKey = keyof typeof defaultSystemSettings;
 export function getDefaultSystemSettings() {
   return {
     ...defaultSystemSettings,
-    default_clearance_departments: [
-      ...defaultSystemSettings.default_clearance_departments,
-    ],
+    default_clearance_departments: [],
   };
 }
 
 export function parseStoredList(value: string | null | undefined): string[] {
-  if (!value) return [...defaultSystemSettings.default_clearance_departments];
-
-  const trimmed = value.trim();
-  if (!trimmed) return [...defaultSystemSettings.default_clearance_departments];
-
+  if (!value?.trim()) return [];
   try {
-    const parsed = JSON.parse(trimmed) as unknown;
-    if (Array.isArray(parsed)) {
-      return parsed.map((item) => String(item).trim()).filter(Boolean);
-    }
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed) ? parsed.map(String).map((item) => item.trim()).filter(Boolean) : [];
   } catch {
-    // Fall through to comma-separated parsing below.
+    return value.split(/[\n,]+/).map((item) => item.trim()).filter(Boolean);
   }
-
-  return trimmed
-    .split(/[\n,]+/)
-    .map((item) => item.trim())
-    .filter(Boolean);
 }
 
 export function resolveSystemSettingValue(
   key: SystemSettingKey,
   rawValue: string | null | undefined,
 ) {
-  if (key === "default_clearance_departments") {
-    return parseStoredList(rawValue).join(", ");
-  }
-
+  if (key === "default_clearance_departments") return parseStoredList(rawValue).join(", ");
   return rawValue?.trim() || defaultSystemSettings[key];
 }
 

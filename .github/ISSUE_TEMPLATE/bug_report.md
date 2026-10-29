@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a reproducible defect in CUT-ELAMS
+about: Report a reproducible defect in CUT-HRMERS
 labels: bug
 ---
 

@@ -25,9 +25,8 @@ function notificationHref(notification: NotificationRecord) {
   switch (notification.entity_type) {
     case "exit_request":
       return id ? `/dashboard/exit-requests/${encodeURIComponent(id)}` : "/dashboard/exit-requests";
-    case "clearance":
-    case "clearance_step":
-      return id ? `/dashboard/clearances/${encodeURIComponent(id)}` : "/dashboard/clearances";
+    case "exit_case":
+      return id ? `/dashboard/exit-requests/${encodeURIComponent(id)}` : "/dashboard/exit-requests";
     case "asset":
       return id ? `/dashboard/assets/${encodeURIComponent(id)}` : "/dashboard/assets";
     case "leave_request":

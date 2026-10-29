@@ -42,7 +42,8 @@ export default function LoginForm({
 }) {
   const [showPassword, setShowPassword] = useState(false);
   const isErrorMessage =
-    !!message && /invalid|error|required|failed|denied|inactive|no active/i.test(message);
+    !!message &&
+    /invalid|error|required|failed|denied|inactive|no active|verify/i.test(message);
 
   return (
     <>
@@ -120,13 +121,7 @@ export default function LoginForm({
       </form>
 
       <p className="mt-6 text-center text-sm text-muted-foreground">
-        Need an account?{" "}
-        <Link
-          href="/auth/register"
-          className="font-medium text-primary underline-offset-4 hover:underline"
-        >
-          Create account
-        </Link>
+        Accounts are created by CUT Human Resources or the system administrator.
       </p>
     </>
   );

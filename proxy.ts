@@ -8,6 +8,8 @@ export async function proxy(request: NextRequest) {
   const isPublicPath = publicPaths.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   );
+  const isProtectedPath =
+    pathname.startsWith("/dashboard") || pathname.startsWith("/profile");
 
   const response = NextResponse.next({ request });
   const supabase = createServerClient(
@@ -31,7 +33,8 @@ export async function proxy(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const { data: profile, error: profileError } = user
+  const { data: profile, error: profileError } = user &&
+    (isProtectedPath || isPublicPath)
     ? await supabase
         .from("profiles")
         .select("active")
@@ -39,11 +42,21 @@ export async function proxy(request: NextRequest) {
         .maybeSingle()
     : { data: null, error: null };
   if (profileError) {
-    throw new Error("Unable to verify account status.");
+    console.error("Unable to verify account status.", {
+      code: profileError.code,
+    });
+    if (isProtectedPath) {
+      const loginUrl = new URL("/auth/login", request.url);
+      loginUrl.searchParams.set(
+        "message",
+        "We couldn't verify your account status. Please try again.",
+      );
+      return NextResponse.redirect(loginUrl);
+    }
   }
   const hasActiveProfile = profile?.active === true;
 
-  if (pathname.startsWith("/dashboard") || pathname.startsWith("/profile")) {
+  if (isProtectedPath) {
     if (!user || !hasActiveProfile) {
       const loginUrl = new URL("/auth/login", request.url);
       if (user) {

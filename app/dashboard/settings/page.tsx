@@ -1,5 +1,8 @@
 import { DashboardShell, PageFrame } from "@/components/dashboard-shell";
-import { resolveDashboardUserContext } from "@/lib/auth-role";
+import {
+  resolveDashboardUserContext,
+  roleHasCapability,
+} from "@/lib/auth-role";
 import { createClient } from "@/lib/supabase/server";
 import {
   defaultSystemSettings,
@@ -7,7 +10,6 @@ import {
   resolveSystemSettingValue,
 } from "@/lib/system";
 import {
-  getAdminOverviewSnapshot,
   getAuditEvents,
   getDepartments,
   getSystemSettings,
@@ -22,6 +24,43 @@ import {
 } from "@/lib/supabase/actions";
 import { AppearanceSettings } from "@/components/user-preferences";
 import { ChevronDown } from "lucide-react";
+
+async function getInstitutionSummary(): Promise<{
+  activeEmployees: number;
+  openExitRequests: number;
+  activeAccounts: number;
+}> {
+  const supabase = await createClient();
+  const [employees, exits, accounts] = await Promise.all([
+    supabase
+      .from("employees")
+      .select("id", { count: "exact", head: true })
+      .eq("employment_status", "active"),
+    supabase
+      .from("exit_cases")
+      .select("id", { count: "exact", head: true })
+      .in("status", [
+        "draft",
+        "submitted",
+        "under_review",
+        "clearance",
+        "blocked",
+        "eligible_for_finalization",
+      ]),
+    supabase
+      .from("profiles")
+      .select("id", { count: "exact", head: true })
+      .eq("active", true),
+  ]);
+  if (employees.error || exits.error || accounts.error) {
+    throw new Error("Unable to load the institutional summary.");
+  }
+  return {
+    activeEmployees: employees.count ?? 0,
+    openExitRequests: exits.count ?? 0,
+    activeAccounts: accounts.count ?? 0,
+  };
+}
 
 function SettingsSection({
   number,
@@ -66,15 +105,25 @@ function SettingsSection({
 
 export default async function Page() {
   const { userName, userRole } = await resolveDashboardUserContext();
-  await createClient();
-
+  const isAdminRole = roleHasCapability(userRole, "manageSystemSettings");
   const [systemSettings, auditEvents, adminOverview, departmentRecords] =
-    await Promise.all([
-      getSystemSettings(),
-      getAuditEvents(6),
-      getAdminOverviewSnapshot(),
-      getDepartments(),
-    ]);
+    isAdminRole
+      ? await Promise.all([
+          getSystemSettings(),
+          getAuditEvents(6),
+          getInstitutionSummary(),
+          getDepartments(),
+        ])
+      : [
+          [],
+          [],
+          {
+            activeEmployees: 0,
+            openExitRequests: 0,
+            activeAccounts: 0,
+          },
+          [],
+        ];
 
   const settingsMap = Object.fromEntries(
     systemSettings.map((setting) => [setting.key, setting.value ?? ""]),
@@ -86,15 +135,15 @@ export default async function Page() {
     settingsMap.default_clearance_departments ||
       defaultSystemSettings.default_clearance_departments.join(", "),
   );
-  const isAdminRole =
-    userRole.toLowerCase().includes("administrator") ||
-    userRole.toLowerCase().includes("hr");
-
   return (
     <DashboardShell userName={userName} userRole={userRole}>
       <PageFrame
-        title="Administration & settings"
-        description="Manage your preferences and institutional configuration from one place."
+        title={isAdminRole ? "Administration & settings" : "Personal settings"}
+        description={
+          isAdminRole
+            ? "Manage your preferences and institutional configuration from one place."
+            : "Manage your personal profile, appearance, and accessibility preferences."
+        }
       >
         <div className="space-y-3">
           <SettingsSection
@@ -117,8 +166,8 @@ export default async function Page() {
                     </p>
                     <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
                       Your current role is <strong>{userRole}</strong>. Only
-                      administrators and HR managers can edit institutional
-                      settings and workflow configuration. Contact your
+                      administrators can edit institutional settings and
+                      workflow configuration. Contact your
                       administrator if you need access.
                     </p>
                   </div>
@@ -497,10 +546,10 @@ export default async function Page() {
                 </div>
                 <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2">
                   <dt className="text-sm text-muted-foreground">
-                    Pending clearances
+                    Active accounts
                   </dt>
                   <dd className="text-sm font-semibold">
-                    {adminOverview.pendingClearanceSteps}
+                    {adminOverview.activeAccounts}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between rounded-xl bg-muted/50 px-3 py-2">

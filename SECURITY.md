@@ -1,10 +1,10 @@
 # Security policy
 
-CUT-ELAMS handles confidential employee data. Please do not publicly disclose a vulnerability or include credentials, tokens, private documents, or real employee data in an issue or pull request.
+CUT-HRMERS handles confidential employee data. Please do not publicly disclose a vulnerability or include credentials, tokens, private documents, or real employee data in an issue or pull request.
 
 ## Reporting a vulnerability
 
-Use the repository's **Security** tab and choose **Report a vulnerability** if private vulnerability reporting is enabled. If the private reporting feature is unavailable, contact the CUT-ELAMS project owner through the institution's approved private security channel and ask for coordinated disclosure. Do not open a public issue containing exploit details.
+Use the repository's **Security** tab and choose **Report a vulnerability** if private vulnerability reporting is enabled. If the private reporting feature is unavailable, contact the CUT-HRMERS project owner through the institution's approved private security channel and ask for coordinated disclosure. Do not open a public issue containing exploit details.
 
 The repository currently does not publish a dedicated security email address or a guaranteed response-time commitment. The maintainers should configure GitHub private vulnerability reporting and add an institution-approved security contact if the project owner authorizes one.
 

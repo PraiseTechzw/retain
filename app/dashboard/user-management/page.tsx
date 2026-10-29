@@ -6,18 +6,25 @@ import {
   Status,
 } from "@/components/dashboard-shell";
 import { getSystemUsers } from "@/lib/supabase/data";
-import { resolveDashboardUserContext } from "@/lib/auth-role";
+import {
+  normalizeUserRole,
+  resolveDashboardUserContext,
+  roleHasCapability,
+} from "@/lib/auth-role";
 import { UserManagementActionForm } from "@/components/user-management-action-form";
 
 export default async function Page() {
   const { user, userName, userRole, rawUserRole } =
     await resolveDashboardUserContext();
 
-  const exactRole = rawUserRole.toLowerCase();
-  const isAdminRole = exactRole === "administrator" || exactRole === "hr";
-  const canChangeRoles = exactRole === "administrator";
+  const canViewUsers = roleHasCapability(rawUserRole, "viewUserManagement");
+  const canManageAccounts = roleHasCapability(
+    rawUserRole,
+    "manageUserAccounts",
+  );
+  const canChangeRoles = rawUserRole.toLowerCase() === "administrator";
 
-  if (!isAdminRole) {
+  if (!canViewUsers) {
     return (
       <DashboardShell userName={userName} userRole={userRole}>
         <PageFrame
@@ -34,8 +41,8 @@ export default async function Page() {
                   Access denied
                 </p>
                 <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
-                  User management is restricted to administrators and HR
-                  managers. Your current role is <strong>{userRole}</strong>.
+                  User management is restricted to HR and administrators. Your
+                  current role is <strong>{userRole}</strong>.
                 </p>
               </div>
             </div>
@@ -48,10 +55,56 @@ export default async function Page() {
   const users = await getSystemUsers();
   const currentUserId = user?.id;
   const rows = users.map((systemUser) => {
-    const roleDisplay = String(systemUser.role ?? "Employee").trim();
+    const roleDisplay = normalizeUserRole(systemUser.role);
     const createdAt = systemUser.created_at
       ? new Date(systemUser.created_at).toLocaleDateString()
       : "—";
+
+    const roleAction = (
+      <UserManagementActionForm
+        key={`role-${systemUser.id}`}
+        kind="role"
+        successMessage="User role updated."
+      >
+        <input type="hidden" name="user_id" value={systemUser.id ?? ""} />
+        <select
+          name="role"
+          defaultValue={systemUser.role ?? "employee"}
+          className="h-8 rounded border border-input bg-background px-2 text-xs"
+        >
+          <option value="employee">Employee</option>
+          <option value="hr">HR</option>
+          <option value="hr_manager">HR Manager</option>
+          <option value="administrator">Administrator</option>
+        </select>
+        <button
+          type="submit"
+          className="ml-2 rounded border border-input px-2 py-1 text-xs font-medium hover:bg-muted"
+        >
+          Update
+        </button>
+      </UserManagementActionForm>
+    );
+    const accountAction = (
+      <UserManagementActionForm
+        key={`account-${systemUser.id}`}
+        kind={systemUser.active === false ? "activate" : "disable"}
+        successMessage={
+          systemUser.active === false
+            ? "Account activated."
+            : "Account deactivated."
+        }
+      >
+        <input type="hidden" name="user_id" value={systemUser.id ?? ""} />
+        <button
+          type="submit"
+          disabled={!systemUser.id || systemUser.id === currentUserId}
+          className="rounded border border-input px-2 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
+        >
+          {systemUser.active === false ? "Reactivate" : "Deactivate"}
+        </button>
+      </UserManagementActionForm>
+    );
 
     return [
       <div key={systemUser.id} className="flex flex-col">
@@ -65,49 +118,7 @@ export default async function Page() {
         {systemUser.active === false ? "Deactivated" : "Active"}
       </Status>,
       createdAt,
-      canChangeRoles ? (
-        <UserManagementActionForm key={`role-${systemUser.id}`} kind="role" successMessage="User role updated.">
-          <input type="hidden" name="user_id" value={systemUser.id ?? ""} />
-          <select
-            name="role"
-            defaultValue={systemUser.role ?? "Employee"}
-            className="h-8 rounded border border-input bg-background px-2 text-xs"
-          >
-            <option value="Employee">Employee</option>
-            <option value="HR">HR</option>
-            <option value="Administrator">Administrator</option>
-            <option value="ICT">ICT</option>
-            <option value="Library">Library</option>
-            <option value="Management">Management</option>
-            <option value="Academic Attaché">Academic Attaché</option>
-            <option value="Support Staff">Support Staff</option>
-          </select>
-          <button
-            type="submit"
-            className="ml-2 rounded border border-input px-2 py-1 text-xs font-medium hover:bg-muted"
-          >
-            Update
-          </button>
-        </UserManagementActionForm>
-      ) : (
-        <span key={`role-${systemUser.id}`} className="text-xs text-muted-foreground">
-          Administrator only
-        </span>
-      ),
-      <UserManagementActionForm
-        key={`account-${systemUser.id}`}
-        kind={systemUser.active === false ? "activate" : "disable"}
-        successMessage={systemUser.active === false ? "Account activated." : "Account deactivated."}
-      >
-        <input type="hidden" name="user_id" value={systemUser.id ?? ""} />
-        <button
-          type="submit"
-          disabled={!systemUser.id || systemUser.id === currentUserId}
-          className="rounded border border-input px-2 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
-        >
-          {systemUser.active === false ? "Reactivate" : "Deactivate"}
-        </button>
-      </UserManagementActionForm>,
+      ...(canManageAccounts ? [roleAction, accountAction] : []),
     ];
   });
 
@@ -115,7 +126,11 @@ export default async function Page() {
     <DashboardShell userName={userName} userRole={userRole}>
       <PageFrame
         title="User Management"
-        description="Manage system users, roles, and access permissions."
+        description={
+          canManageAccounts
+            ? "Review user access and manage role assignments."
+            : "Review system accounts. Role and account changes are restricted to administrators."
+        }
       >
         <div className="space-y-6">
           <div className="rounded-2xl border border-border/70 bg-card p-6">
@@ -129,7 +144,7 @@ export default async function Page() {
             <p className="mt-2 text-sm text-muted-foreground">
               {canChangeRoles
                 ? "Only administrators can change assigned roles. Changes take effect immediately."
-                : "HR can manage account status. Only administrators can assign or change roles."}
+                : "HR can review the user directory. Role and account changes are administrator-only."}
             </p>
           </div>
 
@@ -142,8 +157,7 @@ export default async function Page() {
                 "Current Role",
                 "Status",
                 "Created",
-                "Change Role",
-                "Account",
+                ...(canManageAccounts ? ["Change Role", "Account"] : []),
               ]}
               rows={rows}
             />

@@ -29,6 +29,9 @@ export type EmployeeRecord = {
   job_title?: string | null;
   employment_status?: string | null;
   employment_category?: string | null;
+  staff_category?: string | null;
+  employment_type?: string | null;
+  appointment_date?: string | null;
   joined_on?: string | null;
   exit_date?: string | null;
   home_area?: string | null;
@@ -266,52 +269,9 @@ function isMissingColumnError(errorMessage: string, columnName: string) {
 
 export async function getEmployees(): Promise<EmployeeRecord[]> {
   const supabase = await createClient();
-  const optionalColumns = [
-    "user_id",
-    "phone",
-    "employment_category",
-    "home_area",
-    "commute_distance_km",
-    "is_technical",
-  ];
-  const selectedOptionalColumns = new Set(optionalColumns);
-
-  // Production databases can lag the app deployment. Retry only when Postgres
-  // explicitly identifies one of these additive employee columns as missing.
-  for (let attempt = 0; attempt <= optionalColumns.length; attempt += 1) {
-    const columns = [
-      "id",
-      "user_id",
-      "employee_number",
-      "full_name",
-      "email",
-      "job_title",
-      "employment_status",
-      ...optionalColumns.filter((column) => selectedOptionalColumns.has(column)),
-      "joined_on",
-      "exit_date",
-      "department_id",
-      "departments(name)",
-    ];
-    const { data, error } = await supabase
-      .from("employees")
-      .select(columns.join(", "))
-      .order("created_at", { ascending: false });
-
-    if (!error) return (data ?? []) as unknown as EmployeeRecord[];
-    const missingColumn = optionalColumns.find(
-      (column) =>
-        selectedOptionalColumns.has(column) &&
-        isMissingColumnError(error.message, column),
-    );
-    if (missingColumn) {
-      selectedOptionalColumns.delete(missingColumn);
-      continue;
-    }
-    throw new Error(error.message);
-  }
-
-  throw new Error("Unable to load employee records.");
+  const { data, error } = await supabase.from("employees").select("id,user_id,employee_number,full_name,email,job_title,employment_status,staff_category,employment_type,appointment_date,exit_date,department_id,departments(name)").order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as unknown as EmployeeRecord[];
 }
 
 export async function getEmployeeByLookup(
@@ -386,55 +346,13 @@ export async function getDepartments(): Promise<DepartmentRecord[]> {
 
 export async function getExitRequests(): Promise<ExitRequestRecord[]> {
   const supabase = await createClient();
-  const baseQuery = supabase
-    .from("exit_requests")
+  const { data, error } = await supabase
+    .from("exit_cases")
     .select(
-      "id, status, reason, submitted_on, created_at, last_day, completed_at, employee_id, employees!employee_id(id, full_name, employee_number, department_id, employment_category, employment_status)",
+      "id, status, reason, created_at, last_day, completed_at, employee_id, employees!employee_id(id, full_name, employee_number, department_id, staff_category, employment_status)",
     )
     .order("created_at", { ascending: false });
-
-  const { data, error } = await baseQuery;
   if (!error) return data ?? [];
-
-  // Fallback for missing employment_category
-  if (isMissingColumnError(error.message, "employment_category")) {
-    const fallback = await supabase
-      .from("exit_requests")
-      .select(
-        "id, status, reason, submitted_on, created_at, last_day, completed_at, employee_id, employees!employee_id(id, full_name, employee_number, department_id)",
-      )
-      .order("created_at", { ascending: false });
-
-    if (fallback.error) {
-      // Fallback for missing completed_at
-      if (isMissingColumnError(fallback.error.message, "completed_at")) {
-        const fallback2 = await supabase
-          .from("exit_requests")
-          .select(
-            "id, status, reason, submitted_on, created_at, last_day, employee_id, employees!employee_id(id, full_name, employee_number, department_id)",
-          )
-          .order("created_at", { ascending: false });
-        if (fallback2.error) throw new Error(fallback2.error.message);
-        return fallback2.data ?? [];
-      }
-      throw new Error(fallback.error.message);
-    }
-    return fallback.data ?? [];
-  }
-
-  // Fallback for missing completed_at
-  if (isMissingColumnError(error.message, "completed_at")) {
-    const fallback = await supabase
-      .from("exit_requests")
-      .select(
-        "id, status, reason, submitted_on, created_at, last_day, employee_id, employees!employee_id(id, full_name, employee_number, department_id, employment_category, employment_status)",
-      )
-      .order("created_at", { ascending: false });
-
-    if (fallback.error) throw new Error(fallback.error.message);
-    return fallback.data ?? [];
-  }
-
   throw new Error(error.message);
 }
 
@@ -1189,7 +1107,7 @@ export async function getSystemUsers(): Promise<SystemUserRecord[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, role, active, department_id, created_at, updated_at")
+    .select("id, full_name, role, active, department_id, created_at")
     .order("created_at", { ascending: false });
   if (error) throw new Error(`Unable to load system users: ${error.message}`);
   return (data ?? []) as SystemUserRecord[];

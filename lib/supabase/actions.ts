@@ -2,7 +2,6 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getAssetBusinessDate } from "@/lib/asset-date";
 import { normalizeUserRole } from "@/lib/auth-role";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -122,7 +121,6 @@ async function ensureUserProfile(
 }
 
 async function ensureEmployeeRecord(
-  supabase: Awaited<ReturnType<typeof createClient>>,
   user: {
     id: string;
     email?: string | null;
@@ -138,8 +136,9 @@ async function ensureEmployeeRecord(
         email.split("@")[0] ??
         appConfig.defaultUserName,
     ).trim() || appConfig.defaultUserName;
+  const adminClient = createAdminClient();
 
-  const { data: existingEmployee, error: existingEmployeeError } = await supabase
+  const { data: existingEmployee, error: existingEmployeeError } = await adminClient
     .from("employees")
     .select(
       "id, employee_number, full_name, email, department_id, job_title, employment_status, user_id",
@@ -158,7 +157,7 @@ async function ensureEmployeeRecord(
       throw new Error("This employee email is already linked to another account.");
     }
     if (!existingEmployee.user_id) {
-      const { data: linkedEmployee, error } = await supabase
+      const { data: linkedEmployee, error } = await adminClient
         .from("employees")
         .update({ user_id: user.id })
         .eq("id", existingEmployee.id)
@@ -167,7 +166,7 @@ async function ensureEmployeeRecord(
         .maybeSingle();
       if (error) throw new Error("Unable to link your employee record to this account.");
       if (!linkedEmployee) {
-        const { data: verifiedLink, error: linkError } = await supabase
+        const { data: verifiedLink, error: linkError } = await adminClient
           .from("employees")
           .select("user_id")
           .eq("id", existingEmployee.id)
@@ -181,7 +180,7 @@ async function ensureEmployeeRecord(
   }
 
   const employeeNumber = `USER-${user.id.slice(0, 8).toUpperCase()}`;
-  const { data, error } = await supabase
+  const { data, error } = await adminClient
     .from("employees")
     .insert({
       employee_number: employeeNumber,
@@ -189,6 +188,8 @@ async function ensureEmployeeRecord(
       full_name: fullName,
       email: email || `${user.id}@local.invalid`,
       department_id: overrides.departmentId ?? null,
+      staff_category: "non_academic",
+      employment_type: "permanent",
       employment_status: "active",
       job_title: "Onboarded user",
     })
@@ -241,7 +242,7 @@ export async function signIn(formData: FormData) {
   }
 
   const profile = await ensureUserProfile(supabase, data.user);
-  await ensureEmployeeRecord(supabase, data.user, {
+  await ensureEmployeeRecord(data.user, {
     fullName: profile?.full_name ?? undefined,
   });
 
@@ -294,24 +295,6 @@ export async function signUp(formData: FormData) {
           ),
         ),
     );
-  }
-
-  if (data.user && data.session) {
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .update({ full_name: fullName })
-      .eq("id", data.user.id)
-      .select("id")
-      .maybeSingle();
-
-    if (profileError || !profile) {
-      redirect(
-        "/auth/register?message=" +
-          encodeURIComponent(
-            "Your account was created, but we could not finish setting up your profile. Please sign in and try again.",
-          ),
-      );
-    }
   }
 
   if (data.user && !data.session) {
@@ -523,92 +506,35 @@ function parseOptionalDate(value: string, label: string) {
 
 async function saveEmployeeRecord(formData: FormData) {
   const { supabase, user } = await actor();
-  await requireAnyRole(supabase, user, ["administrator", "hr"]);
-  const commuteDistanceValue = String(
-    formData.get("commute_distance_km") ?? "",
-  ).trim();
-  const commuteDistance = commuteDistanceValue
-    ? Number(commuteDistanceValue)
-    : null;
-  const employmentCategory =
-    String(formData.get("employment_category") ?? "").trim().toLowerCase() ||
-    "support";
+  await requireAnyRole(supabase, user, ["administrator", "hr", "hr_manager"]);
+  const staffCategory = String(formData.get("staff_category") ?? "").trim().toLowerCase() || "non_academic";
   const email = String(formData.get("email") ?? "").trim().toLowerCase() || null;
   const employee = {
     employee_number: String(formData.get("employee_number") ?? "").trim(),
     full_name: String(formData.get("full_name") ?? "").trim(),
     email,
-    phone: String(formData.get("phone") ?? "").trim() || null,
     department_id: String(formData.get("department_id") ?? "").trim() || null,
     job_title: String(formData.get("job_title") ?? "").trim() || null,
-    employment_category: employmentCategory,
-    joined_on: parseOptionalDate(
-      String(formData.get("joined_on") ?? ""),
-      "Start date",
-    ),
-    home_area:
-      String(formData.get("home_area") ?? "").trim().replace(/\s+/g, " ") ||
-      null,
-    commute_distance_km: commuteDistance,
-    is_technical: formData.get("is_technical") === "on",
+    staff_category: staffCategory,
+    employment_type: String(formData.get("employment_type") ?? "").trim() || "permanent",
+    appointment_date: parseOptionalDate(String(formData.get("appointment_date") ?? ""), "Appointment date"),
+    contract_end_date: parseOptionalDate(String(formData.get("contract_end_date") ?? ""), "Contract end date"),
+    probation_end_date: parseOptionalDate(String(formData.get("probation_end_date") ?? ""), "Probation end date"),
     employment_status: "active",
   };
   if (!employee.employee_number || !employee.full_name)
     throw new Error("Employee number and full name are required.");
-  if (employee.home_area && employee.home_area.length > 80)
-    throw new Error("Home area must be a broad locality name under 80 characters.");
-  if (
-    !["academic", "academic_attaché", "support"].includes(
-      employee.employment_category,
-    )
-  ) {
-    throw new Error("Select a valid employment category.");
-  }
+  if (!["academic", "non_academic"].includes(employee.staff_category)) throw new Error("Select academic or non-academic staff.");
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     throw new Error("Enter a valid email address.");
   }
-  if (
-    commuteDistance !== null &&
-    (!Number.isFinite(commuteDistance) || commuteDistance < 0)
-  ) {
-    throw new Error("Commute distance must be a non-negative number.");
-  }
-  let employeeInsert = await supabase
+  const { data, error } = await supabase
     .from("employees")
     .insert(employee)
     .select("id")
     .single();
-  const missingLifecycleColumn =
-    employeeInsert.error &&
-    (employeeInsert.error.code === "42703" || employeeInsert.error.code === "PGRST204") &&
-    /phone|home_area|commute_distance_km|is_technical/i.test(employeeInsert.error.message);
-  const hasLifecycleDetails = Boolean(
-    employee.phone || employee.home_area || commuteDistance !== null || employee.is_technical,
-  );
-  if (missingLifecycleColumn && !hasLifecycleDetails) {
-    const {
-      phone,
-      home_area,
-      commute_distance_km,
-      is_technical,
-      ...coreEmployee
-    } = employee;
-    void phone;
-    void home_area;
-    void commute_distance_km;
-    void is_technical;
-    employeeInsert = await supabase
-      .from("employees")
-      .insert(coreEmployee)
-      .select("id")
-      .single();
-  }
-  const { data, error } = employeeInsert;
   if (error?.code === "23505") {
     throw new Error("That employee number is already in use. Check it and try again.");
-  }
-  if (missingLifecycleColumn && hasLifecycleDetails) {
-    throw new Error("Optional employee fields aren’t available in the database yet. Ask your administrator to apply the latest Supabase migrations before saving those details.");
   }
   if (error?.code === "42703" || error?.code === "PGRST204") {
     throw new Error("Employee setup is incomplete in the database. Ask your administrator to apply the latest Supabase migrations.");
@@ -661,7 +587,11 @@ export async function createEmployee(
 
 export async function updateEmployeeRecord(formData: FormData) {
   const { supabase, user } = await actor();
-  await requireAnyRole(supabase, user, ["administrator", "hr"]);
+  await requireAnyRole(supabase, user, [
+    "administrator",
+    "hr",
+    "hr_manager",
+  ]);
 
   const employeeId = String(formData.get("employee_id") ?? "").trim();
   const employeeNumber = String(formData.get("employee_number") ?? "").trim();
@@ -738,7 +668,11 @@ export async function updateEmployeeRecord(formData: FormData) {
 
 export async function updateEmployeeRiskProfile(formData: FormData) {
   const { supabase, user } = await actor();
-  await requireAnyRole(supabase, user, ["administrator", "hr"]);
+  await requireAnyRole(supabase, user, [
+    "administrator",
+    "hr",
+    "hr_manager",
+  ]);
   const employeeId = String(formData.get("employee_id") ?? "").trim();
   const homeArea =
     String(formData.get("home_area") ?? "").trim().replace(/\s+/g, " ") ||
@@ -861,28 +795,21 @@ export async function recordRetentionIntervention(
 
 export async function createExitRequest(formData: FormData) {
   const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, [
+    "administrator",
+    "hr",
+    "hr_manager",
+  ]);
   const employeeId = String(formData.get("employee_id") ?? "");
   const reason = String(formData.get("reason") ?? "").trim();
   const lastDay = String(formData.get("last_day") ?? "") || null;
+  const exitType = String(formData.get("exit_type") ?? "resignation");
+  const classification = String(formData.get("classification") ?? "voluntary");
   if (!employeeId || !reason)
     throw new Error("Employee and reason are required.");
-  const role = await resolveEffectiveUserRole(supabase, user);
-  if (!["administrator", "hr"].includes(role.toLowerCase())) {
-    const { data: ownEmployee, error: ownEmployeeError } = await supabase
-      .from("employees")
-      .select("id")
-      .eq("id", employeeId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (ownEmployeeError) throw new Error("Unable to verify the employee record.");
-    if (!ownEmployee) {
-      throw new Error("You can only start an exit request for your own employee record.");
-    }
-  }
-
   const { data, error } = await supabase
-    .from("exit_requests")
-    .insert({ employee_id: employeeId, reason, last_day: lastDay })
+    .from("exit_cases")
+    .insert({ employee_id: employeeId, reason, last_day: lastDay, exit_type: exitType, classification, created_by: user.id })
     .select("id")
     .single();
   if (error) throw new Error("Unable to submit exit request.");
@@ -891,9 +818,59 @@ export async function createExitRequest(formData: FormData) {
   revalidatePath("/dashboard");
 }
 
+export async function submitHrRequest(formData: FormData) {
+  const { supabase, user } = await actor();
+  const requestType = String(formData.get("request_type") ?? "").trim();
+  const details = String(formData.get("details") ?? "").trim();
+  if (!requestType || !details || details.length > 2000) {
+    throw new Error("Select a request type and enter details of up to 2,000 characters.");
+  }
+  const { data: employee, error: employeeError } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (employeeError || !employee) throw new Error("Your employee record is not linked to this account. Contact HR.");
+  const { data, error } = await supabase
+    .from("employee_requests")
+    .insert({ employee_id: employee.id, request_type: requestType, details })
+    .select("id")
+    .single();
+  if (error) throw new Error("Unable to submit your HR request.");
+  await audit(supabase, user.id, "submitted", "employee_request", data.id, { request_type: requestType });
+  revalidatePath("/dashboard/requests");
+  revalidatePath("/dashboard");
+}
+
+export async function updateHrRequest(formData: FormData) {
+  const { supabase, user } = await actor();
+  await requireAnyRole(supabase, user, ["administrator", "hr", "hr_manager"]);
+  const requestId = String(formData.get("request_id") ?? "").trim();
+  const status = String(formData.get("status") ?? "").trim();
+  const resolution = String(formData.get("resolution") ?? "").trim() || null;
+  if (!requestId || !["submitted", "in_progress", "resolved", "cancelled"].includes(status)) {
+    throw new Error("Select a valid request status.");
+  }
+  if (status === "resolved" && !resolution) throw new Error("Enter a resolution before closing this request.");
+  const { error } = await supabase.from("employee_requests").update({
+    status,
+    resolution,
+    assigned_to: user.id,
+    resolved_at: status === "resolved" ? new Date().toISOString() : null,
+  }).eq("id", requestId);
+  if (error) throw new Error("Unable to update the HR request.");
+  await audit(supabase, user.id, "updated", "employee_request", requestId, { status });
+  revalidatePath("/dashboard/requests");
+  revalidatePath("/dashboard");
+}
+
 export async function updateAssetStatus(formData: FormData) {
   const { supabase, user } = await actor();
-  await requireAnyRole(supabase, user, ["administrator", "hr", "ict", "library"]);
+  await requireAnyRole(supabase, user, [
+    "administrator",
+    "hr",
+    "hr_manager",
+  ]);
   const id = String(formData.get("asset_id") ?? "");
   const status = String(formData.get("status") ?? "");
   if (!id || !["assigned", "available", "returned", "retired"].includes(status))
@@ -995,7 +972,11 @@ export async function submitLeaveRequest(formData: FormData) {
 
 export async function reviewLeaveRequest(formData: FormData) {
   const { supabase, user } = await actor();
-  await requireAnyRole(supabase, user, ["administrator", "hr"]);
+  await requireAnyRole(supabase, user, [
+    "administrator",
+    "hr",
+    "hr_manager",
+  ]);
   const requestId = String(formData.get("request_id") ?? "").trim();
   const decision = String(formData.get("decision") ?? "").trim();
   const reviewNotes = String(formData.get("review_notes") ?? "").trim() || null;
@@ -1068,7 +1049,11 @@ export async function cancelLeaveRequest(formData: FormData) {
 
 export async function setLeaveBalance(formData: FormData) {
   const { supabase, user } = await actor();
-  await requireAnyRole(supabase, user, ["administrator", "hr"]);
+  await requireAnyRole(supabase, user, [
+    "administrator",
+    "hr",
+    "hr_manager",
+  ]);
   const employeeId = String(formData.get("employee_id") ?? "").trim();
   const leaveType = String(formData.get("leave_type") ?? "").trim();
   const leaveYear = Number(formData.get("leave_year") ?? new Date().getFullYear());
@@ -1126,7 +1111,7 @@ export async function recordAssetDailyLog(formData: FormData) {
   if (eventType === "movement" && !location) {
     throw new Error("A destination is required when recording asset movement.");
   }
-  const dateValue = loggedOn || getAssetBusinessDate();
+  const dateValue = loggedOn || new Date().toISOString().slice(0, 10);
   const parsedDate = new Date(`${dateValue}T12:00:00Z`);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue) || Number.isNaN(parsedDate.getTime()) || parsedDate.toISOString().slice(0, 10) !== dateValue) {
     throw new Error("Enter a valid activity date.");
@@ -1134,7 +1119,7 @@ export async function recordAssetDailyLog(formData: FormData) {
   if (eventType === "return") {
     throw new Error("Use Asset return verification to receive and verify an issued asset.");
   }
-  const todayInHarare = getAssetBusinessDate();
+  const todayInHarare = new Date().toISOString().slice(0, 10);
   if (eventType === "daily_check" && dateValue !== todayInHarare) {
     throw new Error("Daily checks can only be logged for today.");
   }
@@ -1253,7 +1238,11 @@ export async function recordAssetTrackingEvent(formData: FormData) {
 
 export async function createRecruitmentOpening(formData: FormData) {
   const { supabase, user } = await actor();
-  await requireAnyRole(supabase, user, ["administrator", "hr", "management"]);
+  await requireAnyRole(supabase, user, [
+    "administrator",
+    "hr",
+    "hr_manager",
+  ]);
   const jobTitle = String(formData.get("job_title") ?? "").trim();
   const employmentCategory = String(formData.get("employment_category") ?? "").trim();
   const departmentId = String(formData.get("department_id") ?? "").trim() || null;
@@ -1291,7 +1280,11 @@ export async function createRecruitmentOpening(formData: FormData) {
 
 export async function updateRecruitmentStage(formData: FormData) {
   const { supabase, user } = await actor();
-  await requireAnyRole(supabase, user, ["administrator", "hr", "management"]);
+  await requireAnyRole(supabase, user, [
+    "administrator",
+    "hr",
+    "hr_manager",
+  ]);
   const openingId = String(formData.get("opening_id") ?? "").trim();
   const status = String(formData.get("status") ?? "").trim();
   if (
@@ -1870,10 +1863,11 @@ export async function completeOnboarding(formData: FormData) {
     full_name: fullName,
     department_id: departmentRow.id,
   };
+  const adminClient = createAdminClient();
 
   // Profile creation is handled by the trusted Auth trigger; onboarding only
   // updates the signed-in user's existing profile.
-  const { data: updatedProfile, error: profileUpdateError } = await supabase
+  const { data: updatedProfile, error: profileUpdateError } = await adminClient
     .from("profiles")
     .update(profile)
     .eq("id", user.id)
@@ -1891,17 +1885,21 @@ export async function completeOnboarding(formData: FormData) {
 
   if (!updatedProfile) throw new Error("Your account profile is not initialized. Contact an administrator.");
 
-  const { data: existingEmployee } = await supabase
+  const { data: existingEmployee, error: employeeLookupError } = await adminClient
     .from("employees")
     .select("id,user_id,department_id")
     .eq("email", user.email ?? "")
     .maybeSingle();
 
+  if (employeeLookupError) {
+    throw new Error("Unable to check for an existing employee record.");
+  }
+
   if (existingEmployee && existingEmployee.user_id !== user.id) {
     if (existingEmployee.user_id) {
       throw new Error("This employee record is already linked to another account.");
     }
-    const { error: linkError } = await supabase
+    const { error: linkError } = await adminClient
       .from("employees")
       .update({ user_id: user.id, department_id: departmentId })
       .eq("id", existingEmployee.id)
@@ -1911,12 +1909,14 @@ export async function completeOnboarding(formData: FormData) {
     }
   } else if (!existingEmployee) {
     const employeeNumber = `USER-${user.id.slice(0, 8).toUpperCase()}`;
-    const { error: employeeError } = await supabase.from("employees").insert({
+    const { error: employeeError } = await adminClient.from("employees").insert({
       employee_number: employeeNumber,
       user_id: user.id,
       full_name: fullName,
       email: user.email,
       department_id: departmentId,
+      staff_category: "non_academic",
+      employment_type: "permanent",
       employment_status: "active",
       job_title: "Onboarded user",
     });
@@ -1927,7 +1927,7 @@ export async function completeOnboarding(formData: FormData) {
       );
     }
   } else if (!existingEmployee.department_id) {
-    const { error: departmentLinkError } = await supabase
+    const { error: departmentLinkError } = await adminClient
       .from("employees")
       .update({ department_id: departmentId })
       .eq("id", existingEmployee.id)
@@ -1960,11 +1960,14 @@ export async function updateProfile(formData: FormData) {
   const { supabase, user } = await actor();
   const fullName = String(formData.get("full_name") ?? "").trim();
   if (!fullName) throw new Error("Full name is required.");
-  const { error } = await supabase
+  const adminClient = createAdminClient();
+  const { data: updatedProfile, error } = await adminClient
     .from("profiles")
     .update({ full_name: fullName })
-    .eq("id", user.id);
-  if (error) throw new Error("Unable to update profile.");
+    .eq("id", user.id)
+    .select("id")
+    .maybeSingle();
+  if (error || !updatedProfile) throw new Error("Unable to update profile.");
   await audit(supabase, user.id, "updated", "profile", user.id);
   revalidatePath("/profile");
   revalidatePath("/dashboard/settings");
@@ -2474,22 +2477,13 @@ export async function updateUserRole(formData: FormData) {
   }
 
   const userId = String(formData.get("user_id") ?? "");
-  const newRole = String(formData.get("role") ?? "");
+  const newRole = String(formData.get("role") ?? "").trim().toLowerCase();
 
   if (!userId || !newRole) {
     throw new Error("User ID and role are required.");
   }
   if (
-    ![
-      "Employee",
-      "HR",
-      "Administrator",
-      "ICT",
-      "Library",
-      "Management",
-      "Academic Attaché",
-      "Support Staff",
-    ].includes(newRole)
+    !["employee", "hr", "hr_manager", "administrator"].includes(newRole)
   ) {
     throw new Error("Select a supported user role.");
   }
