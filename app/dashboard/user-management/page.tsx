@@ -41,7 +41,7 @@ export default async function Page() {
                   Access denied
                 </p>
                 <p className="mt-1 text-sm text-amber-800 dark:text-amber-200">
-                  User management is restricted to HR and administrators. Your
+                  User management is restricted to administrators. Your
                   current role is <strong>{userRole}</strong>.
                 </p>
               </div>
@@ -144,7 +144,7 @@ export default async function Page() {
             <p className="mt-2 text-sm text-muted-foreground">
               {canChangeRoles
                 ? "Only administrators can change assigned roles. Changes take effect immediately."
-                : "HR can review the user directory. Role and account changes are administrator-only."}
+                : "Role and account changes are restricted to administrators."}
             </p>
           </div>
 

@@ -8,7 +8,8 @@
 -- 3. migrations/20261029000200_grant_authenticated_table_access.sql
 -- 4. migrations/20261029000300_create_profiles_for_auth_users.sql
 -- 5. migrations/20261029000400_add_system_administration_storage.sql
--- 6. seed.sql (development data only)
+-- 6. migrations/20261029000500_add_leave_reviewed_at.sql
+-- 7. seed.sql (development data only)
 
 begin;
 

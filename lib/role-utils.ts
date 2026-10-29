@@ -32,7 +32,6 @@ const roleCapabilities: Record<RoleKey, readonly DashboardCapability[]> = {
     "reviewLeave",
     "manageHrRequests",
     "viewReports",
-    "viewUserManagement",
   ],
   hr_manager: [
     "manageEmployees",
