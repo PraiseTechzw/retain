@@ -4,14 +4,16 @@ import { useState, useTransition, type FormEvent, type ReactNode } from "react";
 import {
   activateUserAccount,
   disableUserAccount,
+  updateConfidentialCaseOfficer,
   updateUserRole,
 } from "@/lib/supabase/actions";
 
-type ActionKind = "role" | "activate" | "disable";
+type ActionKind = "role" | "activate" | "disable" | "confidential";
 const actionByKind = {
   role: updateUserRole,
   activate: activateUserAccount,
   disable: disableUserAccount,
+  confidential: updateConfidentialCaseOfficer,
 } satisfies Record<ActionKind, (formData: FormData) => Promise<void>>;
 
 export function UserManagementActionForm({

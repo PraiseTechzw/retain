@@ -1098,6 +1098,7 @@ export type SystemUserRecord = {
   full_name?: string | null;
   role?: string | null;
   active?: boolean | null;
+  confidential_case_officer?: boolean | null;
   department_id?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -1107,7 +1108,9 @@ export async function getSystemUsers(): Promise<SystemUserRecord[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, full_name, role, active, department_id, created_at")
+    .select(
+      "id, full_name, role, active, confidential_case_officer, department_id, created_at",
+    )
     .order("created_at", { ascending: false });
   if (error) throw new Error(`Unable to load system users: ${error.message}`);
   return (data ?? []) as SystemUserRecord[];

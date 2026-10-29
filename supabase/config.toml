@@ -1,5 +1,10 @@
 project_id = "cut-hrmers-local"
 
+[auth]
+enable_signup = false
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000/auth/callback"]
+
 [db.seed]
 enabled = true
 sql_paths = ["./seed.sql"]

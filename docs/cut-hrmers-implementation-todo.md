@@ -5,7 +5,7 @@ This is the implementation backlog for the agreed **CUT Human Resource Managemen
 ## Product decisions already agreed
 
 - CUT-HRMERS is an HR-only, day-to-day Human Resource Management System.
-- Users are System Administrators, HR Staff, and Employees. Employees include both academic and non-academic staff.
+- The agreed roles are Administrator, HR, HR Manager, and Employee. Confidential Case Officer is a separately assigned permission for HR and HR Managers; it does not grant Administrators access to confidential content.
 - Retention, engagement, and exit analytics are built into the HRMS; exit clearance and asset management are not the purpose of the product.
 - Employees use self-service features. HR manages all HR workflows. Administrators manage access and system configuration.
 - Payroll calculation, external integrations, and any feature requiring CUT policy approval remain out of scope until validated.
@@ -64,24 +64,23 @@ The system is ready for CUT HR when an employee can securely submit a request or
 
 ### Security and account management
 
-- [ ] Replace broad application roles with three product roles: System Administrator, HR Staff, and Employee.
-- [ ] Add HR permission levels: HR Officer, HR Manager, and Confidential Case Officer.
+- [x] Keep the agreed Administrator, HR, HR Manager, and Employee roles; add Confidential Case Officer as a separately assigned permission for HR and HR Managers.
 - [ ] Ensure employees can read and edit only permitted parts of their own profile and requests.
 - [ ] Ensure HR Staff can access only records permitted by their HR level.
-- [ ] Ensure Administrators cannot automatically view confidential HR case or survey content.
-- [ ] Require administrator-created or approved staff accounts; disable unrestricted public registration.
+- [x] Ensure Administrators cannot automatically view confidential HR case or survey content.
+- [x] Require administrator-created or approved staff accounts; disable unrestricted public registration.
 - [ ] Add account activation, deactivation, password reset, and employee-account-to-staff-record matching.
 - [ ] Keep immutable audit events for sensitive HR actions.
 - [ ] Review and test Supabase row-level security for every new and existing HR table.
 
 ### HR dashboard
 
-- [ ] Redesign the dashboard as an HR control centre rather than an asset/clearance summary.
+- [x] Redesign the dashboard as an HR control centre rather than an asset/clearance summary.
 - [ ] Add a "Due today" queue for requests, leave approvals, contract expiries, probation reviews, case deadlines, engagement actions, and exit cases.
 - [ ] Add an employee-facing dashboard showing personal profile, requests, leave, documents, and tasks only.
 - [ ] Add HR dashboard totals for active staff, staff on leave, contracts expiring, open cases, open exits, and overdue actions.
 - [ ] Add direct links from every dashboard task to the actual record requiring action.
-- [ ] Remove asset, clearance, knowledge hub, and other non-HR links from the primary navigation.
+- [x] Remove asset, clearance, knowledge hub, and other non-HR links from the primary navigation.
 - [ ] Add empty states and clear guidance for new HR users.
 
 **Acceptance:** Each user sees only their authorised navigation and can complete their daily work from the dashboard.

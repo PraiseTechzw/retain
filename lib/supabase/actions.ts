@@ -253,60 +253,13 @@ export async function signIn(formData: FormData) {
   redirect("/dashboard");
 }
 
-export async function signUp(formData: FormData) {
-  const fullName = String(formData.get("full_name") ?? "").trim();
-  const email = String(formData.get("email") ?? "").trim();
-  const password = String(formData.get("password") ?? "");
-
-  if (!fullName || !email || !password) {
-    redirect(
-      "/auth/register?message=" +
-        encodeURIComponent("Full name, email, and password are required."),
-    );
-  }
-
-  if (password.length < 8) {
-    redirect(
-      "/auth/register?message=" +
-        encodeURIComponent(
-          "Please choose a stronger password with at least 8 characters.",
-        ),
-    );
-  }
-
-  const supabase = await createClient();
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-    options: {
-      data: {
-        full_name: fullName,
-      },
-    },
-  });
-
-  if (error) {
-    redirect(
-      "/auth/register?message=" +
-        encodeURIComponent(
-          userFriendlyAuthMessage(
-            error.message,
-            "We could not create your account right now. Please try again.",
-          ),
-        ),
-    );
-  }
-
-  if (data.user && !data.session) {
-    redirect(
-      "/auth/login?message=" +
-        encodeURIComponent(
-          "Check your email to confirm your account before signing in.",
-        ),
-    );
-  }
-
-  redirect("/dashboard");
+export async function signUp() {
+  redirect(
+    "/auth/login?message=" +
+      encodeURIComponent(
+        "Accounts are created by an administrator. Ask your administrator for an invitation.",
+      ),
+  );
 }
 
 export async function resetPassword(formData: FormData) {
@@ -403,19 +356,17 @@ async function requireAdminRole(
   supabase: Awaited<ReturnType<typeof createClient>>,
   user: { id: string; user_metadata?: Record<string, unknown> },
 ) {
-  const { data: profile } = await supabase
+  const { data: profile, error } = await supabase
     .from("profiles")
     .select("role, active")
     .eq("id", user.id)
     .maybeSingle();
 
-  const role =
-    profile?.active === true && typeof profile.role === "string"
-      ? profile.role.trim().toLowerCase()
-      : "";
+  if (error) throw new Error("Unable to verify administrator access.");
+  const role = profile?.active === true ? profile.role?.trim().toLowerCase() : "";
 
-  if (!["administrator", "hr"].includes(role)) {
-    throw new Error("You are not authorized to change system settings.");
+  if (role !== "administrator") {
+    throw new Error("Only an Administrator can perform this action.");
   }
 }
 
@@ -423,12 +374,13 @@ async function resolveEffectiveUserRole(
   supabase: Awaited<ReturnType<typeof createClient>>,
   user: { id: string; user_metadata?: Record<string, unknown> },
 ) {
-  const { data: profile } = await supabase
+  const { data: profile, error } = await supabase
     .from("profiles")
     .select("role, active")
     .eq("id", user.id)
     .maybeSingle();
 
+  if (error) throw new Error("Unable to verify account role.");
   return profile?.active === true && typeof profile.role === "string"
     ? profile.role.trim() || "Employee"
     : "Employee";
@@ -2489,9 +2441,12 @@ export async function updateUserRole(formData: FormData) {
   }
 
   const adminClient = createAdminClient();
+  const profileUpdates = ["hr", "hr_manager"].includes(newRole)
+    ? { role: newRole }
+    : { role: newRole, confidential_case_officer: false };
   const { data: updatedProfile, error: profileError } = await adminClient
     .from("profiles")
-    .update({ role: newRole })
+    .update(profileUpdates)
     .eq("id", userId)
     .select("id")
     .maybeSingle();
@@ -2506,6 +2461,124 @@ export async function updateUserRole(formData: FormData) {
   });
 
   revalidatePath("/dashboard/user-management");
+}
+
+export async function inviteSystemUser(formData: FormData) {
+  const { supabase, user } = await actor();
+  await requireAdminRole(supabase, user);
+
+  const fullName = String(formData.get("full_name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  if (!fullName || fullName.length > 120) {
+    throw new Error("Enter a full name of 1 to 120 characters.");
+  }
+  if (
+    email.length > 254 ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+  ) {
+    throw new Error("Enter a valid work email address.");
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  const callbackUrl = new URL("/auth/callback", appUrl);
+  callbackUrl.searchParams.set("next", "/onboard?next=/dashboard");
+  const adminClient = createAdminClient();
+  const { data, error } = await adminClient.auth.admin.inviteUserByEmail(
+    email,
+    {
+      data: { full_name: fullName },
+      redirectTo: callbackUrl.toString(),
+    },
+  );
+
+  if (error) {
+    console.error("User invitation failed", { code: error.code });
+    throw new Error(
+      userFriendlyAuthMessage(
+        error.message,
+        "Unable to send the account invitation.",
+      ),
+    );
+  }
+  if (!data.user) {
+    throw new Error("Supabase did not return the invited account.");
+  }
+
+  const { error: profileError } = await adminClient.from("profiles").upsert(
+    {
+      id: data.user.id,
+      full_name: fullName,
+      role: "employee",
+      active: true,
+    },
+    { onConflict: "id" },
+  );
+  if (profileError) {
+    const { error: cleanupError } = await adminClient.auth.admin.deleteUser(
+      data.user.id,
+    );
+    console.error("Invited account profile initialization failed", {
+      profileCode: profileError.code,
+      cleanupCode: cleanupError?.code,
+    });
+    if (cleanupError) {
+      throw new Error(
+        "The invitation was sent, but account setup failed and cleanup was unsuccessful. Contact your system administrator.",
+      );
+    }
+    throw new Error(
+      "Unable to initialize the invited account. The incomplete account was removed; send a new invitation after resolving the issue.",
+    );
+  }
+
+  await audit(supabase, user.id, "invited_user", "system_user", data.user.id, {
+    email,
+  });
+  revalidatePath("/dashboard/user-management");
+}
+
+export async function updateConfidentialCaseOfficer(formData: FormData) {
+  const { supabase, user } = await actor();
+  await requireAdminRole(supabase, user);
+
+  const userId = String(formData.get("user_id") ?? "").trim();
+  const enabled = formData.get("enabled") === "on";
+  if (!userId) throw new Error("User ID is required.");
+
+  const adminClient = createAdminClient();
+  const { data: target, error: targetError } = await adminClient
+    .from("profiles")
+    .select("role")
+    .eq("id", userId)
+    .maybeSingle();
+  if (targetError || !target) {
+    throw new Error("Unable to verify the target account role.");
+  }
+  if (!["hr", "hr_manager"].includes(target.role)) {
+    throw new Error(
+      "Confidential case access can only be assigned to HR staff or HR Managers.",
+    );
+  }
+
+  const { data: updatedProfile, error: updateError } = await adminClient
+    .from("profiles")
+    .update({ confidential_case_officer: enabled })
+    .eq("id", userId)
+    .select("id")
+    .maybeSingle();
+  if (updateError || !updatedProfile) {
+    throw new Error("Unable to update confidential case access.");
+  }
+
+  await audit(
+    supabase,
+    user.id,
+    enabled ? "granted_confidential_case_access" : "revoked_confidential_case_access",
+    "system_user",
+    userId,
+  );
+  revalidatePath("/dashboard/user-management");
+  revalidatePath("/dashboard/hr-cases");
 }
 
 export async function disableUserAccount(formData: FormData) {

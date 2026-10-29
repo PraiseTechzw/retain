@@ -12,6 +12,7 @@ import {
   roleHasCapability,
 } from "@/lib/auth-role";
 import { UserManagementActionForm } from "@/components/user-management-action-form";
+import { UserInvitationForm } from "@/components/user-invitation-form";
 
 export default async function Page() {
   const { user, userName, userRole, rawUserRole } =
@@ -29,7 +30,7 @@ export default async function Page() {
       <DashboardShell userName={userName} userRole={userRole}>
         <PageFrame
           title="User Management"
-          description="Manage system users, roles, and access permissions."
+          description="Manage invited accounts, roles, and access permissions."
         >
           <div className="rounded-2xl border border-dashed border-amber-300 bg-amber-50 p-6 dark:border-amber-700 dark:bg-amber-950/30">
             <div className="flex items-start gap-4">
@@ -105,6 +106,35 @@ export default async function Page() {
         </button>
       </UserManagementActionForm>
     );
+    const isHrStaff = ["hr", "hr_manager"].includes(
+      systemUser.role?.toLowerCase() ?? "",
+    );
+    const confidentialAccessAction = isHrStaff ? (
+      <UserManagementActionForm
+        key={`confidential-${systemUser.id}`}
+        kind="confidential"
+        successMessage="Confidential case access updated."
+        className="flex items-center gap-2"
+      >
+        <input type="hidden" name="user_id" value={systemUser.id ?? ""} />
+        <label className="flex items-center gap-2 text-xs">
+          <input
+            type="checkbox"
+            name="enabled"
+            defaultChecked={systemUser.confidential_case_officer === true}
+          />
+          Case officer
+        </label>
+        <button
+          type="submit"
+          className="rounded border border-input px-2 py-1 text-xs font-medium hover:bg-muted"
+        >
+          Save
+        </button>
+      </UserManagementActionForm>
+    ) : (
+      "—"
+    );
 
     return [
       <div key={systemUser.id} className="flex flex-col">
@@ -118,7 +148,9 @@ export default async function Page() {
         {systemUser.active === false ? "Deactivated" : "Active"}
       </Status>,
       createdAt,
-      ...(canManageAccounts ? [roleAction, accountAction] : []),
+      ...(canManageAccounts
+        ? [confidentialAccessAction, roleAction, accountAction]
+        : []),
     ];
   });
 
@@ -143,10 +175,12 @@ export default async function Page() {
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
               {canChangeRoles
-                ? "Only administrators can change assigned roles. Changes take effect immediately."
+                ? "New invitations start as Employees. Only administrators can change roles and authorize confidential case officers."
                 : "Role and account changes are restricted to administrators."}
             </p>
           </div>
+
+          {canManageAccounts && <UserInvitationForm />}
 
           {users.length === 0 ? (
             <EmptyState label="users" />
@@ -157,7 +191,9 @@ export default async function Page() {
                 "Current Role",
                 "Status",
                 "Created",
-                ...(canManageAccounts ? ["Change Role", "Account"] : []),
+                ...(canManageAccounts
+                  ? ["Confidential access", "Change Role", "Account"]
+                  : []),
               ]}
               rows={rows}
             />
