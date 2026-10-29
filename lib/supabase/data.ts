@@ -1104,7 +1104,10 @@ export type SystemUserRecord = {
   updated_at?: string | null;
 };
 
-export async function getSystemUsers(): Promise<SystemUserRecord[]> {
+export async function getSystemUsers(): Promise<{
+  users: SystemUserRecord[];
+  confidentialCaseAccessAvailable: boolean;
+}> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("profiles")
@@ -1112,8 +1115,28 @@ export async function getSystemUsers(): Promise<SystemUserRecord[]> {
       "id, full_name, role, active, confidential_case_officer, department_id, created_at",
     )
     .order("created_at", { ascending: false });
-  if (error) throw new Error(`Unable to load system users: ${error.message}`);
-  return (data ?? []) as SystemUserRecord[];
+  if (!error) {
+    return {
+      users: (data ?? []) as SystemUserRecord[],
+      confidentialCaseAccessAvailable: true,
+    };
+  }
+
+  if (!isMissingColumnError(error.message, "confidential_case_officer")) {
+    throw new Error(`Unable to load system users: ${error.message}`);
+  }
+
+  const fallback = await supabase
+    .from("profiles")
+    .select("id, full_name, role, active, department_id, created_at")
+    .order("created_at", { ascending: false });
+  if (fallback.error) {
+    throw new Error(`Unable to load system users: ${fallback.error.message}`);
+  }
+  return {
+    users: (fallback.data ?? []) as SystemUserRecord[],
+    confidentialCaseAccessAvailable: false,
+  };
 }
 
 export function friendlyError(error: unknown) {

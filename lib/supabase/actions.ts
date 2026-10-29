@@ -15,6 +15,19 @@ const DEFAULT_CLEARANCE_DEPARTMENTS = [
   "Knowledge",
 ];
 
+function isMissingConfidentialCaseOfficerColumn(error: {
+  code?: string;
+  message?: string;
+} | null) {
+  if (!error) return false;
+  return (
+    /confidential_case_officer/i.test(error.message ?? "") &&
+    (error.code === "42703" ||
+      error.code === "PGRST204" ||
+      /does not exist|could not find|schema cache/i.test(error.message ?? ""))
+  );
+}
+
 function userFriendlyAuthMessage(
   rawMessage?: string | null,
   fallback = "Something went wrong. Please try again.",
@@ -2441,15 +2454,27 @@ export async function updateUserRole(formData: FormData) {
   }
 
   const adminClient = createAdminClient();
-  const profileUpdates = ["hr", "hr_manager"].includes(newRole)
-    ? { role: newRole }
-    : { role: newRole, confidential_case_officer: false };
-  const { data: updatedProfile, error: profileError } = await adminClient
+  let { data: updatedProfile, error: profileError } = await adminClient
     .from("profiles")
-    .update(profileUpdates)
+    .update(
+      ["hr", "hr_manager"].includes(newRole)
+        ? { role: newRole }
+        : { role: newRole, confidential_case_officer: false },
+    )
     .eq("id", userId)
     .select("id")
     .maybeSingle();
+
+  if (isMissingConfidentialCaseOfficerColumn(profileError)) {
+    const fallback = await adminClient
+      .from("profiles")
+      .update({ role: newRole })
+      .eq("id", userId)
+      .select("id")
+      .maybeSingle();
+    updatedProfile = fallback.data;
+    profileError = fallback.error;
+  }
 
   if (profileError || !updatedProfile) {
     throw new Error("Unable to update user role.");
@@ -2567,6 +2592,11 @@ export async function updateConfidentialCaseOfficer(formData: FormData) {
     .select("id")
     .maybeSingle();
   if (updateError || !updatedProfile) {
+    if (updateError && isMissingConfidentialCaseOfficerColumn(updateError)) {
+      throw new Error(
+        "Confidential case access is not available until migration 20261029000600_restrict_confidential_hr_access.sql has been applied.",
+      );
+    }
     throw new Error("Unable to update confidential case access.");
   }
 

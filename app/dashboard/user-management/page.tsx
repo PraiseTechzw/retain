@@ -53,7 +53,7 @@ export default async function Page() {
     );
   }
 
-  const users = await getSystemUsers();
+  const { users, confidentialCaseAccessAvailable } = await getSystemUsers();
   const currentUserId = user?.id;
   const rows = users.map((systemUser) => {
     const roleDisplay = normalizeUserRole(systemUser.role);
@@ -109,32 +109,33 @@ export default async function Page() {
     const isHrStaff = ["hr", "hr_manager"].includes(
       systemUser.role?.toLowerCase() ?? "",
     );
-    const confidentialAccessAction = isHrStaff ? (
-      <UserManagementActionForm
-        key={`confidential-${systemUser.id}`}
-        kind="confidential"
-        successMessage="Confidential case access updated."
-        className="flex items-center gap-2"
-      >
-        <input type="hidden" name="user_id" value={systemUser.id ?? ""} />
-        <label className="flex items-center gap-2 text-xs">
-          <input
-            type="checkbox"
-            name="enabled"
-            defaultChecked={systemUser.confidential_case_officer === true}
-          />
-          Case officer
-        </label>
-        <button
-          type="submit"
-          className="rounded border border-input px-2 py-1 text-xs font-medium hover:bg-muted"
+    const confidentialAccessAction =
+      isHrStaff && confidentialCaseAccessAvailable ? (
+        <UserManagementActionForm
+          key={`confidential-${systemUser.id}`}
+          kind="confidential"
+          successMessage="Confidential case access updated."
+          className="flex items-center gap-2"
         >
-          Save
-        </button>
-      </UserManagementActionForm>
-    ) : (
-      "—"
-    );
+          <input type="hidden" name="user_id" value={systemUser.id ?? ""} />
+          <label className="flex items-center gap-2 text-xs">
+            <input
+              type="checkbox"
+              name="enabled"
+              defaultChecked={systemUser.confidential_case_officer === true}
+            />
+            Case officer
+          </label>
+          <button
+            type="submit"
+            className="rounded border border-input px-2 py-1 text-xs font-medium hover:bg-muted"
+          >
+            Save
+          </button>
+        </UserManagementActionForm>
+      ) : (
+        "—"
+      );
 
     return [
       <div key={systemUser.id} className="flex flex-col">
@@ -165,6 +166,17 @@ export default async function Page() {
         }
       >
         <div className="space-y-6">
+          {canManageAccounts && !confidentialCaseAccessAvailable && (
+            <section
+              role="status"
+              className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100"
+            >
+              User and role management is available, but confidential case
+              officer access is not enabled yet. Apply{" "}
+              <code>20261029000600_restrict_confidential_hr_access.sql</code>{" "}
+              to the Supabase database to enable it.
+            </section>
+          )}
           <div className="rounded-2xl border border-border/70 bg-card p-6">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
               Overview
@@ -192,7 +204,13 @@ export default async function Page() {
                 "Status",
                 "Created",
                 ...(canManageAccounts
-                  ? ["Confidential access", "Change Role", "Account"]
+                  ? [
+                      ...(confidentialCaseAccessAvailable
+                        ? ["Confidential access"]
+                        : []),
+                      "Change Role",
+                      "Account",
+                    ]
                   : []),
               ]}
               rows={rows}
