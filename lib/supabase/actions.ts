@@ -1315,7 +1315,7 @@ export async function approveClearance(formData: FormData) {
 export async function checkExitBlockers(exitRequestId: string) {
   const supabase = await createClient();
   const { data: exitReq, error: exitErr } = await supabase
-    .from("exit_requests")
+    .from("exit_cases")
     .select("id, employee_id, status, clearance_departments")
     .eq("id", exitRequestId)
     .single();
@@ -2622,7 +2622,7 @@ export async function disableUserAccount(formData: FormData) {
       throw new Error("An employee account can only be deactivated after its digital exit is finalized.");
     }
     const { data: completedExit, error: exitError } = await supabase
-      .from("exit_requests")
+    .from("exit_cases")
       .select("id")
       .eq("employee_id", employee.id)
       .eq("status", "completed")

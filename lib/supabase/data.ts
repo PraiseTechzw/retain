@@ -553,7 +553,9 @@ export async function getRetentionInterventions(): Promise<{
         error.code === "PGRST205" ||
         error.code === "42P01");
     if (missingTable) {
-      console.error("Talent Support is missing the retention_interventions table. Apply the lifecycle operations migration.");
+      console.error(
+        "Talent Support is missing the retention_interventions table. Apply migration 20261029001000_complete_application_schema.sql.",
+      );
       return { records: [], available: false, actionReady: false };
     }
     throw new Error(error.message);
@@ -772,7 +774,7 @@ export async function getClearanceSteps(): Promise<ClearanceStepRecord[]> {
   const baseQuery = supabase
     .from("clearance_steps")
     .select(
-      "id, department, status, step_order, comments, exit_request_id, exit_requests!exit_request_id(id, employee_id, status, submitted_on, completed_at, employees!employee_id(id, full_name, employee_number))",
+      "id, department, status, step_order, comments, exit_request_id, exit_requests:exit_cases!exit_request_id(id, employee_id, status, submitted_on, completed_at, employees!employee_id(id, full_name, employee_number))",
     )
     .order("step_order", { ascending: true });
 
@@ -783,7 +785,7 @@ export async function getClearanceSteps(): Promise<ClearanceStepRecord[]> {
     const fallback = await supabase
       .from("clearance_steps")
       .select(
-        "id, department, status, step_order, comments, exit_request_id, exit_requests!exit_request_id(id, employee_id, status, submitted_on, employees!employee_id(id, full_name, employee_number))",
+        "id, department, status, step_order, comments, exit_request_id, exit_requests:exit_cases!exit_request_id(id, employee_id, status, submitted_on, employees!employee_id(id, full_name, employee_number))",
       )
       .order("step_order", { ascending: true });
 

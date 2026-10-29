@@ -10,7 +10,11 @@
 -- 5. migrations/20261029000400_add_system_administration_storage.sql
 -- 6. migrations/20261029000500_add_leave_reviewed_at.sql
 -- 7. migrations/20261029000600_restrict_confidential_hr_access.sql
--- 8. seed.sql (development data only)
+-- 8. migrations/20261029000601_add_leave_balance_updated_at.sql
+-- 9. seed.sql (development data only)
+--
+-- Knowledge management, asset management, and turnover-summary migrations are
+-- excluded until their scope and deployment dependencies are approved.
 
 begin;
 
