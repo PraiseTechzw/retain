@@ -13,7 +13,8 @@
 -- 8. migrations/20261029000601_add_leave_balance_updated_at.sql
 -- 9. seed.sql (development data only)
 --
--- Knowledge management, asset management, and turnover-summary migrations are
+-- Knowledge management, asset management, turnover-summary, and mixed
+-- application-schema migrations are preserved under deferred-migrations/ and
 -- excluded until their scope and deployment dependencies are approved.
 
 begin;

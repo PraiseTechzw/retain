@@ -553,9 +553,7 @@ export async function getRetentionInterventions(): Promise<{
         error.code === "PGRST205" ||
         error.code === "42P01");
     if (missingTable) {
-      console.error(
-        "Talent Support is missing the retention_interventions table. Apply migration 20261029001000_complete_application_schema.sql.",
-      );
+      console.error("Talent Support is missing the retention_interventions table. Apply the lifecycle operations migration.");
       return { records: [], available: false, actionReady: false };
     }
     throw new Error(error.message);
