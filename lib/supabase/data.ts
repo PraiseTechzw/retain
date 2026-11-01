@@ -517,13 +517,31 @@ export async function getQuarterlyTurnoverSummary(): Promise<QuarterlyTurnoverRe
   ]);
   if (liveResult.error) throw new Error(liveResult.error.message);
   if (snapshotsResult.error) throw new Error(snapshotsResult.error.message);
+  const normalize = (
+    report: Partial<QuarterlyTurnoverRecord>,
+  ): QuarterlyTurnoverRecord | null => {
+    if (!report.quarter_start) return null;
+    return {
+      ...report,
+      quarter_start: report.quarter_start,
+      department: report.department?.trim() || "Unassigned",
+      exits: Number(report.exits ?? 0),
+      active_headcount: Number(report.active_headcount ?? 0),
+      attrition_rate_pct:
+        report.attrition_rate_pct == null
+          ? null
+          : Number(report.attrition_rate_pct),
+    };
+  };
   const snapshots = new Map(
-    ((snapshotsResult.data ?? []) as QuarterlyTurnoverRecord[]).map((report) => [
-      `${report.quarter_start}:${report.department}`,
-      report,
-    ]),
+    ((snapshotsResult.data ?? []) as QuarterlyTurnoverRecord[])
+      .map(normalize)
+      .filter((report): report is QuarterlyTurnoverRecord => report !== null)
+      .map((report) => [`${report.quarter_start}:${report.department}`, report]),
   );
   return ((liveResult.data ?? []) as QuarterlyTurnoverRecord[])
+    .map(normalize)
+    .filter((report): report is QuarterlyTurnoverRecord => report !== null)
     .map((report) => ({
       ...report,
       ...(snapshots.get(`${report.quarter_start}:${report.department}`) ?? {}),

@@ -5,16 +5,14 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-  CalendarDays,
-  ChevronDown,
   ClipboardCheck,
+  ChevronDown,
   LayoutDashboard,
   LogOut,
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
-  Settings2,
   Users,
   X,
 } from "lucide-react";
@@ -35,7 +33,6 @@ const navItems = [
     LayoutDashboard,
     ["employee", "hr", "administrator", "hr_manager"],
   ],
-  ["Users", "/dashboard/user-management", Users, ["administrator"]],
   [
     "Employees",
     "/dashboard/employees",
@@ -49,28 +46,10 @@ const navItems = [
     ["hr", "administrator", "hr_manager"],
   ],
   [
-    "Leave",
-    "/dashboard/leave",
-    CalendarDays,
-    ["employee", "hr", "administrator", "hr_manager"],
-  ],
-  [
-    "HR Requests",
-    "/dashboard/requests",
-    ClipboardCheck,
-    ["employee", "hr", "administrator", "hr_manager"],
-  ],
-  [
-    "Reports",
+    "Turnover analysis",
     "/dashboard/reports",
-    Settings2,
+    ClipboardCheck,
     ["hr", "administrator", "hr_manager"],
-  ],
-  [
-    "Settings",
-    "/dashboard/settings",
-    Settings2,
-    ["employee", "hr", "administrator", "hr_manager"],
   ],
 ] as const;
 

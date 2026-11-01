@@ -1,6 +1,20 @@
 alter table public.exit_cases
   add column if not exists reason_category text;
 
+do $$
+begin
+  alter publication supabase_realtime add table public.employees;
+exception
+  when duplicate_object then null;
+end $$;
+
+do $$
+begin
+  alter publication supabase_realtime add table public.exit_cases;
+exception
+  when duplicate_object then null;
+end $$;
+
 create index if not exists exit_cases_reason_category_idx
   on public.exit_cases (reason_category);
 
