@@ -7,6 +7,7 @@ import {
   Status,
 } from "@/components/dashboard-shell";
 import { OperationsPanel } from "@/components/operations-panel";
+import { RealtimeTurnoverRefresh } from "@/components/realtime-turnover-refresh";
 import { getEmployees, getExitRequests } from "@/lib/supabase/data";
 import { requireDashboardCapability } from "@/lib/auth-role";
 
@@ -58,22 +59,57 @@ export default async function Page() {
       </Link>,
     ];
   });
+  const completedCount = requests.filter((request) =>
+    ["completed", "finalized"].includes(String(request.status).toLowerCase()),
+  ).length;
+  const openCount = requests.length - completedCount;
+  const reasons = new Set(
+    requests
+      .map((request) => request.reason_category)
+      .filter((reason): reason is string => Boolean(reason)),
+  ).size;
   return (
     <DashboardShell userName={userName} userRole={userRole}>
+      <RealtimeTurnoverRefresh />
       <PageFrame
         title="Exit Requests"
-        description="Review employee transitions, deadlines, and approval status."
+        description="Capture historical and new exit reasons linked to employee records."
         action={<OperationsPanel mode="exit" employees={employeeOptions} />}
       >
-        {requests.length ? (
-          <DataTable
-            columns={["Employee", "Reason", "Status", "Last day", "Action"]}
-            rows={rows}
-          />
-        ) : (
-          <EmptyState label="exit requests" />
-        )}
+        <div className="space-y-6">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Metric label="Total exit cases" value={requests.length} />
+            <Metric label="Completed exits" value={completedCount} />
+            <Metric label="Open cases" value={openCount} />
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950/30">
+            <div>
+              <p className="font-semibold text-emerald-900 dark:text-emerald-200">Linked exit history</p>
+              <p className="mt-1 text-sm text-emerald-800/80 dark:text-emerald-300/80">
+                {reasons} categorized reason{reasons === 1 ? "" : "s"} are available for turnover analysis.
+              </p>
+            </div>
+            <Status tone="green">Live cases</Status>
+          </div>
+          {requests.length ? (
+            <DataTable
+              columns={["Employee", "Reason", "Status", "Last day", "Action"]}
+              rows={rows}
+            />
+          ) : (
+            <EmptyState label="exit requests" />
+          )}
+        </div>
       </PageFrame>
     </DashboardShell>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-2xl border border-border/70 bg-card p-5">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-2 text-3xl font-semibold">{value}</p>
+    </div>
   );
 }
