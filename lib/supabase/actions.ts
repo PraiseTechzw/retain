@@ -766,15 +766,34 @@ export async function createExitRequest(formData: FormData) {
     "hr_manager",
   ]);
   const employeeId = String(formData.get("employee_id") ?? "");
+  const reasonCategory = String(formData.get("reason_category") ?? "").trim();
   const reason = String(formData.get("reason") ?? "").trim();
   const lastDay = String(formData.get("last_day") ?? "") || null;
   const exitType = String(formData.get("exit_type") ?? "resignation");
   const classification = String(formData.get("classification") ?? "voluntary");
-  if (!employeeId || !reason)
-    throw new Error("Employee and reason are required.");
+  const supportedReasonCategories = [
+    "compensation",
+    "workload",
+    "career_growth",
+    "management",
+    "work_environment",
+    "relocation",
+    "personal",
+    "retirement",
+    "contract_end",
+    "health",
+    "education",
+    "other",
+  ];
+  if (!employeeId || !supportedReasonCategories.includes(reasonCategory)) {
+    throw new Error("Employee and exit reason category are required.");
+  }
+  if (reason.length > 2000) {
+    throw new Error("Exit reason details must be 2,000 characters or fewer.");
+  }
   const { data, error } = await supabase
     .from("exit_cases")
-    .insert({ employee_id: employeeId, reason, last_day: lastDay, exit_type: exitType, classification, created_by: user.id })
+    .insert({ employee_id: employeeId, reason_category: reasonCategory, reason, last_day: lastDay, exit_type: exitType, classification, created_by: user.id })
     .select("id")
     .single();
   if (error) throw new Error("Unable to submit exit request.");

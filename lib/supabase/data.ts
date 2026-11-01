@@ -45,6 +45,7 @@ export type ExitRequestRecord = {
   id?: string | null;
   status?: string | null;
   reason?: string | null;
+  reason_category?: string | null;
   submitted_on?: string | null;
   created_at?: string | null;
   last_day?: string | null;
@@ -349,7 +350,7 @@ export async function getExitRequests(): Promise<ExitRequestRecord[]> {
   const { data, error } = await supabase
     .from("exit_cases")
     .select(
-      "id, status, reason, created_at, last_day, completed_at, employee_id, employees!employee_id(id, full_name, employee_number, department_id, staff_category, employment_status)",
+      "id, status, reason, reason_category, created_at, last_day, completed_at, employee_id, employees!employee_id(id, full_name, employee_number, department_id, staff_category, employment_status)",
     )
     .order("created_at", { ascending: false });
   if (!error) return data ?? [];

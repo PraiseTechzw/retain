@@ -41,7 +41,7 @@ export default async function Page() {
         {employee?.employee_number ?? "—"} ·{" "}
         {employee?.full_name ?? "Unknown employee"}
       </Link>,
-      request.reason ?? "Voluntary separation",
+      (request.reason_category ?? request.reason ?? "Not recorded").replaceAll("_", " "),
       <Status
         key="status"
         tone={request.status === "completed" ? "green" : "amber"}
