@@ -31,7 +31,7 @@ function assertLoaded<T>(result: { data: T | null; error: { code?: string } | nu
 export default async function Page() {
   const context = await resolveDashboardUserContext();
   const role = getRoleKey(context.userRole);
-  const isHr = role !== "employee";
+  const isHr = role === "hr" || role === "administrator";
 
   const supabase = await createClient();
   const [employeeResult, guideResult] = await Promise.all([

@@ -139,10 +139,10 @@ function SurveySummary({
 export default async function Page() {
   const context = await resolveDashboardUserContext();
   const role = getRoleKey(context.userRole);
-  if (role !== "employee" && role !== "hr" && role !== "hr_manager") {
+  if (role !== "hr" && role !== "administrator") {
     redirect("/dashboard");
   }
-  const isHr = role === "hr" || role === "hr_manager";
+  const isHr = true;
   const supabase = await createClient();
 
   const surveysQuery = supabase

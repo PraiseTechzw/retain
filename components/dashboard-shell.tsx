@@ -14,6 +14,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Search,
+  Settings2,
+  ShieldCheck,
   Users,
   X,
 } from "lucide-react";
@@ -32,58 +34,66 @@ const navItems = [
     "Overview",
     "/dashboard",
     LayoutDashboard,
-    ["employee", "hr", "administrator", "hr_manager"],
+    ["hr", "administrator"],
   ],
   [
     "Staff engagement",
     "/dashboard/engagement",
     ClipboardCheck,
-    ["employee", "hr", "hr_manager"],
+    ["hr"],
   ],
   [
     "Employees",
     "/dashboard/employees",
     Users,
-    ["hr", "administrator", "hr_manager"],
+    ["hr", "administrator"],
   ],
   [
     "Exit cases",
     "/dashboard/exit-requests",
     ClipboardCheck,
-    ["hr", "administrator", "hr_manager"],
+    ["hr", "administrator"],
   ],
   [
     "Turnover analysis",
     "/dashboard/reports",
     ClipboardCheck,
-    ["hr", "administrator", "hr_manager"],
+    ["hr", "administrator"],
   ],
   [
     "Retention workflows",
     "/dashboard/retention",
     ClipboardCheck,
-    ["hr", "hr_manager"],
+    ["hr"],
   ],
   [
     "Handover guides",
     "/dashboard/handover",
     FileText,
-    ["employee", "hr", "administrator", "hr_manager"],
+    ["hr", "administrator"],
+  ],
+  [
+    "User management",
+    "/dashboard/user-management",
+    ShieldCheck,
+    ["administrator"],
+  ],
+  [
+    "System settings",
+    "/dashboard/settings",
+    Settings2,
+    ["administrator"],
+  ],
+  [
+    "Audit log",
+    "/dashboard/audit",
+    FileText,
+    ["administrator"],
   ],
 ] as const;
 
 function canAccessNavItem(userRole: string, allowedRoles: readonly RoleKey[]) {
   return allowedRoles.includes(getRoleKey(userRole));
-}
-
-function getNavLabel(label: string, href: string, userRole: string) {
-  if (href === "/dashboard/requests" && getRoleKey(userRole) === "employee") {
-    return "My HR requests";
-  }
-  if (href === "/dashboard/settings" && getRoleKey(userRole) === "employee") {
-    return "My settings";
-  }
-  return label;
 }
 
 function SidebarNav({
@@ -192,7 +202,7 @@ function SidebarNav({
                     />
                   </span>
                   <span className={collapsed ? "lg:hidden" : ""}>
-                    {getNavLabel(label, href, userRole)}
+                    {label}
                   </span>
                   {active && (
                     <span
@@ -275,12 +285,10 @@ export function DashboardShell({
   }, []);
 
   const searchResults = searchQuery.trim()
-    ? navItems.filter(([label, href, , allowedRoles]) => {
-        const navLabel = getNavLabel(label, href, displayRole);
+    ? navItems.filter(([label, , , allowedRoles]) => {
         const matchesQuery = label
           .toLowerCase()
-          .includes(searchQuery.trim().toLowerCase()) ||
-          navLabel.toLowerCase().includes(searchQuery.trim().toLowerCase());
+          .includes(searchQuery.trim().toLowerCase());
 
         return matchesQuery && canAccessNavItem(displayRole, allowedRoles);
       })
@@ -368,7 +376,7 @@ export function DashboardShell({
                           <span className="flex size-7 items-center justify-center rounded-md bg-muted text-muted-foreground">
                             <Icon className="size-4" />
                           </span>
-                          {getNavLabel(label, href, displayRole)}
+                          {label}
                         </Link>
                       ))}
                     </div>

@@ -6,6 +6,7 @@ import {
 } from "@/components/dashboard-shell";
 import { RealtimeTurnoverRefresh } from "@/components/realtime-turnover-refresh";
 import { PrintReportButton } from "@/components/report-actions";
+import { TurnoverAnalyticsCharts } from "@/components/turnover-analytics-charts";
 import { requireDashboardCapability } from "@/lib/auth-role";
 import {
   getQuarterlyTurnoverSummary,
@@ -55,6 +56,7 @@ export default async function Page() {
     1,
   );
   const quarters = quarterTotals(summary);
+  const quarterTrend = quarterTrendTotals(summary);
   const maxQuarterExits = Math.max(...quarters.map((item) => item.exits), 1);
 
   const rows = summary.map((quarter) => [
@@ -81,7 +83,7 @@ export default async function Page() {
         description="Quarterly turnover trends from historical exits, with small groups suppressed in every report and export."
         action={
           <div className="flex flex-wrap items-end gap-2">
-            {(userRole === "HR" || userRole === "HR Manager") && (
+            {(userRole === "HR" || userRole === "Administrator") && (
               <form action="/api/reports/turnover" method="get" className="flex flex-wrap items-end gap-2">
                 <label className="text-xs font-medium">
                   From
@@ -151,6 +153,8 @@ export default async function Page() {
                   color="bg-primary"
                 />
               </div>
+
+              <TurnoverAnalyticsCharts quarters={quarterTrend} reasons={reasonCounts} />
 
               <section className="rounded-2xl border border-border/70 bg-card p-5">
                 <div className="mb-4">
@@ -253,8 +257,28 @@ function quarterTotals(summary: Awaited<ReturnType<typeof getQuarterlyTurnoverSu
     });
     totals.set(quarter, (totals.get(quarter) ?? 0) + item.exits);
   }
+
   return [...totals.entries()]
     .map(([quarter, exits]) => ({ quarter, exits }))
     .reverse()
     .slice(-8);
+}
+
+function quarterTrendTotals(summary: Awaited<ReturnType<typeof getQuarterlyTurnoverSummary>>) {
+  const totals = new Map<string, { exits: number; headcount: number }>();
+  for (const item of summary) {
+    const current = totals.get(item.quarter_start) ?? { exits: 0, headcount: 0 };
+    current.exits += item.exits;
+    current.headcount += item.active_headcount;
+    totals.set(item.quarter_start, current);
+  }
+  return [...totals.entries()]
+    .sort(([first], [second]) => first.localeCompare(second))
+    .slice(-8)
+    .map(([quarter, value]) => ({
+      label: new Date(`${quarter}T12:00:00`).toLocaleDateString("en", { month: "short", year: "2-digit" }),
+      exits: value.exits,
+      headcount: value.headcount,
+      rate: value.headcount > 0 ? (value.exits / value.headcount) * 100 : null,
+    }));
 }

@@ -1,10 +1,8 @@
 export type UserRole =
   | "Administrator"
-  | "HR"
-  | "HR Manager"
-  | "Employee";
+  | "HR";
 
-export type RoleKey = "administrator" | "hr" | "hr_manager" | "employee";
+export type RoleKey = "administrator" | "hr" | "unknown";
 export type DashboardCapability =
   | "manageEmployees"
   | "manageExitCases"
@@ -33,14 +31,7 @@ const roleCapabilities: Record<RoleKey, readonly DashboardCapability[]> = {
     "manageHrRequests",
     "viewReports",
   ],
-  hr_manager: [
-    "manageEmployees",
-    "manageExitCases",
-    "reviewLeave",
-    "manageHrRequests",
-    "viewReports",
-  ],
-  employee: [],
+  unknown: [],
 };
 
 export function getRoleKey(role: string | null | undefined): RoleKey {
@@ -53,9 +44,8 @@ export function getRoleKey(role: string | null | undefined): RoleKey {
   if (normalized === "admin" || normalized === "administrator") {
     return "administrator";
   }
-  if (normalized === "hr") return "hr";
-  if (normalized === "hr manager") return "hr_manager";
-  return "employee";
+  if (normalized === "hr" || normalized === "hr manager") return "hr";
+  return "unknown";
 }
 
 export function roleHasCapability(
@@ -68,18 +58,14 @@ export function roleHasCapability(
 export function normalizeUserRole(role: string | null | undefined): string {
   const trimmed = role?.trim();
 
-  if (!trimmed) {
-    return "Employee";
-  }
+  if (!trimmed) return "Unknown";
 
   switch (getRoleKey(trimmed)) {
     case "administrator":
       return "Administrator";
     case "hr":
       return "HR";
-    case "hr_manager":
-      return "HR Manager";
-    case "employee":
-      return "Employee";
+    case "unknown":
+      return "Unknown";
   }
 }

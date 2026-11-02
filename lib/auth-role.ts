@@ -54,7 +54,7 @@ export async function resolveDashboardUserContext() {
   const rawUserRole =
     typeof profile.role === "string" && profile.role.trim()
       ? profile.role.trim()
-      : "Employee";
+      : "Unknown";
   const userRole = normalizeUserRole(rawUserRole);
 
   const userName =

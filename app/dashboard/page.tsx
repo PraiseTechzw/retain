@@ -6,8 +6,9 @@ import {
   Status,
 } from "@/components/dashboard-shell";
 import { OperationsPanel } from "@/components/operations-panel";
+import { AdministratorOverview } from "@/components/dashboard/administrator-overview";
 import { RealtimeTurnoverRefresh } from "@/components/realtime-turnover-refresh";
-import { requireDashboardCapability } from "@/lib/auth-role";
+import { getRoleKey, requireDashboardCapability } from "@/lib/auth-role";
 import {
   getDepartments,
   getEmployees,
@@ -18,6 +19,10 @@ import {
 export default async function Page() {
   const { userName, userRole } =
     await requireDashboardCapability("manageEmployees");
+  if (getRoleKey(userRole) === "administrator") {
+    return <AdministratorOverview userName={userName} userRole={userRole} />;
+  }
+
   const [employees, exits, departments, turnover] = await Promise.all([
     getEmployees(),
     getExitRequests(),

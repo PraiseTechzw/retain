@@ -19,7 +19,7 @@ export function UserInvitationForm() {
       try {
         await inviteSystemUser(formData);
         form.reset();
-        setMessage("Invitation sent. The new account will have the Employee role.");
+        setMessage("Invitation sent. The account will have the selected HR or Administrator role.");
       } catch (error) {
         setFailed(true);
         setMessage(
@@ -35,12 +35,12 @@ export function UserInvitationForm() {
     <section className="rounded-2xl border border-border/70 bg-card p-6">
       <h2 className="text-lg font-semibold">Invite a staff account</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Invitations are administrator-only. New accounts start with the Employee
-        role; assign a different role after the account is created.
+        Invite HR or Administrator users. Employee records are managed separately
+        and do not receive system accounts.
       </p>
       <form
         onSubmit={submit}
-        className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]"
+        className="mt-4 grid gap-3 sm:grid-cols-2"
       >
         <label className="grid gap-1 text-sm font-medium">
           Full name
@@ -63,10 +63,21 @@ export function UserInvitationForm() {
             className="h-10 rounded-lg border border-input bg-background px-3 font-normal"
           />
         </label>
+        <label className="grid gap-1 text-sm font-medium">
+          Account role
+          <select
+            name="role"
+            defaultValue="hr"
+            className="h-10 rounded-lg border border-input bg-background px-3 font-normal"
+          >
+            <option value="hr">HR</option>
+            <option value="administrator">Administrator</option>
+          </select>
+        </label>
         <button
           type="submit"
           disabled={pending}
-          className="self-end rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+          className="self-end justify-self-start rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-60"
         >
           {pending ? "Sending…" : "Send invitation"}
         </button>

@@ -133,98 +133,6 @@ async function ensureUserProfile(
   return profile;
 }
 
-async function ensureEmployeeRecord(
-  user: {
-    id: string;
-    email?: string | null;
-    user_metadata?: Record<string, unknown>;
-  },
-  overrides: { fullName?: string; departmentId?: string | null } = {},
-) {
-  const email = String(user.email ?? "").trim();
-  const fullName =
-    String(
-      overrides.fullName ??
-        user.user_metadata?.full_name ??
-        email.split("@")[0] ??
-        appConfig.defaultUserName,
-    ).trim() || appConfig.defaultUserName;
-  const adminClient = createAdminClient();
-
-  const { data: existingEmployee, error: existingEmployeeError } = await adminClient
-    .from("employees")
-    .select(
-      "id, employee_number, full_name, email, department_id, job_title, employment_status, user_id",
-    )
-    .eq("email", email)
-    .maybeSingle();
-  if (existingEmployeeError) {
-    if (existingEmployeeError.code === "42703" || existingEmployeeError.code === "PGRST204") {
-      throw new Error("Employee account setup is incomplete. Ask your administrator to apply the latest Supabase migrations.");
-    }
-    throw new Error("Unable to check for an existing employee account.");
-  }
-
-  if (existingEmployee) {
-    if (existingEmployee.user_id && existingEmployee.user_id !== user.id) {
-      throw new Error("This employee email is already linked to another account.");
-    }
-    if (!existingEmployee.user_id) {
-      const { data: linkedEmployee, error } = await adminClient
-        .from("employees")
-        .update({ user_id: user.id })
-        .eq("id", existingEmployee.id)
-        .is("user_id", null)
-        .select("id,user_id")
-        .maybeSingle();
-      if (error) throw new Error("Unable to link your employee record to this account.");
-      if (!linkedEmployee) {
-        const { data: verifiedLink, error: linkError } = await adminClient
-          .from("employees")
-          .select("user_id")
-          .eq("id", existingEmployee.id)
-          .single();
-        if (linkError || verifiedLink?.user_id !== user.id) {
-          throw new Error("Employee record link changed while signing in.");
-        }
-      }
-    }
-    return existingEmployee;
-  }
-
-  const employeeNumber = `USER-${user.id.slice(0, 8).toUpperCase()}`;
-  const { data, error } = await adminClient
-    .from("employees")
-    .insert({
-      employee_number: employeeNumber,
-      user_id: user.id,
-      full_name: fullName,
-      email: email || `${user.id}@local.invalid`,
-      department_id: overrides.departmentId ?? null,
-      staff_category: "non_academic",
-      employment_type: "permanent",
-      employment_status: "active",
-      job_title: "Onboarded user",
-    })
-    .select(
-      "id, employee_number, full_name, email, department_id, job_title, employment_status",
-    )
-    .single();
-
-  if (error) {
-    if (/duplicate key|already exists|duplicate/i.test(error.message)) {
-      return existingEmployee;
-    }
-    if (error.code === "42703" || error.code === "PGRST204") {
-      throw new Error("Employee account setup is incomplete. Ask your administrator to apply the latest Supabase migrations.");
-    }
-    console.error("Employee account provisioning failed", { code: error.code });
-    throw new Error("Unable to create employee record for this user.");
-  }
-
-  return data;
-}
-
 export async function signIn(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim();
   const password = String(formData.get("password") ?? "");
@@ -254,15 +162,7 @@ export async function signIn(formData: FormData) {
     );
   }
 
-  const profile = await ensureUserProfile(supabase, data.user);
-  await ensureEmployeeRecord(data.user, {
-    fullName: profile?.full_name ?? undefined,
-  });
-
-  if (!profile?.department_id) {
-    redirect("/onboard?next=/dashboard");
-  }
-
+  await ensureUserProfile(supabase, data.user);
   redirect("/dashboard");
 }
 
@@ -395,8 +295,8 @@ async function resolveEffectiveUserRole(
 
   if (error) throw new Error("Unable to verify account role.");
   return profile?.active === true && typeof profile.role === "string"
-    ? profile.role.trim() || "Employee"
-    : "Employee";
+    ? profile.role.trim() || "inactive"
+    : "inactive";
 }
 
 async function requireAnyRole(
@@ -555,7 +455,6 @@ export async function updateEmployeeRecord(formData: FormData) {
   await requireAnyRole(supabase, user, [
     "administrator",
     "hr",
-    "hr_manager",
   ]);
 
   const employeeId = String(formData.get("employee_id") ?? "").trim();
@@ -636,7 +535,6 @@ export async function updateEmployeeRiskProfile(formData: FormData) {
   await requireAnyRole(supabase, user, [
     "administrator",
     "hr",
-    "hr_manager",
   ]);
   const employeeId = String(formData.get("employee_id") ?? "").trim();
   const homeArea =
@@ -763,7 +661,6 @@ export async function createExitRequest(formData: FormData) {
   await requireAnyRole(supabase, user, [
     "administrator",
     "hr",
-    "hr_manager",
   ]);
   const employeeId = String(formData.get("employee_id") ?? "");
   const reasonCategory = String(formData.get("reason_category") ?? "").trim();
@@ -853,7 +750,6 @@ export async function updateAssetStatus(formData: FormData) {
   await requireAnyRole(supabase, user, [
     "administrator",
     "hr",
-    "hr_manager",
   ]);
   const id = String(formData.get("asset_id") ?? "");
   const status = String(formData.get("status") ?? "");
@@ -959,7 +855,6 @@ export async function reviewLeaveRequest(formData: FormData) {
   await requireAnyRole(supabase, user, [
     "administrator",
     "hr",
-    "hr_manager",
   ]);
   const requestId = String(formData.get("request_id") ?? "").trim();
   const decision = String(formData.get("decision") ?? "").trim();
@@ -1809,130 +1704,6 @@ export async function getCurrentUser() {
   return { id: user.id, email: user.email ?? "" };
 }
 
-export async function completeOnboarding(formData: FormData) {
-  const { supabase, user } = await actor();
-
-  const fullName = String(formData.get("full_name") ?? "").trim();
-  const departmentId = String(formData.get("department_id") ?? "").trim();
-
-  if (!fullName) throw new Error("Full name is required.");
-  if (!departmentId) throw new Error("Please select your department.");
-
-  const { data: departmentRow, error: departmentLookupError } = await supabase
-    .from("departments")
-    .select("id")
-    .eq("id", departmentId)
-    .maybeSingle();
-
-  if (departmentLookupError || !departmentRow) {
-    throw new Error("Please select a valid department.");
-  }
-
-  const { data: existingProfile, error: profileLookupError } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (profileLookupError) throw new Error("Unable to load your profile.");
-  if (!existingProfile) {
-    throw new Error("Your account profile is not initialized. Contact an administrator.");
-  }
-
-  // The assigned role is never accepted from onboarding form data. This stops
-  // a user from creating a conflicting or elevated role for themselves.
-  const role = String(existingProfile.role ?? "Employee").trim() || "Employee";
-
-  const profile = {
-    full_name: fullName,
-    department_id: departmentRow.id,
-  };
-  const adminClient = createAdminClient();
-
-  // Profile creation is handled by the trusted Auth trigger; onboarding only
-  // updates the signed-in user's existing profile.
-  const { data: updatedProfile, error: profileUpdateError } = await adminClient
-    .from("profiles")
-    .update(profile)
-    .eq("id", user.id)
-    .select("id")
-    .maybeSingle();
-
-  if (profileUpdateError) {
-    console.error("Unable to update onboarding profile", {
-      code: profileUpdateError.code,
-      message: profileUpdateError.message,
-      details: profileUpdateError.details,
-    });
-    throw new Error("Unable to save your onboarding details.");
-  }
-
-  if (!updatedProfile) throw new Error("Your account profile is not initialized. Contact an administrator.");
-
-  const { data: existingEmployee, error: employeeLookupError } = await adminClient
-    .from("employees")
-    .select("id,user_id,department_id")
-    .eq("email", user.email ?? "")
-    .maybeSingle();
-
-  if (employeeLookupError) {
-    throw new Error("Unable to check for an existing employee record.");
-  }
-
-  if (existingEmployee && existingEmployee.user_id !== user.id) {
-    if (existingEmployee.user_id) {
-      throw new Error("This employee record is already linked to another account.");
-    }
-    const { error: linkError } = await adminClient
-      .from("employees")
-      .update({ user_id: user.id, department_id: departmentId })
-      .eq("id", existingEmployee.id)
-      .is("user_id", null);
-    if (linkError) {
-      throw new Error("Profile saved, but the employee record could not be linked.");
-    }
-  } else if (!existingEmployee) {
-    const employeeNumber = `USER-${user.id.slice(0, 8).toUpperCase()}`;
-    const { error: employeeError } = await adminClient.from("employees").insert({
-      employee_number: employeeNumber,
-      user_id: user.id,
-      full_name: fullName,
-      email: user.email,
-      department_id: departmentId,
-      staff_category: "non_academic",
-      employment_type: "permanent",
-      employment_status: "active",
-      job_title: "Onboarded user",
-    });
-
-    if (employeeError) {
-      throw new Error(
-        "Profile saved, but the employee record could not be created.",
-      );
-    }
-  } else if (!existingEmployee.department_id) {
-    const { error: departmentLinkError } = await adminClient
-      .from("employees")
-      .update({ department_id: departmentId })
-      .eq("id", existingEmployee.id)
-      .eq("user_id", user.id);
-    if (departmentLinkError) {
-      throw new Error("Profile saved, but the employee department could not be linked.");
-    }
-  }
-
-  await audit(supabase, user.id, "onboarded", "profile", user.id, {
-    role,
-    department_id: departmentId,
-  });
-
-  revalidatePath("/dashboard");
-  revalidatePath("/profile");
-  revalidatePath("/dashboard/settings");
-
-  redirect("/dashboard");
-}
-
 export async function signOut() {
   const { supabase } = await actor();
   await supabase.auth.signOut();
@@ -2466,17 +2237,15 @@ export async function updateUserRole(formData: FormData) {
   if (!userId || !newRole) {
     throw new Error("User ID and role are required.");
   }
-  if (
-    !["employee", "hr", "hr_manager", "administrator"].includes(newRole)
-  ) {
+  if (!["hr", "administrator"].includes(newRole)) {
     throw new Error("Select a supported user role.");
   }
 
   const adminClient = createAdminClient();
-  let { data: updatedProfile, error: profileError } = await adminClient
+  const { data: updatedProfile, error: profileError } = await adminClient
     .from("profiles")
     .update(
-      ["hr", "hr_manager"].includes(newRole)
+      newRole === "hr"
         ? { role: newRole }
         : { role: newRole, confidential_case_officer: false },
     )
@@ -2484,18 +2253,12 @@ export async function updateUserRole(formData: FormData) {
     .select("id")
     .maybeSingle();
 
-  if (isMissingConfidentialCaseOfficerColumn(profileError)) {
-    const fallback = await adminClient
-      .from("profiles")
-      .update({ role: newRole })
-      .eq("id", userId)
-      .select("id")
-      .maybeSingle();
-    updatedProfile = fallback.data;
-    profileError = fallback.error;
-  }
-
   if (profileError || !updatedProfile) {
+    if (isMissingConfidentialCaseOfficerColumn(profileError)) {
+      throw new Error(
+        "User-role management requires migration 20261029000600_restrict_confidential_hr_access.sql.",
+      );
+    }
     throw new Error("Unable to update user role.");
   }
 
@@ -2513,6 +2276,10 @@ export async function inviteSystemUser(formData: FormData) {
 
   const fullName = String(formData.get("full_name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const role = String(formData.get("role") ?? "hr").trim().toLowerCase();
+  if (!["hr", "administrator"].includes(role)) {
+    throw new Error("Choose either the HR or Administrator role.");
+  }
   if (!fullName || fullName.length > 120) {
     throw new Error("Enter a full name of 1 to 120 characters.");
   }
@@ -2525,7 +2292,7 @@ export async function inviteSystemUser(formData: FormData) {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
   const callbackUrl = new URL("/auth/callback", appUrl);
-  callbackUrl.searchParams.set("next", "/onboard?next=/dashboard");
+  callbackUrl.searchParams.set("next", "/dashboard");
   const adminClient = createAdminClient();
   const { data, error } = await adminClient.auth.admin.inviteUserByEmail(
     email,
@@ -2552,7 +2319,7 @@ export async function inviteSystemUser(formData: FormData) {
     {
       id: data.user.id,
       full_name: fullName,
-      role: "employee",
+      role,
       active: true,
     },
     { onConflict: "id" },
@@ -2577,6 +2344,7 @@ export async function inviteSystemUser(formData: FormData) {
 
   await audit(supabase, user.id, "invited_user", "system_user", data.user.id, {
     email,
+    role,
   });
   revalidatePath("/dashboard/user-management");
 }
@@ -2598,9 +2366,9 @@ export async function updateConfidentialCaseOfficer(formData: FormData) {
   if (targetError || !target) {
     throw new Error("Unable to verify the target account role.");
   }
-  if (!["hr", "hr_manager"].includes(target.role)) {
+  if (!["hr", "administrator"].includes(target.role)) {
     throw new Error(
-      "Confidential case access can only be assigned to HR staff or HR Managers.",
+      "Confidential case access can only be assigned to HR or Administrator accounts.",
     );
   }
 

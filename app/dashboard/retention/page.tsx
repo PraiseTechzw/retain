@@ -44,7 +44,7 @@ function dateLabel(value: string | null | undefined) {
 export default async function Page() {
   const context = await resolveDashboardUserContext();
   const role = getRoleKey(context.userRole);
-  if (role !== "hr" && role !== "hr_manager") redirect("/dashboard");
+  if (role !== "hr" && role !== "administrator") redirect("/dashboard");
 
   const supabase = await createClient();
   const [

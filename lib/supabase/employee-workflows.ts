@@ -64,7 +64,7 @@ async function getActor() {
 
 async function requireHr() {
   const actor = await getActor();
-  if (actor.role !== "hr" && actor.role !== "hr_manager") {
+  if (actor.role !== "hr" && actor.role !== "administrator") {
     throw new Error("Only HR staff can manage this information.");
   }
   return actor;

@@ -65,7 +65,7 @@ export default async function Page({
     redirect("/dashboard");
   }
   const role = getRoleKey(userRole);
-  const isHr = role === "hr" || role === "hr_manager";
+  const isHr = role === "hr" || role === "administrator";
   const canViewEmployeeHistory = isHr || isOwnEmployeeRecord;
 
   const [historyResult, documentResult] =

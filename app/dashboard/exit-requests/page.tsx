@@ -1,11 +1,11 @@
 import Link from "next/link";
 import {
   DashboardShell,
-  DataTable,
   EmptyState,
   PageFrame,
   Status,
 } from "@/components/dashboard-shell";
+import { ArrowRight, CalendarDays, CheckCircle2, Clock3, ClipboardList, UserRound } from "lucide-react";
 import { OperationsPanel } from "@/components/operations-panel";
 import { RealtimeTurnoverRefresh } from "@/components/realtime-turnover-refresh";
 import { getEmployees, getExitRequests } from "@/lib/supabase/data";
@@ -33,31 +33,7 @@ export default async function Page() {
     const employee = Array.isArray(request.employees)
       ? request.employees[0]
       : request.employees;
-    return [
-      <Link
-        key={request.id}
-        href={`/dashboard/exit-requests/${request.id}`}
-        className="font-semibold text-foreground hover:text-primary"
-      >
-        {employee?.employee_number ?? "—"} ·{" "}
-        {employee?.full_name ?? "Unknown employee"}
-      </Link>,
-      (request.reason_category ?? request.reason ?? "Not recorded").replaceAll("_", " "),
-      <Status
-        key="status"
-        tone={request.status === "completed" ? "green" : "amber"}
-      >
-        {request.status}
-      </Status>,
-      request.last_day ?? "—",
-      <Link
-        key="review"
-        href={`/dashboard/exit-requests/${request.id}`}
-        className="font-semibold text-primary hover:underline"
-      >
-        Review request
-      </Link>,
-    ];
+    return { request, employee };
   });
   const completedCount = requests.filter((request) =>
     ["completed", "finalized"].includes(String(request.status).toLowerCase()),
@@ -78,24 +54,30 @@ export default async function Page() {
       >
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-3">
-            <Metric label="Total exit cases" value={requests.length} />
-            <Metric label="Completed exits" value={completedCount} />
-            <Metric label="Open cases" value={openCount} />
+            <Metric icon={ClipboardList} label="Total exit cases" value={requests.length} />
+            <Metric icon={CheckCircle2} label="Completed exits" value={completedCount} />
+            <Metric icon={Clock3} label="Open cases" value={openCount} />
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-900 dark:bg-emerald-950/30">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border/70 bg-card p-4">
             <div>
-              <p className="font-semibold text-emerald-900 dark:text-emerald-200">Linked exit history</p>
-              <p className="mt-1 text-sm text-emerald-800/80 dark:text-emerald-300/80">
+              <p className="font-semibold">Exit case queue</p>
+              <p className="mt-1 text-sm text-muted-foreground">
                 {reasons} categorized reason{reasons === 1 ? "" : "s"} are available for turnover analysis.
               </p>
             </div>
-            <Status tone="green">Live cases</Status>
+            <Status tone="blue">Live records</Status>
           </div>
           {requests.length ? (
-            <DataTable
-              columns={["Employee", "Reason", "Status", "Last day", "Action"]}
-              rows={rows}
-            />
+            <div className="overflow-hidden rounded-2xl border border-border/70 bg-card">
+              <div className="hidden grid-cols-[minmax(0,1.5fr)_minmax(150px,1fr)_130px_150px_110px] gap-4 border-b border-border/70 px-5 py-3 text-xs font-semibold uppercase tracking-wide text-muted-foreground md:grid">
+                <span>Employee</span><span>Reason</span><span>Status</span><span>Last working day</span><span />
+              </div>
+              <div className="divide-y divide-border/60">
+                {rows.map(({ request, employee }) => (
+                  <ExitCaseRow key={request.id} request={request} employee={employee} />
+                ))}
+              </div>
+            </div>
           ) : (
             <EmptyState label="exit requests" />
           )}
@@ -105,11 +87,51 @@ export default async function Page() {
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
+function Metric({ icon: Icon, label, value }: { icon: typeof ClipboardList; label: string; value: number }) {
   return (
     <div className="rounded-2xl border border-border/70 bg-card p-5">
-      <p className="text-sm text-muted-foreground">{label}</p>
-      <p className="mt-2 text-3xl font-semibold">{value}</p>
+      <Icon className="size-5 text-primary" aria-hidden="true" />
+      <p className="mt-5 text-sm text-muted-foreground">{label}</p>
+      <p className="mt-1 text-3xl font-semibold tabular-nums">{value}</p>
     </div>
   );
+}
+
+function ExitCaseRow({
+  request,
+  employee,
+}: {
+  request: Awaited<ReturnType<typeof getExitRequests>>[number];
+  employee: { full_name?: string | null; employee_number?: string | null } | null;
+}) {
+  const status = String(request.status).toLowerCase();
+  const isComplete = ["completed", "finalized"].includes(status);
+  const lastDay = request.last_day ? new Date(`${request.last_day}T12:00:00`) : null;
+  const daysUntil = lastDay ? Math.ceil((lastDay.getTime() - Date.now()) / 86400000) : null;
+  const urgency = !isComplete && daysUntil != null && daysUntil <= 14;
+  return (
+    <Link href={`/dashboard/exit-requests/${request.id}`} className="group grid gap-3 px-5 py-4 transition hover:bg-muted/35 md:grid-cols-[minmax(0,1.5fr)_minmax(150px,1fr)_130px_150px_110px] md:items-center md:gap-4">
+      <div className="flex min-w-0 items-center gap-3">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+          <UserRound className="size-4" aria-hidden="true" />
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-sm font-semibold group-hover:text-primary">{employee?.full_name ?? "Unknown employee"}</span>
+          <span className="mt-0.5 block truncate text-xs text-muted-foreground">{employee?.employee_number ?? "No employee number"}</span>
+        </span>
+      </div>
+      <div className="pl-13 text-sm capitalize text-muted-foreground md:pl-0">{(request.reason_category ?? request.reason ?? "Not recorded").replaceAll("_", " ")}</div>
+      <div className="pl-13 md:pl-0"><Status tone={isComplete ? "green" : status === "under_review" ? "blue" : "amber"}>{status.replaceAll("_", " ")}</Status></div>
+      <div className={`flex items-center gap-2 pl-13 text-sm md:pl-0 ${urgency ? "font-semibold text-amber-700 dark:text-amber-300" : "text-muted-foreground"}`}>
+        <CalendarDays className="size-4" aria-hidden="true" />
+        {lastDay ? formatDate(lastDay) : "Not set"}
+        {urgency && <span className="text-xs">· soon</span>}
+      </div>
+      <span className="hidden items-center gap-1 text-sm font-semibold text-primary md:inline-flex">Review <ArrowRight className="size-4 transition group-hover:translate-x-0.5" /></span>
+    </Link>
+  );
+}
+
+function formatDate(value: Date) {
+  return new Intl.DateTimeFormat("en", { day: "numeric", month: "short", year: "numeric" }).format(value);
 }

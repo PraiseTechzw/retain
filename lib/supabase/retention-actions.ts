@@ -36,7 +36,7 @@ async function getActor() {
 
 async function requireHr() {
   const actor = await getActor();
-  if (actor.role !== "hr" && actor.role !== "hr_manager") {
+  if (actor.role !== "hr" && actor.role !== "administrator") {
     throw new Error("Only HR staff can manage this information.");
   }
   return actor;
@@ -390,7 +390,7 @@ export async function uploadHandoverGuide(
     const title = String(formData.get("title") ?? "").trim();
     const file = formData.get("file");
     const requestedEmployeeId = String(formData.get("employee_id") ?? "");
-    const isHr = role === "hr" || role === "hr_manager" || role === "administrator";
+    const isHr = role === "hr" || role === "administrator";
     if (!title || title.length > 160) return failed("Enter a guide title of up to 160 characters.");
     if (!(file instanceof File) || file.size === 0 || file.size > 10 * 1024 * 1024) {
       return failed("Choose a guide smaller than 10 MB.");
