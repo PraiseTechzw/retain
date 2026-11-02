@@ -30,18 +30,8 @@ function resolveDisplayRole(userRole?: string | null) {
 }
 
 const navItems = [
-  [
-    "Overview",
-    "/dashboard",
-    LayoutDashboard,
-    ["hr", "administrator"],
-  ],
-  [
-    "Employees",
-    "/dashboard/employees",
-    Users,
-    ["hr", "administrator"],
-  ],
+  ["Overview", "/dashboard", LayoutDashboard, ["hr", "administrator"]],
+  ["Employees", "/dashboard/employees", Users, ["hr", "administrator"]],
   [
     "Exit cases",
     "/dashboard/exit-requests",
@@ -60,18 +50,8 @@ const navItems = [
     ShieldCheck,
     ["administrator"],
   ],
-  [
-    "System settings",
-    "/dashboard/settings",
-    Settings2,
-    ["administrator"],
-  ],
-  [
-    "Audit log",
-    "/dashboard/audit",
-    FileText,
-    ["administrator"],
-  ],
+  ["System settings", "/dashboard/settings", Settings2, ["administrator"]],
+  ["Audit log", "/dashboard/audit", FileText, ["administrator"]],
 ] as const;
 
 function canAccessNavItem(userRole: string, allowedRoles: readonly RoleKey[]) {
@@ -123,7 +103,7 @@ function SidebarNav({
           </div>
           <div className={`min-w-0 flex-1 ${collapsed ? "lg:hidden" : ""}`}>
             <p className="truncate text-xs font-bold leading-tight text-foreground">
-              Turnover Trend Tracking System
+              Chinhoyi University Of Technology
             </p>
             <p className="text-[10px] font-semibold uppercase leading-relaxed tracking-[0.14em] text-muted-foreground">
               {appConfig.subtitle}
@@ -183,9 +163,7 @@ function SidebarNav({
                       strokeWidth={active ? 2.35 : 2}
                     />
                   </span>
-                  <span className={collapsed ? "lg:hidden" : ""}>
-                    {label}
-                  </span>
+                  <span className={collapsed ? "lg:hidden" : ""}>{label}</span>
                   {active && (
                     <span
                       className={`absolute right-3 size-1.5 rounded-full bg-primary-foreground ${collapsed ? "lg:hidden" : ""}`}
@@ -382,7 +360,9 @@ export function DashboardShell({
                   {getInitials(displayName)}
                 </div>
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold">{displayName}</p>
+                  <p className="truncate text-sm font-semibold">
+                    {displayName}
+                  </p>
                   <p className="truncate text-xs text-muted-foreground">
                     {displayRole}
                   </p>

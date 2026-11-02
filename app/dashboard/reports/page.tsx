@@ -223,7 +223,8 @@ function getQuarterStartForDate(value: string) {
   const date = new Date(`${value}T12:00:00`);
   if (Number.isNaN(date.getTime())) return "2023-01-01";
   const quarterMonth = Math.floor(date.getUTCMonth() / 3) * 3 + 1;
-  return `${date.getUTCFullYear()}-${String(quarterMonth).padStart(2, "0")}-01`;
+  const month = quarterMonth < 10 ? `0${quarterMonth}` : String(quarterMonth);
+  return `${date.getUTCFullYear()}-${month}-01`;
 }
 
 function formatQuarter(value: string) {
