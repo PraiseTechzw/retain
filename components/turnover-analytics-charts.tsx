@@ -10,6 +10,7 @@ type QuarterPoint = {
 type ChartProps = {
   quarters: QuarterPoint[];
   reasons: Array<[string, number]>;
+  embedded?: boolean;
 };
 
 const chartWidth = 720;
@@ -24,7 +25,7 @@ function linePath(points: Array<{ x: number; y: number }>) {
   return points.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ");
 }
 
-export function TurnoverAnalyticsCharts({ quarters, reasons }: ChartProps) {
+export function TurnoverAnalyticsCharts({ quarters, reasons, embedded = false }: ChartProps) {
   const visibleQuarters = quarters.slice(-8);
   const rates = visibleQuarters.filter((quarter) => quarter.rate != null);
   const maxRate = Math.max(...rates.map((quarter) => quarter.rate ?? 0), 1);
@@ -39,8 +40,8 @@ export function TurnoverAnalyticsCharts({ quarters, reasons }: ChartProps) {
   const totalReasons = reasons.reduce((total, [, count]) => total + count, 0);
 
   return (
-    <section className="grid gap-6 lg:grid-cols-[1.4fr_0.6fr]" aria-label="Turnover visual analysis">
-      <div className="rounded-2xl border border-border/70 bg-card p-5 md:p-6">
+    <section className={embedded ? "space-y-5" : "grid gap-6 lg:grid-cols-[1.4fr_0.6fr]"} aria-label="Turnover visual analysis">
+      <div className={embedded ? "" : "rounded-2xl border border-border/70 bg-card p-5 md:p-6"}>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h2 className="font-semibold">Turnover rate over time</h2>
@@ -80,7 +81,7 @@ export function TurnoverAnalyticsCharts({ quarters, reasons }: ChartProps) {
         )}
       </div>
 
-      <div className="rounded-2xl border border-border/70 bg-card p-5 md:p-6">
+      {!embedded && <div className="rounded-2xl border border-border/70 bg-card p-5 md:p-6">
         <h2 className="font-semibold">Reason mix</h2>
         <p className="mt-1 text-sm text-muted-foreground">Reportable exits grouped by their recorded reason.</p>
         <div className="mt-6 space-y-4">
@@ -96,7 +97,7 @@ export function TurnoverAnalyticsCharts({ quarters, reasons }: ChartProps) {
             </div>
           )) : <p className="text-sm text-muted-foreground">No reportable reasons are available.</p>}
         </div>
-      </div>
+      </div>}
     </section>
   );
 }

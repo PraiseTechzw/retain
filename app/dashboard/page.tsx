@@ -58,7 +58,9 @@ export default async function Page() {
     current.headcount += item.active_headcount;
     quarterTotals.set(item.quarter_start, current);
   }
+  const currentQuarterStart = getCurrentQuarterStart();
   const quarterSummary = [...quarterTotals.entries()]
+    .filter(([quarter]) => quarter < currentQuarterStart)
     .sort(([first], [second]) => second.localeCompare(first))
     .map(([quarter, totals]) => ({
       quarter,
@@ -148,13 +150,13 @@ export default async function Page() {
                 <div>
                   <h2 className="font-semibold">Turnover snapshot</h2>
                   <p className="mt-1 text-sm text-muted-foreground">
-                    Latest live quarterly result from linked exit history.
+                    Latest completed quarter from linked exit history.
                   </p>
                 </div>
                 <Status tone="green">Live</Status>
               </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <Snapshot label="Latest quarter" value={latestQuarter ? formatQuarter(latestQuarter.quarter) : "—"} />
+                <Snapshot label="Latest completed quarter" value={latestQuarter ? formatQuarter(latestQuarter.quarter) : "—"} />
                 <Snapshot label="Quarter exits" value={latestQuarter?.exits ?? 0} />
                 <Snapshot
                   label="Turnover rate"
@@ -270,4 +272,9 @@ function formatQuarter(value: string) {
     month: "short",
     year: "numeric",
   });
+}
+
+function getCurrentQuarterStart() {
+  const now = new Date();
+  return `${now.getUTCFullYear()}-${String(Math.floor(now.getUTCMonth() / 3) * 3 + 1).padStart(2, "0")}-01`;
 }
