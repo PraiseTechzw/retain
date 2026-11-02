@@ -74,7 +74,7 @@ export default async function Page() {
               </div>
               <div className="divide-y divide-border/60">
                 {rows.map(({ request, employee }) => (
-                  <ExitCaseRow key={request.id} request={request} employee={employee} />
+                  <ExitCaseRow key={request.id} request={request} employee={employee ?? null} />
                 ))}
               </div>
             </div>
@@ -107,8 +107,6 @@ function ExitCaseRow({
   const status = String(request.status).toLowerCase();
   const isComplete = ["completed", "finalized"].includes(status);
   const lastDay = request.last_day ? new Date(`${request.last_day}T12:00:00`) : null;
-  const daysUntil = lastDay ? Math.ceil((lastDay.getTime() - Date.now()) / 86400000) : null;
-  const urgency = !isComplete && daysUntil != null && daysUntil <= 14;
   return (
     <Link href={`/dashboard/exit-requests/${request.id}`} className="group grid gap-3 px-5 py-4 transition hover:bg-muted/35 md:grid-cols-[minmax(0,1.5fr)_minmax(150px,1fr)_130px_150px_110px] md:items-center md:gap-4">
       <div className="flex min-w-0 items-center gap-3">
@@ -122,10 +120,9 @@ function ExitCaseRow({
       </div>
       <div className="pl-13 text-sm capitalize text-muted-foreground md:pl-0">{(request.reason_category ?? request.reason ?? "Not recorded").replaceAll("_", " ")}</div>
       <div className="pl-13 md:pl-0"><Status tone={isComplete ? "green" : status === "under_review" ? "blue" : "amber"}>{status.replaceAll("_", " ")}</Status></div>
-      <div className={`flex items-center gap-2 pl-13 text-sm md:pl-0 ${urgency ? "font-semibold text-amber-700 dark:text-amber-300" : "text-muted-foreground"}`}>
+      <div className="flex items-center gap-2 pl-13 text-sm text-muted-foreground md:pl-0">
         <CalendarDays className="size-4" aria-hidden="true" />
         {lastDay ? formatDate(lastDay) : "Not set"}
-        {urgency && <span className="text-xs">· soon</span>}
       </div>
       <span className="hidden items-center gap-1 text-sm font-semibold text-primary md:inline-flex">Review <ArrowRight className="size-4 transition group-hover:translate-x-0.5" /></span>
     </Link>
