@@ -135,7 +135,7 @@ export default async function Page() {
                   />
                   <Metric
                     label="Reason categories recorded"
-                    value={reasonCounts.filter(([reason]) => reason !== "Not recorded").length}
+                    value={allReasonCounts.filter(([reason]) => reason !== "Not recorded").length}
                   />
                   <Metric
                     label="Schools represented"
@@ -163,7 +163,7 @@ export default async function Page() {
                 />
               </div>
 
-              <TurnoverAnalyticsCharts quarters={quarterTrend} reasons={reasonCounts} />
+              <TurnoverAnalyticsCharts quarters={quarterTrend} reasons={allReasonCounts} />
 
               <section className="rounded-2xl border border-border/70 bg-card p-5">
                 <div className="mb-4">
