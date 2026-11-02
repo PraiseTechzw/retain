@@ -34,14 +34,14 @@ export default async function Page() {
   const averageTurnover = quarterRates.length
     ? quarterRates.reduce((total, rate) => total + rate, 0) / quarterRates.length
     : null;
-  const reasonCounts = Object.entries(
+  const allReasonCounts = Object.entries(
     baseline.reduce<Record<string, number>>((counts, item) => {
       counts[item.reason_category] = (counts[item.reason_category] ?? 0) + item.exits;
       return counts;
     }, {}),
   )
-    .sort(([, first], [, second]) => second - first)
-    .slice(0, 6);
+    .sort(([, first], [, second]) => second - first);
+  const reasonCounts = allReasonCounts.slice(0, 6);
   const departmentCounts = Object.entries(
     baseline.reduce<Record<string, number>>((counts, item) => {
       counts[item.department] = (counts[item.department] ?? 0) + item.exits;
@@ -58,6 +58,13 @@ export default async function Page() {
   const quarters = quarterTotals(summary);
   const quarterTrend = quarterTrendTotals(summary);
   const maxQuarterExits = Math.max(...quarters.map((item) => item.exits), 1);
+  const reportableExitTotal = baseline.reduce((total, item) => total + item.exits, 0);
+  const quarterlySummaryRows = quarterTrend.map((quarter) => [
+    quarter.label,
+    quarter.exits,
+    quarter.headcount.toFixed(1),
+    quarter.rate == null ? "N/A" : `${quarter.rate.toFixed(1)}%`,
+  ]);
 
   const rows = summary.map((quarter) => [
     `${new Date(`${quarter.quarter_start}T12:00:00`).toLocaleDateString("en", { month: "short", year: "numeric" })} · ${quarter.department}`,
@@ -143,6 +150,7 @@ export default async function Page() {
                   description="Standardised categories with fewer than five exits are withheld."
                   entries={reasonCounts}
                   max={maxReasonCount}
+                  total={reportableExitTotal}
                   color="bg-primary"
                 />
                 <BarCard
@@ -150,11 +158,25 @@ export default async function Page() {
                   description="Aggregated counts from reportable reason groups only."
                   entries={departmentCounts}
                   max={maxDepartmentCount}
+                  total={reportableExitTotal}
                   color="bg-primary"
                 />
               </div>
 
               <TurnoverAnalyticsCharts quarters={quarterTrend} reasons={reasonCounts} />
+
+              <section className="rounded-2xl border border-border/70 bg-card p-5">
+                <div className="mb-4">
+                  <h2 className="font-semibold">Institution-wide quarterly summary</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Exits divided by average opening and closing headcount for each quarter. Percentages are calculated from the displayed totals.
+                  </p>
+                </div>
+                <DataTable
+                  columns={["Quarter", "Exits", "Average headcount", "Turnover rate"]}
+                  rows={quarterlySummaryRows}
+                />
+              </section>
 
               <section className="rounded-2xl border border-border/70 bg-card p-5">
                 <div className="mb-4">
@@ -219,12 +241,14 @@ function BarCard({
   description,
   entries,
   max,
+  total,
   color,
 }: {
   title: string;
   description: string;
   entries: Array<[string, number]>;
   max: number;
+  total: number;
   color: string;
 }) {
   return (
@@ -236,7 +260,7 @@ function BarCard({
           <div key={label}>
             <div className="mb-1 flex justify-between gap-3 text-sm">
               <span className="truncate capitalize">{label.replaceAll("_", " ")}</span>
-              <strong>{count}</strong>
+              <strong className="tabular-nums">{count} <span className="font-normal text-muted-foreground">({total ? ((count / total) * 100).toFixed(1) : "0.0"}%)</span></strong>
             </div>
             <div className="h-2 rounded-full bg-muted">
               <div className={`h-2 rounded-full ${color}`} style={{ width: `${(count / max) * 100}%` }} />

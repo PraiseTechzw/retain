@@ -50,6 +50,27 @@ export default async function Page() {
   const topReasons = Object.entries(reasonCounts)
     .sort(([, first], [, second]) => second - first)
     .slice(0, 5);
+  const completedExitTotal = completedExits.length;
+  const quarterTotals = new Map<string, { exits: number; headcount: number }>();
+  for (const item of turnover) {
+    const current = quarterTotals.get(item.quarter_start) ?? { exits: 0, headcount: 0 };
+    current.exits += item.exits;
+    current.headcount += item.active_headcount;
+    quarterTotals.set(item.quarter_start, current);
+  }
+  const quarterSummary = [...quarterTotals.entries()]
+    .sort(([first], [second]) => second.localeCompare(first))
+    .map(([quarter, totals]) => ({
+      quarter,
+      exits: totals.exits,
+      headcount: totals.headcount,
+      rate: totals.headcount > 0 ? (totals.exits / totals.headcount) * 100 : null,
+    }));
+  const latestQuarter = quarterSummary[0];
+  const previousQuarter = quarterSummary[1];
+  const rateChange = latestQuarter?.rate != null && previousQuarter?.rate != null
+    ? latestQuarter.rate - previousQuarter.rate
+    : null;
   const recentExits = completedExits.slice(0, 5).map((exit) => {
     const employee = Array.isArray(exit.employees)
       ? exit.employees[0]
@@ -61,7 +82,6 @@ export default async function Page() {
       exit.last_day ?? "—",
     ];
   });
-  const latestQuarter = turnover[0];
   const departmentsForForm = departments.flatMap((department) =>
     department.id && department.name
       ? [{ id: department.id, name: department.name }]
@@ -134,13 +154,18 @@ export default async function Page() {
                 <Status tone="green">Live</Status>
               </div>
               <div className="mt-5 grid gap-3 sm:grid-cols-3">
-                <Snapshot label="Latest quarter" value={latestQuarter ? formatQuarter(latestQuarter.quarter_start) : "—"} />
+                <Snapshot label="Latest quarter" value={latestQuarter ? formatQuarter(latestQuarter.quarter) : "—"} />
                 <Snapshot label="Quarter exits" value={latestQuarter?.exits ?? 0} />
                 <Snapshot
                   label="Turnover rate"
-                  value={latestQuarter?.attrition_rate_pct == null ? "N/A" : `${latestQuarter.attrition_rate_pct}%`}
+                  value={latestQuarter?.rate == null ? "N/A" : `${latestQuarter.rate.toFixed(1)}%`}
                 />
               </div>
+              <p className="mt-4 text-xs text-muted-foreground">
+                {rateChange == null
+                  ? "A quarter-on-quarter comparison will appear when two reportable quarters are available."
+                  : `${Math.abs(rateChange).toFixed(1)} percentage points ${rateChange > 0 ? "higher" : rateChange < 0 ? "lower" : "unchanged"} than the previous quarter.`}
+              </p>
             </div>
 
             <div className="rounded-2xl border border-border/70 bg-card p-5">
@@ -160,7 +185,7 @@ export default async function Page() {
           </section>
 
           <section className="grid gap-6 lg:grid-cols-2">
-            <ReasonList reasons={topReasons} />
+            <ReasonList reasons={topReasons} total={completedExitTotal} />
             <div className="rounded-2xl border border-border/70 bg-card p-5">
               <div className="flex items-center justify-between gap-4">
                 <div>
@@ -217,7 +242,7 @@ function Snapshot({ label, value }: { label: string; value: number | string }) {
   );
 }
 
-function ReasonList({ reasons }: { reasons: Array<[string, number]> }) {
+function ReasonList({ reasons, total }: { reasons: Array<[string, number]>; total: number }) {
   const max = Math.max(...reasons.map(([, count]) => count), 1);
   return (
     <div className="rounded-2xl border border-border/70 bg-card p-5">
@@ -228,7 +253,7 @@ function ReasonList({ reasons }: { reasons: Array<[string, number]> }) {
           <div key={reason}>
             <div className="mb-1 flex justify-between gap-3 text-sm">
               <span className="capitalize">{reason.replaceAll("_", " ")}</span>
-              <strong>{count}</strong>
+              <strong className="tabular-nums">{count} <span className="font-normal text-muted-foreground">({total ? ((count / total) * 100).toFixed(1) : "0.0"}%)</span></strong>
             </div>
             <div className="h-2 rounded-full bg-muted">
               <div className="h-2 rounded-full bg-primary" style={{ width: `${(count / max) * 100}%` }} />

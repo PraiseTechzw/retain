@@ -36,6 +36,7 @@ export function TurnoverAnalyticsCharts({ quarters, reasons }: ChartProps) {
     y: padding.top + plotHeight - ((quarter.rate ?? 0) / maxRate) * plotHeight,
   }));
   const maxReason = Math.max(...reasons.map(([, count]) => count), 1);
+  const totalReasons = reasons.reduce((total, [, count]) => total + count, 0);
 
   return (
     <section className="grid gap-6 lg:grid-cols-[1.4fr_0.6fr]" aria-label="Turnover visual analysis">
@@ -87,7 +88,7 @@ export function TurnoverAnalyticsCharts({ quarters, reasons }: ChartProps) {
             <div key={reason}>
               <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
                 <span className="truncate capitalize">{formatReason(reason)}</span>
-                <strong className="tabular-nums">{count}</strong>
+                <strong className="tabular-nums">{count} <span className="font-normal text-muted-foreground">({totalReasons ? ((count / totalReasons) * 100).toFixed(1) : "0.0"}%)</span></strong>
               </div>
               <div className="h-2 rounded-full bg-muted">
                 <div className="h-2 rounded-full bg-primary" style={{ width: `${(count / maxReason) * 100}%` }} />
