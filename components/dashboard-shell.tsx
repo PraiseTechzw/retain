@@ -112,7 +112,7 @@ function SidebarNav({
           </div>
           <div className={`min-w-0 flex-1 ${collapsed ? "lg:hidden" : ""}`}>
             <p className="truncate text-xs font-bold leading-tight text-foreground">
-              {appConfig.shortName}
+              Turnover Trend Tracking System
             </p>
             <p className="text-[10px] font-semibold uppercase leading-relaxed tracking-[0.14em] text-muted-foreground">
               {appConfig.subtitle}
