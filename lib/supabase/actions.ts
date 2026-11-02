@@ -2201,28 +2201,6 @@ export async function verifyAsset(formData: FormData) {
   revalidatePath("/dashboard/exit-requests");
 }
 
-export async function createHandover(formData: FormData) {
-  const { supabase, user } = await actor();
-  const employeeId = String(formData.get("employee_id") ?? "");
-  const notes = String(formData.get("notes") ?? "").trim();
-  if (!employeeId || !notes)
-    throw new Error("Employee and handover notes are required.");
-  const { data: assets } = await supabase
-    .from("assets")
-    .select("id")
-    .eq("assigned_to", employeeId);
-  await supabase
-    .from("employees")
-    .update({ employment_status: "exiting" })
-    .eq("id", employeeId);
-  await audit(supabase, user.id, "handover_started", "employee", employeeId, {
-    notes,
-    asset_count: assets?.length ?? 0,
-  });
-  revalidatePath("/dashboard/employees");
-  revalidatePath("/dashboard/assets");
-}
-
 export async function updateUserRole(formData: FormData) {
   const { supabase, user } = await actor();
 

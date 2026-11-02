@@ -1,6 +1,6 @@
 # Turnover Trend Tracking System
 
-Turnover Trend Tracking System is Chinhoyi University of Technology's Human Resource Management and Employee Retention System. It supports daily HR administration, employee self-service, leave, appointments, contracts, employee relations, engagement, retention, exits, and workforce reporting.
+Turnover Trend Tracking System is Chinhoyi University of Technology's Human Resource Management System. It supports daily HR administration, employee self-service, leave, appointments, contracts, employee relations, exits, and workforce reporting.
 
 > **Deployment status:** application code and database migrations are in this repository. A successful local build does not prove that migrations, Supabase Storage policies, scheduled jobs, email delivery, or role access have been validated in the institution's live project. Follow the deployment and acceptance checklists before production use.
 
@@ -9,10 +9,9 @@ Turnover Trend Tracking System is Chinhoyi University of Technology's Human Reso
 - **Employee records:** academic and non-academic staff register, appointments, contracts, and employment status.
 - **Employee self-service:** leave applications and HR requests, with HR processing and notifications.
 - **Daily HR operations:** contracts, probation, onboarding, employee relations, and authorised case management.
-- **Engagement and retention:** check-ins, surveys, retention actions, and aggregated workforce insight.
 - **HR exit management:** HR records exits, interviews, internal completion steps, and exit trends.
 
-The support workspace records agreed follow-up actions and presents neutral service-date and commute context. It does not use approved leave, commute, or tenure to score or rank employees. Any future attrition model requires a separately approved, validated, and privacy-reviewed project.
+The system does not provide staff-engagement surveys, retention workflows, or handover guides. Existing database migrations and records for retired features are preserved for operational safety.
 
 ## How it works
 

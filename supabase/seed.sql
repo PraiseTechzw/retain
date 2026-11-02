@@ -31,16 +31,20 @@ create policy "recruitment openings manage"
   using ((select public.hrms_is_hr()))
   with check ((select public.hrms_is_hr()));
 
-insert into public.departments (name, code)
+insert into public.departments (name, code, school)
 values
-  ('Human Resources', 'HR'),
-  ('Faculty of Engineering', 'ENG'),
-  ('Faculty of Business Sciences', 'BUS'),
-  ('Faculty of Science and Technology', 'FST'),
-  ('Information and Communication Technology', 'ICT'),
-  ('Library Services', 'LIB'),
-  ('Research and Innovation', 'R&I')
+  ('Human Resources', 'HR', 'Chinhoyi University of Technology'),
+  ('Faculty of Engineering', 'ENG', 'Chinhoyi University of Technology'),
+  ('Faculty of Business Sciences', 'BUS', 'Chinhoyi University of Technology'),
+  ('Faculty of Science and Technology', 'FST', 'Chinhoyi University of Technology'),
+  ('Information and Communication Technology', 'ICT', 'Chinhoyi University of Technology'),
+  ('Library Services', 'LIB', 'Chinhoyi University of Technology'),
+  ('Research and Innovation', 'R&I', 'Chinhoyi University of Technology')
 on conflict (name) do nothing;
+
+update public.departments
+set school = 'Chinhoyi University of Technology'
+where school is null or btrim(school) = '';
 
 insert into public.employees (
   id, employee_number, full_name, email, department_id, job_title,

@@ -6,7 +6,7 @@ This is the implementation backlog for the agreed **Turnover Trend Tracking Syst
 
 - Turnover Trend Tracking System is an HR-only, day-to-day Human Resource Management System.
 - The agreed roles are Administrator, HR, HR Manager, and Employee. Confidential Case Officer is a separately assigned permission for HR and HR Managers; it does not grant Administrators access to confidential content.
-- Retention, engagement, and exit analytics are built into the HRMS; exit clearance and asset management are not the purpose of the product.
+- Exit management and turnover reporting remain in scope; staff engagement, retention workflows, and handover guides are retired from the application.
 - Employees use self-service features. HR manages all HR workflows. Administrators manage access and system configuration.
 - Payroll calculation, external integrations, and any feature requiring CUT policy approval remain out of scope until validated.
 
@@ -24,7 +24,7 @@ This is the implementation backlog for the agreed **Turnover Trend Tracking Syst
 | Authentication, profiles, employee records, departments, notifications, and audit events | Present | Retain, strengthen, and align to HR-only roles. |
 | Leave requests and balances | Present | Complete the rules, approvals, balances, and employee self-service experience. |
 | Exit requests and reporting | Present, but coupled to asset, knowledge, and departmental clearance blockers | Replace with a self-contained HR exit case and exit interview workflow. |
-| Retention interventions and turnover reporting | Present in early form | Build into a complete engagement, retention, and insight workflow. |
+| Retention interventions and turnover reporting | Retired from the active application | Preserve existing database history; do not expose retired engagement, retention, or handover workflows. |
 | Recruitment, assets, knowledge hub, clearance, and asset activity | Present | Do not expose as core Turnover Trend Tracking System functions. Preserve existing data until an approved retirement/migration decision. |
 
 ## Completed transition work
@@ -35,33 +35,9 @@ This is the implementation backlog for the agreed **Turnover Trend Tracking Syst
 - [x] HR dashboard refocused on employees, leave, and HR exit cases.
 - [x] New employee capture form and HR exit-case creation form aligned to the new schema.
 
-## Retention workflow implementation status
+## Retired engagement, retention, and handover workflows
 
-The following workflows are implemented in code and await deployment of the new Supabase migration and Edge Function:
-
-- Historical exit CSV import with transactional validation, employee matching, audit logging, and a downloadable template.
-- Structured HR exit interviews, rehire eligibility, and manually created follow-up records; department-level advisory turnover warnings are being added, while individual attrition-risk scoring remains out of scope.
-- Three- and six-month, single-use former-employee surveys with hashed invitation tokens and scheduled email dispatch.
-- Private, versioned handover guides with successor sharing, expiring signed downloads, and review reminders.
-- All-time and quarterly turnover summaries with small-group suppression, an HR-only aggregate CSV export, and browser print/Save as PDF.
-
-See [retention workflow deployment](./retention-workflows-deployment.md) for the migration, Edge Function, secrets, cron, and release checks. These features must not be described as live until the target Supabase project has been configured and tested.
-
-## Engagement, employment history, and personnel documents
-
-The new engagement and employee-record workflows are implemented in the repository and await application of `20261102182124_engagement_employment_history_documents.sql`:
-
-- HR can schedule a confidential staff survey with up to 12 five-point rating questions, open/close dates, and manual closure. Employees with a linked, non-exited employee record can submit once.
-- Survey responses are identified to authorised HR staff, not anonymous. HR screens show aggregated response distributions only and suppress distributions below five respondents.
-- HR can create and update retention actions with an owner, due date, status, and outcome.
-- Employment changes to department, job title, grade, employment type, or staff category are recorded in an effective-dated history; exits close the active period, and historical imports preserve supplied join and exit dates.
-- HR can upload private appointment, contract, policy, and other personnel documents. Employees can view their own documents; HR can view employee documents. Downloads use short-lived signed URLs.
-
-The retention and engagement migrations were applied and re-run against the local Supabase database. A follow-up migration adds privacy-suppressed quarterly reporting, aggregate-only exports, and department-level advisory early-warning analysis; its local validation is pending. The target Supabase project has not been migrated or deployed.
-
-The early-warning sample compares current-quarter department turnover with the average of at least two completed, reportable quarters and uses a 25% increase as the advisory threshold. It displays department-level tenure and engagement context; it does not rank or score individual employees. CUT HR must approve the formula and operational response before use.
-
-Survey questions, recipient cohorts, anonymity rules, data retention, and policy approval still require CUT HR confirmation. The current survey builder targets all eligible employees and does not automate 30/90-day or recurring check-ins. These features are not live until the migration is applied and RLS/storage behavior is tested in the target project.
+The active application no longer exposes staff-engagement surveys, retention actions and early-warning workflows, post-exit surveys, historical retention follow-ups, or handover guides. Existing migrations, tables, storage objects, and records are intentionally preserved; remove them only through a separately approved database-retirement plan.
 
 ## Definition of done
 

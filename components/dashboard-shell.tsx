@@ -37,12 +37,6 @@ const navItems = [
     ["hr", "administrator"],
   ],
   [
-    "Staff engagement",
-    "/dashboard/engagement",
-    ClipboardCheck,
-    ["hr"],
-  ],
-  [
     "Employees",
     "/dashboard/employees",
     Users,
@@ -58,18 +52,6 @@ const navItems = [
     "Turnover analysis",
     "/dashboard/reports",
     ClipboardCheck,
-    ["hr", "administrator"],
-  ],
-  [
-    "Retention workflows",
-    "/dashboard/retention",
-    ClipboardCheck,
-    ["hr"],
-  ],
-  [
-    "Handover guides",
-    "/dashboard/handover",
-    FileText,
     ["hr", "administrator"],
   ],
   [

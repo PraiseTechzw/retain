@@ -1,5 +1,21 @@
 "use client";
 
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Line,
+  LineChart,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+
 type QuarterPoint = {
   label: string;
   exits: number;
@@ -10,94 +26,100 @@ type QuarterPoint = {
 type ChartProps = {
   quarters: QuarterPoint[];
   reasons: Array<[string, number]>;
+  departments: Array<[string, number]>;
   embedded?: boolean;
 };
 
-const chartWidth = 720;
-const chartHeight = 250;
-const padding = { top: 24, right: 24, bottom: 42, left: 44 };
+const colors = ["#2563eb", "#0f766e", "#d97706", "#be123c", "#0891b2", "#475569"];
 
-function formatReason(value: string) {
-  return value.replaceAll("_", " ");
+function chartData(entries: Array<[string, number]>) {
+  return entries.map(([name, value]) => ({ name, value }));
 }
 
-function linePath(points: Array<{ x: number; y: number }>) {
-  return points.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ");
+function percent(value: number) {
+  return `${value.toFixed(1)}%`;
 }
 
-export function TurnoverAnalyticsCharts({ quarters, reasons, embedded = false }: ChartProps) {
-  const visibleQuarters = quarters.slice(-8);
-  const rates = visibleQuarters.filter((quarter) => quarter.rate != null);
-  const maxRate = Math.max(...rates.map((quarter) => quarter.rate ?? 0), 1);
-  const maxExits = Math.max(...visibleQuarters.map((quarter) => quarter.exits), 1);
-  const plotWidth = chartWidth - padding.left - padding.right;
-  const plotHeight = chartHeight - padding.top - padding.bottom;
-  const points = visibleQuarters.map((quarter, index) => ({
-    x: padding.left + (visibleQuarters.length === 1 ? plotWidth / 2 : (index / (visibleQuarters.length - 1)) * plotWidth),
-    y: padding.top + plotHeight - ((quarter.rate ?? 0) / maxRate) * plotHeight,
-  }));
-  const maxReason = Math.max(...reasons.map(([, count]) => count), 1);
-  const totalReasons = reasons.reduce((total, [, count]) => total + count, 0);
+export function TurnoverAnalyticsCharts({
+  quarters,
+  reasons,
+  departments,
+  embedded = false,
+}: ChartProps) {
+  const reasonData = chartData(reasons.slice(0, 6));
+  const departmentData = chartData(departments.slice(0, 6));
+  const chartClass = embedded ? "rounded-xl bg-muted/20 p-4" : "rounded-xl border border-border/70 bg-card p-5";
 
   return (
-    <section className={embedded ? "space-y-5" : "grid gap-6 lg:grid-cols-[1.4fr_0.6fr]"} aria-label="Turnover visual analysis">
-      <div className={embedded ? "" : "rounded-2xl border border-border/70 bg-card p-5 md:p-6"}>
-        <div className="flex flex-wrap items-start justify-between gap-4">
+    <section className={embedded ? "space-y-5" : "space-y-6"} aria-label="Turnover visual analysis">
+      <div className={chartClass}>
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="font-semibold">Turnover rate over time</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              The line shows the aggregated quarterly rate; bars show the exits behind each point.
-            </p>
+            <h2 className="font-semibold">Turnover rate and exits</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Completed quarters only, with the exit volume behind each rate.</p>
           </div>
-          <span className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-            <span className="size-2 rounded-full bg-primary" /> Rate
-            <span className="ml-2 size-2 rounded-sm bg-primary/20" /> Exits
-          </span>
+          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-full bg-primary" /> Rate</span>
+            <span className="inline-flex items-center gap-1.5"><span className="size-2 rounded-sm bg-primary/30" /> Exits</span>
+          </div>
         </div>
-        {visibleQuarters.length ? (
-          <div className="mt-5 overflow-x-auto">
-            <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="h-auto min-w-150 w-full" role="img" aria-label="Quarterly turnover rate line chart with exit bars">
-              {[0, 0.5, 1].map((step) => {
-                const y = padding.top + plotHeight * step;
-                return <line key={step} x1={padding.left} x2={chartWidth - padding.right} y1={y} y2={y} className="stroke-border" strokeDasharray="3 5" />;
-              })}
-              {visibleQuarters.map((quarter, index) => {
-                const point = points[index];
-                const barHeight = (quarter.exits / maxExits) * plotHeight;
-                return (
-                  <g key={quarter.label}>
-                    <rect x={point.x - 16} y={padding.top + plotHeight - barHeight} width="32" height={barHeight} rx="4" className="fill-primary/15" />
-                    <text x={point.x} y={chartHeight - 15} textAnchor="middle" className="fill-muted-foreground text-[11px]">{quarter.label}</text>
-                    <text x={point.x} y={Math.max(point.y - 10, 14)} textAnchor="middle" className="fill-foreground text-[11px] font-semibold">{quarter.rate == null ? "—" : `${quarter.rate.toFixed(1)}%`}</text>
-                  </g>
-                );
-              })}
-              <path d={linePath(points)} fill="none" className="stroke-primary" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-              {points.map((point, index) => <circle key={visibleQuarters[index].label} cx={point.x} cy={point.y} r="5" className="fill-card stroke-primary" strokeWidth="3" />)}
-            </svg>
+        {quarters.length ? (
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={quarters} margin={{ top: 12, right: 12, left: 0, bottom: 4 }}>
+                <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeDasharray="3 5" />
+                <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+                <YAxis yAxisId="rate" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} tickFormatter={percent} width={44} />
+                <YAxis yAxisId="exits" orientation="right" hide />
+                <Tooltip
+                  contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
+                  formatter={(value, name) => [name === "rate" ? percent(Number(value)) : value, name === "rate" ? "Turnover rate" : "Exits"]}
+                />
+                <Bar yAxisId="exits" dataKey="exits" fill="hsl(var(--primary) / 0.18)" radius={[4, 4, 0, 0]} barSize={24} />
+                <Line yAxisId="rate" type="monotone" dataKey="rate" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 4, fill: "hsl(var(--card))", strokeWidth: 3 }} connectNulls />
+              </LineChart>
+            </ResponsiveContainer>
           </div>
-        ) : (
-          <p className="py-12 text-sm text-muted-foreground">No quarterly records are available in this period.</p>
-        )}
+        ) : <p className="py-12 text-sm text-muted-foreground">No completed quarters match this range.</p>}
       </div>
 
-      {!embedded && <div className="rounded-2xl border border-border/70 bg-card p-5 md:p-6">
-        <h2 className="font-semibold">Reason mix</h2>
-        <p className="mt-1 text-sm text-muted-foreground">Reportable exits grouped by their recorded reason.</p>
-        <div className="mt-6 space-y-4">
-          {reasons.length ? reasons.slice(0, 5).map(([reason, count]) => (
-            <div key={reason}>
-              <div className="mb-1.5 flex items-center justify-between gap-3 text-sm">
-                <span className="truncate capitalize">{formatReason(reason)}</span>
-                <strong className="tabular-nums">{count} <span className="font-normal text-muted-foreground">({totalReasons ? ((count / totalReasons) * 100).toFixed(1) : "0.0"}%)</span></strong>
-              </div>
-              <div className="h-2 rounded-full bg-muted">
-                <div className="h-2 rounded-full bg-primary" style={{ width: `${(count / maxReason) * 100}%` }} />
-              </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="rounded-xl border border-border/70 bg-card p-5">
+          <h2 className="font-semibold">Exit reason mix</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Share of reportable completed exits.</p>
+          {reasonData.length ? (
+            <div className="mt-4 h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={reasonData} dataKey="value" nameKey="name" innerRadius={58} outerRadius={88} paddingAngle={3}>
+                    {reasonData.map((entry, index) => <Cell key={entry.name} fill={colors[index % colors.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(value) => [value, "Exits"]} />
+                  <Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
             </div>
-          )) : <p className="text-sm text-muted-foreground">No reportable reasons are available.</p>}
+          ) : <p className="py-12 text-sm text-muted-foreground">No reason data is available.</p>}
         </div>
-      </div>}
+
+        <div className="rounded-xl border border-border/70 bg-card p-5">
+          <h2 className="font-semibold">Exits by department</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Departments with the highest recorded exit volume.</p>
+          {departmentData.length ? (
+            <div className="mt-4 h-64">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={departmentData} layout="vertical" margin={{ top: 4, right: 12, left: 12, bottom: 4 }}>
+                  <CartesianGrid horizontal={false} stroke="hsl(var(--border))" strokeDasharray="3 5" />
+                  <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
+                  <YAxis type="category" dataKey="name" width={120} tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
+                  <Tooltip formatter={(value) => [value, "Exits"]} />
+                  <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} barSize={18} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          ) : <p className="py-12 text-sm text-muted-foreground">No department data is available.</p>}
+        </div>
+      </div>
     </section>
   );
 }
