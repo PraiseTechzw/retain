@@ -11,6 +11,8 @@ import { createClient } from "@/lib/supabase/server";
 import { updateEmployeeRiskProfile } from "@/lib/supabase/actions";
 import { getEmployeeByLookup } from "@/lib/supabase/data";
 import { EmployeeRecordForm } from "@/components/employee-record-form";
+import { EmployeeDocumentUploadForm } from "@/components/employee-workflow-forms";
+import { getRoleKey } from "@/lib/role-utils";
 import { redirect } from "next/navigation";
 
 export default async function Page({
@@ -62,6 +64,78 @@ export default async function Page({
   if (fallbackEmployee && !hasStaffDirectoryAccess && !isOwnEmployeeRecord) {
     redirect("/dashboard");
   }
+  const role = getRoleKey(userRole);
+  const isHr = role === "hr" || role === "hr_manager";
+  const canViewEmployeeHistory = isHr || isOwnEmployeeRecord;
+
+  const [historyResult, documentResult] =
+    employee?.id && canViewEmployeeHistory
+      ? await Promise.all([
+          supabase
+            .from("employment_history")
+            .select(
+              "id, department_id, job_title, grade, employment_type, staff_category, effective_from, effective_to",
+            )
+            .eq("employee_id", employee.id)
+            .order("effective_from", { ascending: false }),
+          supabase
+            .from("employee_documents")
+            .select("id, title, category, file_name, mime_type, storage_path, created_at")
+            .eq("employee_id", employee.id)
+            .order("created_at", { ascending: false }),
+        ])
+      : [{ data: [], error: null }, { data: [], error: null }];
+  if (historyResult.error) {
+    console.error("Unable to load employment history.", {
+      code: historyResult.error.code,
+    });
+    throw new Error("Unable to load employment history. Apply the latest Supabase migration and try again.");
+  }
+  if (documentResult.error) {
+    console.error("Unable to load employee documents.", {
+      code: documentResult.error.code,
+    });
+    throw new Error("Unable to load employee documents. Apply the latest Supabase migration and try again.");
+  }
+  const documents = await Promise.all(
+    (documentResult.data ?? []).map(async (document) => {
+      const { data: signedUrl, error } = await supabase.storage
+        .from("employee-hr-documents")
+        .createSignedUrl(document.storage_path, 300);
+      if (error || !signedUrl) {
+        console.error("Unable to create employee document link.", {
+          code: error?.name,
+        });
+        throw new Error("Unable to create a secure employee document link.");
+      }
+      return { ...document, signed_url: signedUrl.signedUrl };
+    }),
+  );
+  const departmentIds = [
+    ...new Set(
+      (historyResult.data ?? [])
+        .map((entry) => entry.department_id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  const departmentResult = departmentIds.length
+    ? await supabase
+        .from("departments")
+        .select("id, name")
+        .in("id", departmentIds)
+    : { data: [], error: null };
+  if (departmentResult.error) {
+    console.error("Unable to load employment history departments.", {
+      code: departmentResult.error.code,
+    });
+    throw new Error("Unable to load employment history departments.");
+  }
+  const departmentNames = new Map(
+    (departmentResult.data ?? []).map((department) => [
+      department.id,
+      department.name,
+    ]),
+  );
 
   let departmentOptions: { id: string; name: string }[] = [];
   if (canManageEmployee && employee) {
@@ -163,6 +237,95 @@ export default async function Page({
                 }}
                 departments={departmentOptions}
               />
+            )}
+            {canViewEmployeeHistory && employee?.id && (
+              <>
+                <section className="rounded-2xl border border-border/70 bg-card p-5 md:p-6">
+                  <h2 className="text-lg font-semibold">Employment history</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Recorded role and department changes, with effective dates.
+                  </p>
+                  {historyResult.data?.length ? (
+                    <div className="mt-4 grid gap-3">
+                      {historyResult.data.map((entry) => {
+                        const department = entry.department_id
+                          ? departmentNames.get(entry.department_id)
+                          : null;
+                        return (
+                          <article
+                            key={entry.id}
+                            className="grid gap-2 rounded-xl bg-muted/40 p-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center"
+                          >
+                            <div>
+                              <h3 className="font-medium">
+                                {entry.job_title || "Role not recorded"}
+                              </h3>
+                              <p className="mt-1 text-sm text-muted-foreground">
+                                {department || "Department not recorded"} ·{" "}
+                                {entry.employment_type.replaceAll("_", " ")} ·{" "}
+                                {entry.staff_category.replaceAll("_", " ")}
+                                {entry.grade ? ` · Grade ${entry.grade}` : ""}
+                              </p>
+                            </div>
+                            <p className="text-sm tabular-nums text-muted-foreground">
+                              {new Date(`${entry.effective_from}T12:00:00`).toLocaleDateString()}
+                              {" – "}
+                              {entry.effective_to
+                                ? new Date(`${entry.effective_to}T12:00:00`).toLocaleDateString()
+                                : "Current"}
+                            </p>
+                          </article>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="mt-4 text-sm text-muted-foreground">
+                      No employment history has been recorded yet.
+                    </p>
+                  )}
+                </section>
+
+                <section className="rounded-2xl border border-border/70 bg-card p-5 md:p-6">
+                  <h2 className="text-lg font-semibold">Personnel documents</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Private documents are available only to this employee and authorised HR staff.
+                  </p>
+                  {documents.length ? (
+                    <ul className="mt-4 grid gap-2">
+                      {documents.map((document) => (
+                        <li
+                          key={document.id}
+                          className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-muted/40 p-4"
+                        >
+                          <div>
+                            <h3 className="font-medium">{document.title}</h3>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {document.category.replaceAll("_", " ")} ·{" "}
+                              {document.file_name} ·{" "}
+                              {new Date(document.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <a
+                            href={document.signed_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+                          >
+                            Open document
+                          </a>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="mt-4 text-sm text-muted-foreground">
+                      No personnel documents have been added to this record.
+                    </p>
+                  )}
+                </section>
+                {isHr && employee?.id && (
+                  <EmployeeDocumentUploadForm employeeId={employee.id} />
+                )}
+              </>
             )}
             {canManageEmployee && fallbackEmployee.id && (
               <section className="rounded-2xl border border-border/70 bg-card p-6">

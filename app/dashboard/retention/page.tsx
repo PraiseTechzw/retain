@@ -10,6 +10,7 @@ import {
   ExitInterviewForm,
   HistoricalExitImportForm,
   RehireEligibilityForm,
+  RunRetentionEarlyWarningAnalysisForm,
   RetentionFollowupForm,
   RetentionFollowupUpdateForm,
 } from "@/components/retention-forms";
@@ -54,6 +55,7 @@ export default async function Page() {
     invitationResult,
     responseResult,
     followupResult,
+    warningResult,
   ] = await Promise.all([
     supabase
       .from("employees")
@@ -83,6 +85,11 @@ export default async function Page() {
       .from("retention_followup_flags")
       .select("id, employee_id, reason, status, follow_up_on, outcome")
       .order("created_at", { ascending: false }),
+    supabase
+      .from("early_warning_flags")
+      .select("id, department, quarter_start, current_rate_pct, baseline_rate_pct, warning_threshold_pct, active_headcount, average_tenure_months, engagement_score, engagement_respondents, explanation, raised_at")
+      .eq("status", "open")
+      .order("raised_at", { ascending: false }),
   ]);
 
   const employees = assertQuery(employeeResult, "the employee register") ?? [];
@@ -92,6 +99,13 @@ export default async function Page() {
   const invitations = assertQuery(invitationResult, "post-exit survey invitations") ?? [];
   assertQuery(responseResult, "post-exit survey responses");
   const followups = assertQuery(followupResult, "HR follow-ups") ?? [];
+  const allWarningFlags = assertQuery(warningResult, "department early-warning flags") ?? [];
+  const now = new Date();
+  const quarterMonth = Math.floor(now.getUTCMonth() / 3) * 3 + 1;
+  const currentQuarterStart = `${now.getUTCFullYear()}-${String(quarterMonth).padStart(2, "0")}-01`;
+  const warningFlags = allWarningFlags.filter(
+    (flag) => flag.quarter_start === currentQuarterStart,
+  );
   const employeeById = new Map(
     (employees as EmployeeRow[]).map((employee) => [employee.id, employee]),
   );
@@ -105,7 +119,7 @@ export default async function Page() {
       return {
         id: exit.id,
         employee_name: employee?.full_name ?? "Unknown employee",
-        employee_number: employee?.employee_number ?? "—",
+        employee_number: employee?.employee_number ?? "-",
         last_day: exit.last_day,
       };
     });
@@ -158,6 +172,38 @@ export default async function Page() {
             </div>
           </section>
 
+          <section className="grid gap-4 rounded-2xl border border-border/70 bg-card p-5 md:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold">Department early-warning analysis</h2>
+                <p className="mt-1 max-w-3xl text-sm leading-6 text-muted-foreground">
+                  Advisory department trends only: current-quarter attrition must reach 125% of its average across at least two completed, reportable quarters. Groups with fewer than five exits or staff are withheld. Individual employees are never assigned a risk score.
+                </p>
+              </div>
+              <RunRetentionEarlyWarningAnalysisForm />
+            </div>
+            {warningFlags.length ? (
+              <div className="grid gap-3">
+                {warningFlags.map((flag) => (
+                  <article key={flag.id} className="grid gap-2 rounded-xl bg-muted/40 p-4 md:grid-cols-[minmax(12rem,0.7fr)_1fr] md:items-start">
+                    <div>
+                      <h3 className="font-semibold">{flag.department}</h3>
+                      <p className="mt-1 text-sm tabular-nums text-muted-foreground">
+                        {flag.current_rate_pct}% current quarter · {flag.baseline_rate_pct}% baseline
+                      </p>
+                    </div>
+                    <p className="text-sm leading-6">{flag.explanation}</p>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <EmptyState
+                label="department warning flags"
+                description="No departments currently meet the advisory threshold. Refresh the analysis after new exit or engagement data is recorded."
+              />
+            )}
+          </section>
+
           <ExitInterviewForm exits={casesWithoutInterview} />
 
           <section className="rounded-2xl border border-border/70 bg-card p-5 md:p-6">
@@ -178,7 +224,7 @@ export default async function Page() {
                     const employee = employeeById.get(record.employee_id);
                     return [
                       employee?.full_name ?? "Unknown employee",
-                      employee?.employee_number ?? "—",
+                      employee?.employee_number ?? "-",
                       dateLabel(record.exit_date),
                       record.reason_category,
                       "Historical",
@@ -189,7 +235,7 @@ export default async function Page() {
                     const employee = employeeById.get(record.employee_id);
                     return [
                       employee?.full_name ?? "Unknown employee",
-                      employee?.employee_number ?? "—",
+                      employee?.employee_number ?? "-",
                       dateLabel(record.last_day),
                       record.exit_type,
                       "HR exit case",
@@ -212,7 +258,7 @@ export default async function Page() {
                   <article key={record.id} className="flex flex-col gap-3 rounded-xl bg-muted/40 p-4 lg:flex-row lg:items-center">
                     <div className="min-w-52">
                       <p className="font-medium">{employee?.full_name ?? "Unknown employee"}</p>
-                      <p className="mt-1 text-xs text-muted-foreground">{employee?.employee_number ?? "—"} · {dateLabel(record.last_day)}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{employee?.employee_number ?? "-"} · {dateLabel(record.last_day)}</p>
                     </div>
                     <RehireEligibilityForm
                       exitCaseId={record.id}
@@ -301,7 +347,7 @@ export default async function Page() {
             <div className="mb-4">
               <h2 className="text-lg font-semibold">HR follow-up queue</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                These are manually raised support actions—not automated risk scores or decisions about an employee.
+                These are manually raised individual support actions. Separate turnover flags are department-level trends, not employee risk scores or decisions.
               </p>
             </div>
             {followups.length ? (
@@ -312,7 +358,7 @@ export default async function Page() {
                     <article key={followup.id} className="grid gap-3 rounded-xl bg-muted/40 p-4 xl:grid-cols-[minmax(12rem,0.65fr)_minmax(15rem,1fr)_minmax(22rem,1.4fr)] xl:items-center">
                       <div>
                         <p className="font-medium">{employee?.full_name ?? "Unknown employee"}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">{employee?.employee_number ?? "—"} · Follow-up {dateLabel(followup.follow_up_on)}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{employee?.employee_number ?? "-"} · Follow-up {dateLabel(followup.follow_up_on)}</p>
                       </div>
                       <p className="text-sm leading-6">{followup.reason}</p>
                       <RetentionFollowupUpdateForm id={followup.id} status={followup.status} />

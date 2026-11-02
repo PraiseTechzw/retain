@@ -63,7 +63,9 @@ async function writeAudit(
       entityType,
       code: error.code,
     });
-    throw new Error("The action could not be audited, so it was not completed.");
+    throw new Error(
+      "The change was saved, but its audit event could not be recorded. Do not retry; contact an administrator.",
+    );
   }
 }
 
@@ -117,7 +119,7 @@ export async function importPastExitCsv(
   formData: FormData,
 ): Promise<RetentionActionResult> {
   try {
-    const { supabase, user } = await requireHr();
+    const { supabase } = await requireHr();
     const file = formData.get("file");
     if (!(file instanceof File) || file.size === 0 || file.size > 1_000_000) {
       return failed("Choose a CSV file smaller than 1 MB.");
@@ -185,10 +187,6 @@ export async function importPastExitCsv(
         ? error.message
         : "Historical exits could not be imported. Confirm the latest database migration is applied and department names match.");
     }
-    await writeAudit(supabase, user.id, "imported", "past_exit_records", null, {
-      rows: records.length,
-      inserted: importedCount,
-    });
     revalidatePath("/dashboard/retention");
     revalidatePath("/dashboard/reports");
     return succeeded(`Imported ${importedCount} historical exit record${importedCount === 1 ? "" : "s"}.`);
@@ -343,6 +341,43 @@ export async function updateRetentionFollowup(
     return succeeded("Follow-up updated.");
   } catch (error) {
     return failed(error instanceof Error ? error.message : "Unable to update the follow-up.");
+  }
+}
+
+export async function runRetentionEarlyWarningAnalysis(): Promise<RetentionActionResult> {
+  try {
+    const { supabase } = await requireHr();
+    const { data: baselineCount, error: baselineError } = await supabase.rpc(
+      "compute_retention_baseline",
+    );
+    if (baselineError) {
+      console.error("Could not compute the retention analysis baseline.", {
+        code: baselineError.code,
+      });
+      return failed(baselineError.message);
+    }
+
+    const { data: flagCount, error: flagError } = await supabase.rpc(
+      "refresh_early_warning_flags",
+    );
+    if (flagError) {
+      console.error("Could not refresh early-warning analysis.", {
+        code: flagError.code,
+      });
+      return failed(
+        `Baseline updated for ${baselineCount ?? 0} departments, but the early-warning analysis could not be refreshed: ${flagError.message}`,
+      );
+    }
+
+    revalidatePath("/dashboard/retention");
+    revalidatePath("/dashboard/reports");
+    return succeeded(
+      `Baseline updated for ${baselineCount ?? 0} departments. ${flagCount ?? 0} department${flagCount === 1 ? "" : "s"} currently meet the advisory warning threshold.`,
+    );
+  } catch (error) {
+    return failed(
+      error instanceof Error ? error.message : "Unable to run retention analysis.",
+    );
   }
 }
 
@@ -527,7 +562,11 @@ export async function submitPostExitSurvey(
       .select("id, status, expires_on, template:post_exit_survey_templates(questions)")
       .eq("token_hash", tokenHash)
       .maybeSingle();
-    if (invitationError || !invitation || invitation.status !== "sent" ||
+    if (invitationError) {
+      console.error("Unable to verify a post-exit survey submission.", { code: invitationError.code });
+      return failed("The survey service is temporarily unavailable.");
+    }
+    if (!invitation || invitation.status !== "sent" ||
       invitation.expires_on < new Date().toISOString().slice(0, 10)) {
       return failed("This survey link is invalid or has expired.");
     }
@@ -535,13 +574,22 @@ export async function submitPostExitSurvey(
     const template = Array.isArray(invitation.template)
       ? invitation.template[0]
       : invitation.template;
-    const questions = Array.isArray(template?.questions) ? template.questions : [];
+    const questions = (Array.isArray(template?.questions) ? template.questions : [])
+      .filter((question): question is { key: string; options?: unknown } =>
+        typeof question?.key === "string",
+      );
     const answers: Record<string, string> = {};
     for (const question of questions) {
-      if (!question || typeof question.key !== "string") continue;
       const answer = String(formData.get(question.key) ?? "").trim();
       if (!answer || answer.length > 2000) {
         return failed("Please answer every question using no more than 2,000 characters each.");
+      }
+      if (
+        Array.isArray(question.options) &&
+        (!question.options.every((option) => typeof option === "string") ||
+          !question.options.includes(answer))
+      ) {
+        return failed("Choose one of the available options for each selection question.");
       }
       answers[question.key] = answer;
     }

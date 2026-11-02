@@ -107,7 +107,7 @@ export default async function Page() {
                         <p className="truncate font-medium">{guide.title}</p>
                         <p className="mt-1 text-sm text-muted-foreground">
                           {isHr
-                            ? `${employee?.full_name ?? "Employee"} · ${employee?.employee_number ?? "—"} · `
+                            ? `${employee?.full_name ?? "Employee"} · ${employee?.employee_number ?? "-"} · `
                             : guide.employee_id === currentEmployeeId
                               ? "My guide · "
                               : sharedGuideIds.has(guide.id)

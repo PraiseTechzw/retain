@@ -2,10 +2,20 @@ import { PostExitSurveyForm } from "@/components/retention-forms";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hashSurveyToken } from "@/lib/supabase/retention-tokens";
 
-type SurveyQuestion = {
+function isSurveyQuestion(value: unknown): value is {
   key: string;
   prompt: string;
-};
+  options?: unknown;
+} {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "key" in value &&
+    typeof value.key === "string" &&
+    "prompt" in value &&
+    typeof value.prompt === "string"
+  );
+}
 
 export default async function Page({
   params,
@@ -38,9 +48,14 @@ export default async function Page({
     ? invitation.template[0]
     : invitation.template;
   const questions = (Array.isArray(template?.questions) ? template.questions : [])
-    .filter((question): question is SurveyQuestion =>
-      typeof question?.key === "string" && typeof question?.prompt === "string",
-    );
+    .filter(isSurveyQuestion)
+    .map((question) => ({
+      key: question.key,
+      prompt: question.prompt,
+      options: Array.isArray(question.options)
+        ? question.options.filter((option: unknown): option is string => typeof option === "string")
+        : undefined,
+    }));
   if (questions.length === 0) throw new Error("The post-exit survey has no questions configured.");
 
   return (

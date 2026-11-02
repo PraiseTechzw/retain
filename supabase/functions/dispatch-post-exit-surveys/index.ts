@@ -138,7 +138,9 @@ Deno.serve(async (request) => {
     if (!claim) continue;
 
     const surveyUrl = `${appUrl}/survey/${token}`;
-    const emailResponse = await fetch("https://api.resend.com/emails", {
+    let emailResponse: Response;
+    try {
+      emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${resendApiKey}`,
@@ -156,10 +158,29 @@ Deno.serve(async (request) => {
           "",
           `Complete the survey: ${surveyUrl}`,
           "",
-          "This link expires 30 days after the invitation date and can only be used once.",
+          "This single-use link expires on the date shown after you open it.",
         ].join("\n"),
       }),
-    });
+      });
+    } catch (error) {
+      failed += 1;
+      console.error("Survey invitation email request failed.", {
+        invitationId: invitation.id,
+        message: error instanceof Error ? error.message : "Unknown email provider error.",
+      });
+      const { error: updateError } = await supabase
+        .from("post_exit_survey_invitations")
+        .update({
+          status: "failed",
+          token_hash: null,
+          last_error: "The email provider request failed.",
+        })
+        .eq("id", invitation.id);
+      if (updateError) {
+        console.error("Unable to mark the failed survey invitation.", updateError.message);
+      }
+      continue;
+    }
 
     if (!emailResponse.ok) {
       failed += 1;
@@ -205,7 +226,9 @@ Deno.serve(async (request) => {
     const recipient = typeof employee?.email === "string" ? employee.email : "";
     if (!recipient) continue;
 
-    const emailResponse = await fetch("https://api.resend.com/emails", {
+    let emailResponse: Response;
+    try {
+      emailResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${resendApiKey}`,
@@ -222,7 +245,14 @@ Deno.serve(async (request) => {
           "Sign in to CUT Retain to upload a current version.",
         ].join("\n"),
       }),
-    });
+      });
+    } catch (error) {
+      console.error("Handover guide reminder email request failed.", {
+        guideId: guide.id,
+        message: error instanceof Error ? error.message : "Unknown email provider error.",
+      });
+      continue;
+    }
     if (!emailResponse.ok) {
       const errorText = await emailResponse.text();
       console.error("Handover guide reminder email failed.", {

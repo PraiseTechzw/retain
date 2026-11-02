@@ -11,6 +11,7 @@ alter table public.exit_cases
 create table if not exists public.past_exit_records (
   id uuid primary key default gen_random_uuid(),
   employee_id uuid not null references public.employees(id) on delete restrict,
+  department_id uuid references public.departments(id) on delete set null,
   exit_date date not null,
   reason_category text not null,
   reason_text text,
@@ -23,6 +24,9 @@ create table if not exists public.past_exit_records (
   check (length(btrim(reason_category)) between 1 and 100),
   check (reason_text is null or length(reason_text) <= 2000)
 );
+
+alter table public.past_exit_records
+  add column if not exists department_id uuid references public.departments(id) on delete set null;
 
 create index if not exists past_exit_records_date_idx
   on public.past_exit_records (exit_date desc);
@@ -87,12 +91,12 @@ values
   (
     'Three-month former employee follow-up',
     3,
-    '[{"key":"main_reason","prompt":"Looking back, what was the main reason you left?"},{"key":"could_change","prompt":"What could the University have done differently to retain you?"},{"key":"would_return","prompt":"Would you consider returning to the University?"}]'::jsonb
+    '[{"key":"main_reason","prompt":"What was the main reason you left?","options":["compensation","career_growth","workload","management","work_environment","relocation","personal","retirement","contract_end","health","education","other"]},{"key":"could_change","prompt":"What could the University have done differently to retain you?"},{"key":"would_return","prompt":"Would you consider returning to the University?","options":["yes","no","unsure"]}]'::jsonb
   ),
   (
     'Six-month former employee follow-up',
     6,
-    '[{"key":"main_reason","prompt":"Has your view of the reasons for leaving changed?"},{"key":"current_reflection","prompt":"What is one important lesson the University should learn from your departure?"},{"key":"would_return","prompt":"Would you consider returning to the University?"}]'::jsonb
+    '[{"key":"main_reason","prompt":"Has your view of the reasons for leaving changed?","options":["compensation","career_growth","workload","management","work_environment","relocation","personal","retirement","contract_end","health","education","other"]},{"key":"current_reflection","prompt":"What is one important lesson the University should learn from your departure?"},{"key":"would_return","prompt":"Would you consider returning to the University?","options":["yes","no","unsure"]}]'::jsonb
   )
 on conflict (name) do nothing;
 
@@ -156,6 +160,21 @@ alter table public.post_exit_survey_templates enable row level security;
 alter table public.post_exit_survey_invitations enable row level security;
 alter table public.post_exit_survey_responses enable row level security;
 alter table public.retention_followup_flags enable row level security;
+
+drop policy if exists "hr staff manage past exits" on public.past_exit_records;
+drop policy if exists "hr staff manage exit interviews" on public.exit_interviews;
+drop policy if exists "employee and hr read handover guides" on public.handover_guides;
+drop policy if exists "employee and hr upload handover guides" on public.handover_guides;
+drop policy if exists "hr staff manage handover guide shares" on public.handover_guide_shares;
+drop policy if exists "successors read their shared handover guides" on public.handover_guide_shares;
+drop policy if exists "hr staff read survey templates" on public.post_exit_survey_templates;
+drop policy if exists "hr staff manage survey templates" on public.post_exit_survey_templates;
+drop policy if exists "hr staff read survey invitations" on public.post_exit_survey_invitations;
+drop policy if exists "hr staff manage survey invitations" on public.post_exit_survey_invitations;
+drop policy if exists "hr staff read survey responses" on public.post_exit_survey_responses;
+drop policy if exists "hr staff manage follow-up flags" on public.retention_followup_flags;
+drop policy if exists "employee and hr read handover guide files" on storage.objects;
+drop policy if exists "employee and hr upload handover guide files" on storage.objects;
 
 create policy "hr staff manage past exits"
   on public.past_exit_records for all to authenticated
@@ -305,16 +324,6 @@ create policy "employee and hr upload handover guide files"
     )
   );
 
-create policy "employee and hr delete handover guide files"
-  on storage.objects for delete to authenticated
-  using (
-    bucket_id = 'handover-guides'
-    and (
-      public.hrms_is_hr()
-      or (storage.foldername(name))[1] = (select auth.uid())::text
-    )
-  );
-
 create or replace function public.schedule_post_exit_surveys()
 returns trigger
 language plpgsql
@@ -436,10 +445,10 @@ as $$
 declare
   item jsonb;
   row_number integer := 0;
-  employee_id uuid;
-  department_id uuid;
-  joined_date date;
-  leaving_date date;
+  v_employee_id uuid;
+  v_department_id uuid;
+  v_joined_date date;
+  v_leaving_date date;
   inserted_count integer := 0;
 begin
   if p_records is null
@@ -455,14 +464,14 @@ begin
     row_number := row_number + 1;
     if length(btrim(coalesce(item->>'employee_number', ''))) not between 1 and 40
       or length(btrim(coalesce(item->>'full_name', ''))) not between 1 and 160
-      or item->>'staff_category' not in ('academic', 'non_academic')
+      or coalesce(item->>'staff_category', '') not in ('academic', 'non_academic')
       or length(btrim(coalesce(item->>'reason_category', ''))) not between 1 and 100 then
       raise exception 'Historical import row % has missing or invalid required fields.', row_number;
     end if;
 
-    joined_date := nullif(item->>'joined_on', '')::date;
-    leaving_date := nullif(item->>'exit_date', '')::date;
-    if leaving_date is null or (joined_date is not null and joined_date > leaving_date) then
+    v_joined_date := nullif(item->>'joined_on', '')::date;
+    v_leaving_date := nullif(item->>'exit_date', '')::date;
+    if v_leaving_date is null or (v_joined_date is not null and v_joined_date > v_leaving_date) then
       raise exception 'Historical import row % has invalid employment dates.', row_number;
     end if;
     if coalesce((item->>'open_to_return')::boolean, false)
@@ -470,22 +479,22 @@ begin
       raise exception 'Historical import row % cannot be marked open to return unless good standing is true.', row_number;
     end if;
 
-    department_id := null;
+    v_department_id := null;
     if nullif(btrim(item->>'department'), '') is not null then
-      select d.id into department_id
+      select d.id into v_department_id
       from public.departments d
       where lower(d.name) = lower(btrim(item->>'department'))
       limit 1;
-      if department_id is null then
+      if v_department_id is null then
         raise exception 'Historical import row % has an unknown department.', row_number;
       end if;
     end if;
 
-    select e.id into employee_id
+    select e.id into v_employee_id
     from public.employees e
     where e.employee_number = btrim(item->>'employee_number');
 
-    if employee_id is null then
+    if v_employee_id is null then
       insert into public.employees (
         employee_number,
         full_name,
@@ -503,20 +512,21 @@ begin
         btrim(item->>'employee_number'),
         btrim(item->>'full_name'),
         nullif(btrim(item->>'email'), ''),
-        department_id,
+        v_department_id,
         nullif(btrim(item->>'job_title'), ''),
         item->>'staff_category',
         coalesce(nullif(btrim(item->>'employment_type'), ''), 'permanent'),
         'exited',
-        joined_date,
-        joined_date,
-        leaving_date
+        v_joined_date,
+        v_joined_date,
+        v_leaving_date
       )
-      returning id into employee_id;
+      returning id into v_employee_id;
     end if;
 
     insert into public.past_exit_records (
       employee_id,
+      department_id,
       exit_date,
       reason_category,
       reason_text,
@@ -526,8 +536,9 @@ begin
       recorded_by
     )
     values (
-      employee_id,
-      leaving_date,
+      v_employee_id,
+      coalesce(v_department_id, (select e.department_id from public.employees e where e.id = v_employee_id)),
+      v_leaving_date,
       btrim(item->>'reason_category'),
       nullif(btrim(item->>'reason_text'), ''),
       'historical_import',
@@ -541,6 +552,21 @@ begin
       inserted_count := inserted_count + 1;
     end if;
   end loop;
+
+  insert into public.audit_events (
+    actor_id,
+    action,
+    entity_type,
+    entity_id,
+    metadata
+  )
+  values (
+    (select auth.uid()),
+    'imported',
+    'past_exit_records',
+    null,
+    jsonb_build_object('inserted', inserted_count)
+  );
 
   return inserted_count;
 end;
@@ -560,7 +586,7 @@ returns table (
 )
 language sql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
   with quarters as (
@@ -577,15 +603,29 @@ as $$
       past.reason_category as reason
     from public.past_exit_records past
     join public.employees e on e.id = past.employee_id
-    left join public.departments d on d.id = e.department_id
-    union
+    left join public.departments d on d.id = coalesce(past.department_id, e.department_id)
+    union all
     select
-      coalesce(ec.completed_at::date, ec.last_day, e.exit_date, ec.created_at::date),
+      coalesce(ec.last_day, ec.completed_at::date, e.exit_date, ec.created_at::date),
       coalesce(d.name, 'Unassigned'),
-      coalesce(nullif(btrim(ec.reason_category), ''), nullif(btrim(ec.reason), ''), 'Not recorded')
+      coalesce(
+        sr.reason,
+        nullif(btrim(ec.reason_category), ''),
+        nullif(btrim(ec.reason), ''),
+        'Not recorded'
+      )
     from public.exit_cases ec
     join public.employees e on e.id = ec.employee_id
     left join public.departments d on d.id = e.department_id
+    left join (
+      select distinct on (i.exit_case_id)
+        i.exit_case_id,
+        nullif(btrim(r.answers->>'main_reason'), '') as reason
+      from public.post_exit_survey_invitations i
+      join public.post_exit_survey_responses r on r.invitation_id = i.id
+      where nullif(btrim(r.answers->>'main_reason'), '') is not null
+      order by i.exit_case_id, r.submitted_at desc
+    ) sr on sr.exit_case_id = ec.id
     where lower(ec.status) in ('completed', 'finalized')
   ),
   grouped_reasons as (
@@ -609,29 +649,112 @@ as $$
     group by q.quarter_start, x.department
   ),
   headcounts as (
-    select q.quarter_start, coalesce(d.name, 'Unassigned') as department, count(*) as active_headcount
+    select
+      q.quarter_start,
+      coalesce(d.name, 'Unassigned') as department,
+      count(*) filter (
+        where coalesce(e.appointment_date, e.joined_on, e.created_at::date) <= q.quarter_start
+          and coalesce(e.exit_date, current_date + 1) >= q.quarter_start
+      ) as start_headcount,
+      count(*) filter (
+        where coalesce(e.appointment_date, e.joined_on, e.created_at::date) <= q.quarter_end
+          and coalesce(e.exit_date, current_date + 1) > q.quarter_end
+      ) as end_headcount
     from quarters q
     join public.employees e
       on coalesce(e.appointment_date, e.joined_on, e.created_at::date) <= q.quarter_end
      and coalesce(e.exit_date, current_date + 1) >= q.quarter_start
     left join public.departments d on d.id = e.department_id
     group by q.quarter_start, coalesce(d.name, 'Unassigned')
+  ),
+  department_periods as (
+    select quarter_start, department from totals
+    union
+    select quarter_start, department from headcounts
   )
   select
-    q.quarter_start,
-    coalesce(t.department, h.department) as department,
+    p.quarter_start,
+    p.department,
     coalesce(t.exits, 0)::bigint,
-    coalesce(h.active_headcount, 0)::numeric,
-    case when coalesce(h.active_headcount, 0) = 0 then null
-      else round(coalesce(t.exits, 0)::numeric * 100 / h.active_headcount, 1)
+    round((coalesce(h.start_headcount, 0) + coalesce(h.end_headcount, 0))::numeric / 2, 1),
+    case when coalesce(h.start_headcount, 0) + coalesce(h.end_headcount, 0) = 0 then null
+      else round(
+        coalesce(t.exits, 0)::numeric * 100 /
+        ((h.start_headcount + h.end_headcount)::numeric / 2),
+        1
+      )
     end,
     r.reason
-  from quarters q
-  left join totals t on t.quarter_start = q.quarter_start
-  full join headcounts h on h.quarter_start = q.quarter_start and h.department = t.department
+  from department_periods p
+  left join totals t on t.quarter_start = p.quarter_start and t.department = p.department
+  left join headcounts h on h.quarter_start = p.quarter_start and h.department = p.department
   left join grouped_reasons r
-    on r.quarter_start = q.quarter_start
-    and r.department = coalesce(t.department, h.department)
+    on r.quarter_start = p.quarter_start
+    and r.department = p.department
     and r.reason_rank = 1
-  order by q.quarter_start desc, coalesce(t.department, h.department);
+  where (select public.hrms_role()) in ('administrator', 'hr', 'hr_manager')
+  order by p.quarter_start desc, p.department;
 $$;
+
+revoke all on function public.get_quarterly_turnover_summary()
+  from public, anon;
+grant execute on function public.get_quarterly_turnover_summary()
+  to authenticated;
+
+create or replace function public.get_turnover_baseline()
+returns table (
+  school text,
+  department text,
+  reason_category text,
+  exits bigint
+)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with exit_history as (
+    select
+      coalesce(d.school, 'Not recorded') as school,
+      coalesce(d.name, 'Unassigned') as department,
+      past.reason_category
+    from public.past_exit_records past
+    join public.employees e on e.id = past.employee_id
+    left join public.departments d on d.id = coalesce(past.department_id, e.department_id)
+    union all
+    select
+      coalesce(d.school, 'Not recorded'),
+      coalesce(d.name, 'Unassigned'),
+      coalesce(
+        sr.reason,
+        nullif(btrim(ec.reason_category), ''),
+        nullif(btrim(ec.reason), ''),
+        'Not recorded'
+      )
+    from public.exit_cases ec
+    join public.employees e on e.id = ec.employee_id
+    left join public.departments d on d.id = e.department_id
+    left join (
+      select distinct on (i.exit_case_id)
+        i.exit_case_id,
+        nullif(btrim(r.answers->>'main_reason'), '') as reason
+      from public.post_exit_survey_invitations i
+      join public.post_exit_survey_responses r on r.invitation_id = i.id
+      where nullif(btrim(r.answers->>'main_reason'), '') is not null
+      order by i.exit_case_id, r.submitted_at desc
+    ) sr on sr.exit_case_id = ec.id
+    where lower(ec.status) in ('completed', 'finalized')
+  )
+  select
+    h.school,
+    h.department,
+    h.reason_category,
+    count(*)::bigint
+  from exit_history h
+  where (select public.hrms_role()) in ('administrator', 'hr', 'hr_manager')
+  group by h.school, h.department, h.reason_category
+  order by count(*) desc, h.school, h.department;
+$$;
+
+revoke all on function public.get_turnover_baseline() from public, anon;
+grant execute on function public.get_turnover_baseline() to authenticated;

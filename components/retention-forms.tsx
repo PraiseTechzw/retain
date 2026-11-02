@@ -6,6 +6,7 @@ import {
   createRetentionFollowup,
   getHandoverGuideUrl,
   importPastExitCsv,
+  runRetentionEarlyWarningAnalysis,
   saveExitInterview,
   shareHandoverGuide,
   submitPostExitSurvey,
@@ -316,6 +317,35 @@ export function RetentionFollowupUpdateForm({
   );
 }
 
+export function RunRetentionEarlyWarningAnalysisForm() {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [result, setResult] = useState<RetentionActionResult | null>(null);
+
+  function submit() {
+    setResult(null);
+    startTransition(async () => {
+      const response = await runRetentionEarlyWarningAnalysis();
+      setResult(response);
+      if (response.ok) router.refresh();
+    });
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-3">
+      <button
+        type="button"
+        className={buttonClass}
+        disabled={pending}
+        onClick={submit}
+      >
+        {pending ? "Refreshing…" : "Refresh baseline and flags"}
+      </button>
+      <ActionMessage result={result} />
+    </div>
+  );
+}
+
 export function HandoverGuideForm({
   employees,
   isHr,
@@ -476,7 +506,7 @@ export function PostExitSurveyForm({
   questions,
 }: {
   token: string;
-  questions: Array<{ key: string; prompt: string }>;
+  questions: Array<{ key: string; prompt: string; options?: string[] }>;
 }) {
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<RetentionActionResult | null>(null);
@@ -492,7 +522,18 @@ export function PostExitSurveyForm({
       {questions.map((question) => (
         <label key={question.key} className="text-sm font-medium">
           {question.prompt}
-          <textarea name={question.key} required maxLength={2000} className={textAreaClass} />
+          {question.options?.length ? (
+            <select name={question.key} required defaultValue="" className={fieldClass}>
+              <option value="" disabled>Select an answer</option>
+              {question.options.map((option) => (
+                <option key={option} value={option}>
+                  {option.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase())}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <textarea name={question.key} required maxLength={2000} className={textAreaClass} />
+          )}
         </label>
       ))}
       <label className="text-sm font-medium">

@@ -35,6 +35,12 @@ const navItems = [
     ["employee", "hr", "administrator", "hr_manager"],
   ],
   [
+    "Staff engagement",
+    "/dashboard/engagement",
+    ClipboardCheck,
+    ["employee", "hr", "hr_manager"],
+  ],
+  [
     "Employees",
     "/dashboard/employees",
     Users,

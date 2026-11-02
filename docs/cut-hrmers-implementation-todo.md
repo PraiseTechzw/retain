@@ -35,6 +35,34 @@ This is the implementation backlog for the agreed **Turnover Trend Tracking Syst
 - [x] HR dashboard refocused on employees, leave, and HR exit cases.
 - [x] New employee capture form and HR exit-case creation form aligned to the new schema.
 
+## Retention workflow implementation status
+
+The following workflows are implemented in code and await deployment of the new Supabase migration and Edge Function:
+
+- Historical exit CSV import with transactional validation, employee matching, audit logging, and a downloadable template.
+- Structured HR exit interviews, rehire eligibility, and manually created follow-up records; department-level advisory turnover warnings are being added, while individual attrition-risk scoring remains out of scope.
+- Three- and six-month, single-use former-employee surveys with hashed invitation tokens and scheduled email dispatch.
+- Private, versioned handover guides with successor sharing, expiring signed downloads, and review reminders.
+- All-time and quarterly turnover summaries with small-group suppression, an HR-only aggregate CSV export, and browser print/Save as PDF.
+
+See [retention workflow deployment](./retention-workflows-deployment.md) for the migration, Edge Function, secrets, cron, and release checks. These features must not be described as live until the target Supabase project has been configured and tested.
+
+## Engagement, employment history, and personnel documents
+
+The new engagement and employee-record workflows are implemented in the repository and await application of `20261102182124_engagement_employment_history_documents.sql`:
+
+- HR can schedule a confidential staff survey with up to 12 five-point rating questions, open/close dates, and manual closure. Employees with a linked, non-exited employee record can submit once.
+- Survey responses are identified to authorised HR staff, not anonymous. HR screens show aggregated response distributions only and suppress distributions below five respondents.
+- HR can create and update retention actions with an owner, due date, status, and outcome.
+- Employment changes to department, job title, grade, employment type, or staff category are recorded in an effective-dated history; exits close the active period, and historical imports preserve supplied join and exit dates.
+- HR can upload private appointment, contract, policy, and other personnel documents. Employees can view their own documents; HR can view employee documents. Downloads use short-lived signed URLs.
+
+The retention and engagement migrations were applied and re-run against the local Supabase database. A follow-up migration adds privacy-suppressed quarterly reporting, aggregate-only exports, and department-level advisory early-warning analysis; its local validation is pending. The target Supabase project has not been migrated or deployed.
+
+The early-warning sample compares current-quarter department turnover with the average of at least two completed, reportable quarters and uses a 25% increase as the advisory threshold. It displays department-level tenure and engagement context; it does not rank or score individual employees. CUT HR must approve the formula and operational response before use.
+
+Survey questions, recipient cohorts, anonymity rules, data retention, and policy approval still require CUT HR confirmation. The current survey builder targets all eligible employees and does not automate 30/90-day or recurring check-ins. These features are not live until the migration is applied and RLS/storage behavior is tested in the target project.
+
 ## Definition of done
 
 The system is ready for CUT HR when an employee can securely submit a request or leave application; HR can process routine staff work from one dashboard; HR can manage appointments, contracts, cases, engagement, and exits; and authorised HR leaders can view trustworthy workforce and retention trends.
@@ -90,8 +118,8 @@ The system is ready for CUT HR when an employee can securely submit a request or
 ### Employee register
 
 - [ ] Define and add required employee fields: employee number, legal/preferred name, CUT email, faculty/department, position, grade, staff category, employment type, appointment date, contract dates, probation dates, status, location/campus, and manager where approved.
-- [ ] Add employee employment-history records so changes to role, department, grade, or employment type are preserved.
-- [ ] Add secure HR document metadata and storage for appointment letters, contracts, and approved personnel documents.
+- [x] Add employee employment-history records so changes to role, department, grade, or employment type are preserved; database trigger and profile timeline are implemented, pending migration.
+- [x] Add secure HR document metadata and private storage for appointment letters, contracts, and approved personnel documents; HR upload and employee/HR read access are implemented, pending migration.
 - [ ] Add employee profile validation, duplicate employee-number prevention, and complete data-quality checks.
 - [ ] Add safe employee activation, transfer, status change, and archive flows.
 
@@ -147,13 +175,14 @@ The system is ready for CUT HR when an employee can securely submit a request or
 ## Phase 6 — Engagement and retention
 
 - [ ] Define approved check-in and survey questions with CUT HR; avoid collecting unnecessary sensitive information.
-- [ ] Create HR-managed survey templates, schedules, target groups, opening/closing dates, and response rules.
+- [x] Implement HR-created surveys with schedules, opening/closing dates, a defined five-point rating scale, and one-response rules; migration and target-project testing are pending.
+- [ ] Confirm approved survey templates, recipient cohorts, question content, and privacy rules with CUT HR.
 - [ ] Create employee check-ins at approved milestones such as 30 days, 90 days, six months, and annually.
-- [ ] Enable employees to submit feedback confidentially according to approved privacy rules.
+- [ ] Confirm the privacy model with CUT HR; the current implementation explicitly treats responses as confidential and identified, not anonymous.
 - [ ] Create a retention concern record that groups recurring issues without automatically labelling an employee as "high risk".
-- [ ] Create retention actions with an owner, action date, due date, target group, status, and outcome.
-- [ ] Add a dashboard for response rates, themes, unresolved actions, and trend comparisons.
-- [ ] Publish only aggregated survey insights where response anonymity is required.
+- [x] Implement HR retention actions with owner, due date, status, and outcome; target groups and policy approval remain pending.
+- [x] Add aggregate survey response distributions, a minimum-five response display threshold, and an HR retention-action list; response rates, theme analysis, and trend comparisons remain pending.
+- [ ] Publish only aggregated survey insights where response anonymity is required; anonymity has not been approved and the current surveys are identified.
 
 **Acceptance:** HR can collect staff feedback, follow up on concerns, and measure whether retention actions are completed and helpful.
 
@@ -181,7 +210,7 @@ The system is ready for CUT HR when an employee can securely submit a request or
 - [ ] Create exit reports by period, exit type, voluntary/involuntary status, primary reason, department, staff category, employment type, and tenure.
 - [ ] Calculate turnover rates only after HR approves the formula and headcount denominator.
 - [ ] Add month, quarter, year, and two-year comparison filters when historical data exists.
-- [ ] Add engagement and retention reports: response rates, aggregate themes, open actions, and action outcomes.
+- [ ] Add engagement and retention reports: response rates, aggregate themes, open actions, and action outcomes. Basic aggregate rating counts and retention-action outcomes are implemented; response rates and theme analysis remain pending.
 - [ ] Add secure CSV/PDF export with permission checks and audit logging.
 - [ ] Add data-quality warnings whenever a trend is based on incomplete, small, or confidential data.
 

@@ -4,35 +4,45 @@ import {
   EmptyState,
   PageFrame,
 } from "@/components/dashboard-shell";
-import { Activity, BarChart3, CircleAlert, UsersRound } from "lucide-react";
 import { RealtimeTurnoverRefresh } from "@/components/realtime-turnover-refresh";
 import { PrintReportButton } from "@/components/report-actions";
 import { requireDashboardCapability } from "@/lib/auth-role";
-import { getQuarterlyTurnoverSummary } from "@/lib/supabase/data";
+import {
+  getQuarterlyTurnoverSummary,
+  getTurnoverBaseline,
+} from "@/lib/supabase/data";
 
 export default async function Page() {
   const { userName, userRole } =
     await requireDashboardCapability("viewReports");
-  const summary = await getQuarterlyTurnoverSummary();
-  const totalExits = summary.reduce((total, item) => total + item.exits, 0);
-  const averageTurnover =
-    summary.filter((item) => item.attrition_rate_pct != null).length > 0
-      ? summary
-          .filter((item) => item.attrition_rate_pct != null)
-          .reduce((total, item) => total + (item.attrition_rate_pct ?? 0), 0) /
-        summary.filter((item) => item.attrition_rate_pct != null).length
-      : null;
+  const [summary, baseline] = await Promise.all([
+    getQuarterlyTurnoverSummary(),
+    getTurnoverBaseline(),
+  ]);
+  const totalExits = baseline.reduce((total, item) => total + item.exits, 0);
+  const quarterRateTotals = new Map<string, { exits: number; headcount: number }>();
+  for (const item of summary) {
+    const totals = quarterRateTotals.get(item.quarter_start) ?? { exits: 0, headcount: 0 };
+    totals.exits += item.exits;
+    totals.headcount += item.active_headcount;
+    quarterRateTotals.set(item.quarter_start, totals);
+  }
+  const quarterRates = [...quarterRateTotals.values()]
+    .filter((totals) => totals.headcount > 0)
+    .map((totals) => (totals.exits / totals.headcount) * 100);
+  const averageTurnover = quarterRates.length
+    ? quarterRates.reduce((total, rate) => total + rate, 0) / quarterRates.length
+    : null;
   const reasonCounts = Object.entries(
-    summary.reduce<Record<string, number>>((counts, item) => {
-      const reason = item.top_exit_reason ?? "Not recorded";
-      counts[reason] = (counts[reason] ?? 0) + item.exits;
+    baseline.reduce<Record<string, number>>((counts, item) => {
+      counts[item.reason_category] = (counts[item.reason_category] ?? 0) + item.exits;
       return counts;
     }, {}),
   )
     .sort(([, first], [, second]) => second - first)
     .slice(0, 6);
   const departmentCounts = Object.entries(
-    summary.reduce<Record<string, number>>((counts, item) => {
+    baseline.reduce<Record<string, number>>((counts, item) => {
       counts[item.department] = (counts[item.department] ?? 0) + item.exits;
       return counts;
     }, {}),
@@ -56,161 +66,146 @@ export default async function Page() {
       : `${quarter.attrition_rate_pct}%`,
     quarter.top_exit_reason ?? "Not recorded",
   ]);
+  const baselineRows = baseline.map((item) => [
+    item.school,
+    item.department,
+    item.reason_category.replaceAll("_", " "),
+    item.exits,
+  ]);
 
   return (
     <DashboardShell userName={userName} userRole={userRole}>
       <RealtimeTurnoverRefresh />
       <PageFrame
         title="Turnover trend tracking system"
-        description="Live quarterly analysis of linked historical employee exits by department and reason."
+        description="Quarterly turnover trends from historical exits, with small groups suppressed in every report and export."
         action={
           <div className="flex flex-wrap items-end gap-2">
-            <form action="/api/reports/turnover" method="get" className="flex flex-wrap items-end gap-2">
-              <label className="text-xs font-medium">
-                From
-                <input name="from" type="date" className="mt-1 h-10 rounded-lg border border-input bg-card px-2 text-sm" />
-              </label>
-              <label className="text-xs font-medium">
-                To
-                <input name="to" type="date" className="mt-1 h-10 rounded-lg border border-input bg-card px-2 text-sm" />
-              </label>
-              <label className="text-xs font-medium">
-                Department or school
-                <input name="department" maxLength={100} className="mt-1 h-10 w-40 rounded-lg border border-input bg-card px-2 text-sm" />
-              </label>
-              <button
-                type="submit"
-                className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
-              >
-                Export CSV
-              </button>
-            </form>
+            {(userRole === "HR" || userRole === "HR Manager") && (
+              <form action="/api/reports/turnover" method="get" className="flex flex-wrap items-end gap-2">
+                <label className="text-xs font-medium">
+                  From
+                  <input name="from" type="date" className="mt-1 h-10 rounded-lg border border-input bg-card px-2 text-sm" />
+                </label>
+                <label className="text-xs font-medium">
+                  To
+                  <input name="to" type="date" className="mt-1 h-10 rounded-lg border border-input bg-card px-2 text-sm" />
+                </label>
+                <label className="text-xs font-medium">
+                  Department
+                  <input name="department" maxLength={100} className="mt-1 h-10 w-40 rounded-lg border border-input bg-card px-2 text-sm" />
+                </label>
+                <button
+                  type="submit"
+                  className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+                >
+                  Export CSV
+                </button>
+                <p className="basis-full text-xs text-muted-foreground">
+                  Exports contain department-quarter aggregates only; date filters include any overlapping quarter.
+                </p>
+              </form>
+            )}
             <PrintReportButton />
           </div>
         }
       >
         <div className="printable-report">
-        {rows.length ? (
-          <div className="space-y-6">
-            <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-primary to-primary/80 p-6 text-white shadow-lg md:p-8">
-              <div className="flex flex-col justify-between gap-6 md:flex-row md:items-end">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/60">
-                    Workforce intelligence
+          {baseline.length ? (
+            <div className="grid gap-6">
+              <section className="rounded-2xl border border-border/70 bg-card p-5 md:p-6">
+                <h2 className="text-lg font-semibold">All-recorded-exit baseline</h2>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  Includes imported historical exits and completed HR exit cases. Only standardised reason groups with at least five exits are shown; smaller groups are withheld.
+                </p>
+                <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  <Metric label="Reportable exit records" value={totalExits} />
+                  <Metric
+                    label="Average quarterly rate, last 8 quarters"
+                    value={averageTurnover == null ? "N/A" : `${averageTurnover.toFixed(1)}%`}
+                  />
+                  <Metric
+                    label="Reason categories recorded"
+                    value={reasonCounts.filter(([reason]) => reason !== "Not recorded").length}
+                  />
+                  <Metric
+                    label="Schools represented"
+                    value={new Set(baseline.map((item) => item.school).filter((school) => school !== "Not recorded")).size}
+                  />
+                </div>
+              </section>
+
+              <div className="grid items-start gap-6 lg:grid-cols-2">
+                <BarCard
+                  title="Reasons across all recorded exits"
+                  description="Standardised categories with fewer than five exits are withheld."
+                  entries={reasonCounts}
+                  max={maxReasonCount}
+                  color="bg-primary"
+                />
+                <BarCard
+                  title="Exits by department"
+                  description="Aggregated counts from reportable reason groups only."
+                  entries={departmentCounts}
+                  max={maxDepartmentCount}
+                  color="bg-primary"
+                />
+              </div>
+
+              <section className="rounded-2xl border border-border/70 bg-card p-5">
+                <div className="mb-4">
+                  <h2 className="font-semibold">Quarterly turnover trend</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Quarterly department groups with fewer than five staff or one to four exits are withheld. Date-filtered exports include every quarter overlapping the selected dates.
                   </p>
-                  <h2 className="mt-3 text-2xl font-semibold tracking-tight md:text-3xl">
-                    Understand the reasons behind turnover.
-                  </h2>
-                  <p className="mt-3 max-w-2xl text-sm leading-6 text-white/70">
-                    Compare linked historical exits across quarters and departments to identify the strongest turnover drivers.
-                  </p>
                 </div>
-                <div className="flex items-center gap-2 rounded-full bg-white/10 px-3 py-2 text-xs font-medium text-white/90">
-                  <span className="size-2 rounded-full bg-emerald-400" />
-                  Live analysis
-                </div>
-              </div>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Metric label="Recorded exits" value={totalExits} icon={UsersRound} tone="blue" />
-              <Metric
-                label="Average turnover rate"
-                value={averageTurnover == null ? "N/A" : `${averageTurnover.toFixed(1)}%`}
-                icon={Activity}
-                tone="amber"
-              />
-              <Metric
-                label="Reasons identified"
-                value={reasonCounts.filter(([reason]) => reason !== "Not recorded").length}
-                icon={CircleAlert}
-                tone="violet"
-              />
-            </div>
-
-            <div className="grid gap-6 lg:grid-cols-2">
-              <BarCard
-                title="Why employees leave"
-                description="Exit reasons across the available analysis periods."
-                entries={reasonCounts}
-                max={maxReasonCount}
-                color="bg-primary"
-              />
-              <BarCard
-                title="Exits by department"
-                description="Departments with the highest recorded turnover."
-                entries={departmentCounts}
-                max={maxDepartmentCount}
-                color="bg-amber-400"
-              />
-            </div>
-
-            <section className="rounded-2xl border border-border/70 bg-card p-5">
-              <div className="mb-4">
-                <div className="flex items-start gap-3">
-                  <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                    <BarChart3 className="size-5" />
-                  </span>
-                  <div>
-                    <h2 className="font-semibold">Turnover trend by quarter</h2>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Each bar represents the total number of linked exits recorded in that quarter.
-                    </p>
+                {quarters.length ? (
+                  <div className="flex min-h-52 items-end gap-3 overflow-x-auto border-b border-border/70 px-2 pt-6">
+                    {quarters.map((item) => (
+                      <div key={item.quarter} className="flex min-w-16 flex-1 flex-col items-center gap-2">
+                        <span className="text-xs font-semibold tabular-nums">{item.exits}</span>
+                        <div
+                          className="w-full max-w-12 rounded-t bg-primary"
+                          style={{ height: `${Math.max((item.exits / maxQuarterExits) * 150, 8)}px` }}
+                          title={`${item.exits} exits`}
+                        />
+                        <span className="text-center text-[11px] text-muted-foreground">{item.quarter}</span>
+                      </div>
+                    ))}
                   </div>
-                </div>
-              </div>
-              <div className="flex min-h-52 items-end gap-3 overflow-x-auto border-b border-border/70 px-2 pt-6">
-                {quarters.map((item) => (
-                  <div key={item.quarter} className="flex min-w-16 flex-1 flex-col items-center gap-2">
-                    <span className="text-xs font-semibold">{item.exits}</span>
-                    <div
-                      className="w-full max-w-12 rounded-t-lg bg-primary/80 transition-all"
-                      style={{ height: `${Math.max((item.exits / maxQuarterExits) * 150, 8)}px` }}
-                      title={`${item.exits} exits`}
-                    />
-                    <span className="text-center text-[11px] text-muted-foreground">{item.quarter}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
+                ) : (
+                  <p className="py-6 text-sm text-muted-foreground">No quarterly records are available in this period.</p>
+                )}
+              </section>
 
-            <DataTable
-              columns={["Quarter and department", "Exits", "Average employees", "Turnover rate", "Most common reason"]}
-              rows={rows}
+              {rows.length > 0 && (
+                <DataTable
+                  columns={["Quarter and department", "Exits", "Average employees", "Turnover rate", "Most common reason"]}
+                  rows={rows}
+                />
+              )}
+              <DataTable
+                columns={["School", "Department", "Reason", "All-time exits"]}
+                rows={baselineRows}
+              />
+            </div>
+          ) : (
+            <EmptyState
+              label="turnover records"
+              description="Import historical exits or complete HR exit cases to establish the turnover baseline."
             />
-          </div>
-        ) : (
-          <EmptyState
-            label="turnover analysis"
-            description="Complete linked exit cases to begin analysing turnover reasons."
-          />
-        )}
+          )}
         </div>
       </PageFrame>
     </DashboardShell>
   );
 }
 
-function Metric({
-  label,
-  value,
-  icon: Icon,
-  tone,
-}: {
-  label: string;
-  value: number | string;
-  icon: typeof UsersRound;
-  tone: "blue" | "amber" | "violet";
-}) {
+function Metric({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <span className={`flex size-9 items-center justify-center rounded-xl ${tone === "blue" ? "bg-blue-50 text-blue-600 dark:bg-blue-950/40 dark:text-blue-300" : tone === "amber" ? "bg-amber-50 text-amber-600 dark:bg-amber-950/40 dark:text-amber-300" : "bg-violet-50 text-violet-600 dark:bg-violet-950/40 dark:text-violet-300"}`}>
-          <Icon className="size-4" />
-        </span>
-      </div>
-      <p className="mt-4 text-3xl font-semibold tracking-tight">{value}</p>
+    <div className="border-l border-border/70 pl-4 first:border-0 first:pl-0">
+      <p className="text-sm text-muted-foreground">{label}</p>
+      <p className="mt-2 text-2xl font-medium tabular-nums">{value}</p>
     </div>
   );
 }

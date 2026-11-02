@@ -142,6 +142,13 @@ export type QuarterlyTurnoverRecord = {
   generated_at?: string | null;
 };
 
+export type TurnoverBaselineRecord = {
+  school: string;
+  department: string;
+  reason_category: string;
+  exits: number;
+};
+
 export type RetentionInterventionRecord = {
   id: string;
   employee_id: string;
@@ -551,6 +558,22 @@ export async function getQuarterlyTurnoverSummary(): Promise<QuarterlyTurnoverRe
         b.quarter_start.localeCompare(a.quarter_start) ||
         a.department.localeCompare(b.department),
     );
+}
+
+export async function getTurnoverBaseline(): Promise<TurnoverBaselineRecord[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("get_turnover_baseline");
+  if (error) {
+    console.error("Unable to load the all-time turnover baseline.", { code: error.code });
+    throw new Error("Unable to load the turnover baseline. Apply the latest Supabase migration.");
+  }
+  return ((data ?? []) as TurnoverBaselineRecord[]).map((record) => ({
+    ...record,
+    school: record.school || "Not recorded",
+    department: record.department || "Unassigned",
+    reason_category: record.reason_category || "Not recorded",
+    exits: Number(record.exits ?? 0),
+  }));
 }
 
 export async function getRetentionInterventions(): Promise<{
