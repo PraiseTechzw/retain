@@ -5,9 +5,9 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  ComposedChart,
   Legend,
   Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -74,18 +74,18 @@ export function TurnoverAnalyticsCharts({
         {quarters.length ? (
           <div className="h-72 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={quarters} margin={{ top: 12, right: 12, left: 0, bottom: 4 }}>
-                <CartesianGrid vertical={false} stroke="hsl(var(--border))" strokeDasharray="3 5" />
+              <ComposedChart data={quarters} margin={{ top: 12, right: 12, left: 0, bottom: 4 }}>
+                <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 5" />
                 <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
                 <YAxis yAxisId="rate" tickLine={false} axisLine={false} tick={{ fontSize: 11 }} tickFormatter={percent} width={44} />
                 <YAxis yAxisId="exits" orientation="right" hide />
                 <Tooltip
-                  contentStyle={{ borderRadius: 12, border: "1px solid hsl(var(--border))", background: "hsl(var(--card))" }}
+                  contentStyle={{ borderRadius: 12, border: "1px solid var(--border)", background: "var(--card)" }}
                   formatter={(value, name) => [name === "rate" ? percent(Number(value)) : value, name === "rate" ? "Turnover rate" : "Exits"]}
                 />
-                <Bar yAxisId="exits" dataKey="exits" fill="hsl(var(--primary) / 0.18)" radius={[4, 4, 0, 0]} barSize={24} />
-                <Line yAxisId="rate" type="monotone" dataKey="rate" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 4, fill: "hsl(var(--card))", strokeWidth: 3 }} connectNulls />
-              </LineChart>
+                <Bar yAxisId="exits" dataKey="exits" fill="#93c5fd" fillOpacity={0.55} radius={[4, 4, 0, 0]} barSize={24} isAnimationActive={false} />
+                <Line yAxisId="rate" type="linear" dataKey="rate" stroke="#075985" strokeWidth={4} dot={{ r: 5, fill: "#ffffff", stroke: "#075985", strokeWidth: 3 }} connectNulls isAnimationActive={false} />
+              </ComposedChart>
             </ResponsiveContainer>
           </div>
         ) : <p className="py-12 text-sm text-muted-foreground">No completed quarters match this range.</p>}
@@ -117,11 +117,11 @@ export function TurnoverAnalyticsCharts({
             <div className="mt-4 h-64">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={departmentData} layout="vertical" margin={{ top: 4, right: 12, left: 12, bottom: 4 }}>
-                  <CartesianGrid horizontal={false} stroke="hsl(var(--border))" strokeDasharray="3 5" />
+                  <CartesianGrid horizontal={false} stroke="var(--border)" strokeDasharray="3 5" />
                   <XAxis type="number" allowDecimals={false} tickLine={false} axisLine={false} />
                   <YAxis type="category" dataKey="name" width={120} tickLine={false} axisLine={false} tick={{ fontSize: 11 }} />
                   <Tooltip formatter={(value) => [value, "Exits"]} />
-                  <Bar dataKey="value" fill="hsl(var(--primary))" radius={[0, 4, 4, 0]} barSize={18} />
+                  <Bar dataKey="value" fill="var(--primary)" radius={[0, 4, 4, 0]} barSize={18} />
                 </BarChart>
               </ResponsiveContainer>
             </div>

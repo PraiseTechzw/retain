@@ -45,17 +45,19 @@ export default async function Page({
     getDepartments(),
   ]);
   const currentQuarterStart = getCurrentQuarterStart();
-  const fromFilter = requestedFrom || earliestQuarterStart(summary) || todayString();
+  const fromFilter = requestedFrom || "2023-01-01";
   const toFilter = requestedTo || todayString();
+  const fromQuarter = getQuarterStartForDate(fromFilter);
+  const toQuarter = getQuarterStartForDate(toFilter);
   const baseline = await getTurnoverBaseline({
-    from: fromFilter,
+    from: fromQuarter,
     to: toFilter,
     department: departmentValue,
   });
   const filteredSummary = summary.filter((quarter) =>
     quarter.quarter_start < currentQuarterStart &&
-    quarter.quarter_start >= fromFilter &&
-    quarter.quarter_start <= toFilter &&
+    quarter.quarter_start >= fromQuarter &&
+    quarter.quarter_start <= toQuarter &&
     (!departmentFilter || quarter.department.toLowerCase() === departmentFilter),
   );
   const filteredBaseline = baseline.filter((item) =>
@@ -68,8 +70,12 @@ export default async function Page({
     latest?.rate != null && previous?.rate != null
       ? latest.rate - previous.rate
       : null;
-  const totalExits = filteredBaseline.reduce((total, item) => total + item.exits, 0);
-  const allReasons = aggregate(filteredBaseline.map((item) => [displayLabel(item.reason_category), item.exits]));
+  const totalExits = filteredSummary.reduce((total, item) => total + item.exits, 0);
+  const allReasons = aggregate(
+    filteredBaseline
+      .filter((item) => isReportableReason(item.reason_category))
+      .map((item) => [displayLabel(item.reason_category), item.exits]),
+  );
   const departmentCounts = aggregate(filteredBaseline.map((item) => [displayLabel(item.department), item.exits])).slice(0, 6);
   const reportableCategories = allReasons.length;
   const schools = new Set(
@@ -90,6 +96,7 @@ export default async function Page({
       titleCase(quarter.top_exit_reason),
     ]}));
   const baselineRows = filteredBaseline
+    .filter((item) => isReportableReason(item.reason_category))
     .map((item) => ({
     department: displayLabel(item.department),
     cells: [displayLabel(item.school), displayLabel(item.department), titleCase(item.reason_category), item.exits],
@@ -195,7 +202,7 @@ function quarterTrendTotals(summary: Awaited<ReturnType<typeof getQuarterlyTurno
     current.headcount += item.active_headcount;
     totals.set(item.quarter_start, current);
   }
-  return [...totals.entries()].sort(([first], [second]) => first.localeCompare(second)).slice(-12).map(([quarter, value]) => ({
+  return [...totals.entries()].sort(([first], [second]) => first.localeCompare(second)).map(([quarter, value]) => ({
     label: formatQuarter(quarter),
     exits: value.exits,
     headcount: value.headcount,
@@ -208,15 +215,15 @@ function averageRate(quarters: ReturnType<typeof quarterTrendTotals>) {
   return rates.length ? `${(rates.reduce((total, rate) => total + rate, 0) / rates.length).toFixed(1)}%` : "N/A";
 }
 
-function earliestQuarterStart(summary: Awaited<ReturnType<typeof getQuarterlyTurnoverSummary>>) {
-  return summary
-    .map((item) => item.quarter_start)
-    .sort()
-    .at(0) ?? null;
-}
-
 function todayString() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function getQuarterStartForDate(value: string) {
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return "2023-01-01";
+  const quarterMonth = Math.floor(date.getUTCMonth() / 3) * 3 + 1;
+  return `${date.getUTCFullYear()}-${String(quarterMonth).padStart(2, "0")}-01`;
 }
 
 function formatQuarter(value: string) {
@@ -236,6 +243,11 @@ function displayLabel(value: string | null | undefined) {
   if (normalized.toLowerCase() === "not recorded") return "Other";
   if (normalized.toLowerCase() === "unassigned") return "General Administration";
   return normalized || "Other";
+}
+
+function isReportableReason(value: string | null | undefined) {
+  const normalized = value?.trim().toLowerCase();
+  return Boolean(normalized) && normalized !== "other" && normalized !== "not recorded";
 }
 
 function getCurrentQuarterStart() {

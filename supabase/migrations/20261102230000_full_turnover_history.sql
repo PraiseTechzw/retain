@@ -106,9 +106,6 @@ as $$
    and r.department = p.department
    and r.reason_rank = 1
   where (select public.hrms_role()) in ('administrator', 'hr', 'hr_manager')
-    and coalesce(h.start_headcount, 0) >= 5
-    and coalesce(h.end_headcount, 0) >= 5
-    and (coalesce(t.exits, 0) = 0 or coalesce(t.exits, 0) >= 5)
   order by p.quarter_start desc, p.department;
 $$;
 
@@ -169,7 +166,6 @@ as $$
     and (p_to is null or h.exit_date <= p_to)
     and (p_department is null or h.department = p_department)
   group by h.school, h.department, 3
-  having count(*) >= 5
   order by count(*) desc, h.school, h.department;
 $$;
 
