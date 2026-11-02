@@ -515,7 +515,7 @@ export async function getRecruitmentOpenings(): Promise<RecruitmentOpeningRecord
 export async function getQuarterlyTurnoverSummary(): Promise<QuarterlyTurnoverRecord[]> {
   const supabase = await createClient();
   const [liveResult, snapshotsResult] = await Promise.all([
-    supabase.rpc("get_quarterly_turnover_summary"),
+    supabase.rpc("get_quarterly_turnover_history"),
     supabase
       .from("quarterly_turnover_reports")
       .select("quarter_start, department, exits, active_headcount, top_exit_reason, attrition_rate_pct, generated_at")
@@ -560,9 +560,17 @@ export async function getQuarterlyTurnoverSummary(): Promise<QuarterlyTurnoverRe
     );
 }
 
-export async function getTurnoverBaseline(): Promise<TurnoverBaselineRecord[]> {
+export async function getTurnoverBaseline(filters?: {
+  from?: string;
+  to?: string;
+  department?: string;
+}): Promise<TurnoverBaselineRecord[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc("get_turnover_baseline");
+  const { data, error } = await supabase.rpc("get_turnover_baseline_filtered", {
+    p_from: filters?.from || null,
+    p_to: filters?.to || null,
+    p_department: filters?.department || null,
+  });
   if (error) {
     console.error("Unable to load the all-time turnover baseline.", { code: error.code });
     throw new Error("Unable to load the turnover baseline. Apply the latest Supabase migration.");

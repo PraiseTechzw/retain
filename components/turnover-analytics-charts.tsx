@@ -28,12 +28,19 @@ type ChartProps = {
   reasons: Array<[string, number]>;
   departments: Array<[string, number]>;
   embedded?: boolean;
+  showTrend?: boolean;
 };
 
 const colors = ["#2563eb", "#0f766e", "#d97706", "#be123c", "#0891b2", "#475569"];
 
 function chartData(entries: Array<[string, number]>) {
-  return entries.map(([name, value]) => ({ name, value }));
+  return entries.map(([name, value]) => ({ name: readableLabel(name), value }));
+}
+
+function readableLabel(value: string) {
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function percent(value: number) {
@@ -45,6 +52,7 @@ export function TurnoverAnalyticsCharts({
   reasons,
   departments,
   embedded = false,
+  showTrend = true,
 }: ChartProps) {
   const reasonData = chartData(reasons.slice(0, 6));
   const departmentData = chartData(departments.slice(0, 6));
@@ -52,7 +60,7 @@ export function TurnoverAnalyticsCharts({
 
   return (
     <section className={embedded ? "space-y-5" : "space-y-6"} aria-label="Turnover visual analysis">
-      <div className={chartClass}>
+      {showTrend && <div className={chartClass}>
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="font-semibold">Turnover rate and exits</h2>
@@ -81,9 +89,9 @@ export function TurnoverAnalyticsCharts({
             </ResponsiveContainer>
           </div>
         ) : <p className="py-12 text-sm text-muted-foreground">No completed quarters match this range.</p>}
-      </div>
+      </div>}
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      {!embedded && <div className="grid gap-6 lg:grid-cols-2">
         <div className="rounded-xl border border-border/70 bg-card p-5">
           <h2 className="font-semibold">Exit reason mix</h2>
           <p className="mt-1 text-sm text-muted-foreground">Share of reportable completed exits.</p>
@@ -119,7 +127,7 @@ export function TurnoverAnalyticsCharts({
             </div>
           ) : <p className="py-12 text-sm text-muted-foreground">No department data is available.</p>}
         </div>
-      </div>
+      </div>}
     </section>
   );
 }

@@ -7,6 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   DashboardShell,
   EmptyState,
   PageFrame,
@@ -27,20 +34,24 @@ export default async function Page({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const filters = searchParams ? await searchParams : {};
-  const departmentFilter = typeof filters.department === "string" ? filters.department.trim().toLowerCase() : "";
   const requestedFrom = typeof filters.from === "string" ? filters.from : "";
   const requestedTo = typeof filters.to === "string" ? filters.to : "";
-  const departmentValue = typeof filters.department === "string" ? filters.department : "";
+  const departmentValue = typeof filters.department === "string" && filters.department !== "all" ? filters.department : "";
+  const departmentFilter = departmentValue.trim().toLowerCase();
   const { userName, userRole } =
     await requireDashboardCapability("viewReports");
-  const [summary, baseline, departments] = await Promise.all([
+  const [summary, departments] = await Promise.all([
     getQuarterlyTurnoverSummary(),
-    getTurnoverBaseline(),
     getDepartments(),
   ]);
   const currentQuarterStart = getCurrentQuarterStart();
   const fromFilter = requestedFrom || earliestQuarterStart(summary) || todayString();
   const toFilter = requestedTo || todayString();
+  const baseline = await getTurnoverBaseline({
+    from: fromFilter,
+    to: toFilter,
+    department: departmentValue,
+  });
   const filteredSummary = summary.filter((quarter) =>
     quarter.quarter_start < currentQuarterStart &&
     quarter.quarter_start >= fromFilter &&
@@ -94,7 +105,7 @@ export default async function Page({
           <form action="/dashboard/reports" method="get" className="flex flex-wrap items-end gap-2">
             <div className="space-y-1"><Label htmlFor="turnover-from">From</Label><Input id="turnover-from" name="from" defaultValue={fromFilter} type="date" className="h-10 w-36 bg-card" /></div>
             <div className="space-y-1"><Label htmlFor="turnover-to">To</Label><Input id="turnover-to" name="to" defaultValue={toFilter} type="date" className="h-10 w-36 bg-card" /></div>
-            <div className="space-y-1"><Label htmlFor="turnover-department">Department</Label><select id="turnover-department" name="department" defaultValue={departmentValue} className="h-10 w-44 rounded-lg border border-input bg-card px-2 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"><option value="">All departments</option>{departments.filter((department) => department.name).map((department) => <option key={department.id ?? department.name} value={department.name ?? ""}>{department.name}</option>)}</select></div>
+            <div className="space-y-1"><Label htmlFor="turnover-department">Department</Label><Select name="department" defaultValue={departmentValue || "all"}><SelectTrigger id="turnover-department" className="h-10 w-44 bg-card"><SelectValue placeholder="All departments" /></SelectTrigger><SelectContent><SelectItem value="all">All departments</SelectItem>{departments.filter((department) => department.name).map((department) => <SelectItem key={department.id ?? department.name} value={department.name ?? ""}>{department.name}</SelectItem>)}</SelectContent></Select></div>
             <Button type="submit" className="h-10"><Filter className="size-4" /> Apply filters</Button>
           </form>
         }
@@ -129,6 +140,8 @@ export default async function Page({
                   </div>
                 </div>
               </section>
+
+              <TurnoverAnalyticsCharts quarters={quarters} reasons={allReasons} departments={departmentCounts} showTrend={false} />
 
               <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Turnover report summary">
                 <SummaryMetric label="Reportable exits" value={totalExits} note="All completed records" />

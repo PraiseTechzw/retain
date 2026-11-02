@@ -167,6 +167,37 @@ on conflict (employee_number) do update set
   appointment_date = excluded.appointment_date,
   exit_date = excluded.exit_date;
 
+-- Add a complete 2026 cohort so each completed 2026 quarter has
+-- representative exits across every seeded department.
+insert into public.employees (
+  id, employee_number, full_name, email, department_id, job_title,
+  staff_category, employment_type, employment_status, appointment_date, exit_date
+)
+select
+  md5('synthetic-employee-' || n)::uuid,
+  'TEST-CUT-2026-' || lpad(n::text, 3, '0'),
+  format('Synthetic 2026 Staff %s', lpad(n::text, 3, '0')),
+  format('synthetic.2026.staff.%s@example.invalid', lpad(n::text, 3, '0')),
+  (select id from public.departments where code = (array['ENG', 'BUS', 'FST', 'ICT', 'HR', 'LIB', 'R&I'])[1 + ((n - 270) % 7)]),
+  (array['Lecturer', 'Research Fellow', 'Laboratory Technician', 'Systems Analyst', 'Administrative Officer', 'Library Assistant', 'Finance Officer'])[1 + ((n - 270) % 7)],
+  case when n % 3 = 0 then 'academic' else 'non_academic' end,
+  case when n % 4 = 0 then 'permanent' else 'contract' end,
+  'exited',
+  date '2024-01-08' + ((n - 270) % 14) * 21,
+  date '2026-01-15' + ((n - 270) % 3) * 90 + (n % 4) * 7
+from generate_series(270, 409) as numbers(n)
+on conflict (employee_number) do update set
+  id = excluded.id,
+  full_name = excluded.full_name,
+  email = excluded.email,
+  department_id = excluded.department_id,
+  job_title = excluded.job_title,
+  staff_category = excluded.staff_category,
+  employment_type = excluded.employment_type,
+  employment_status = excluded.employment_status,
+  appointment_date = excluded.appointment_date,
+  exit_date = excluded.exit_date;
+
 insert into public.exit_cases (
   id, employee_id, exit_type, classification, reason_category, reason,
   last_day, status
@@ -174,16 +205,72 @@ insert into public.exit_cases (
 select
   md5('synthetic-exit-case-' || n)::uuid,
   md5('synthetic-employee-' || n)::uuid,
-  case when n % 4 = 0 then 'contract_end' else 'resignation' end,
-  case when n % 4 = 0 then 'administrative' else 'voluntary' end,
-  case when n % 4 = 0 then 'contract_end' else (array['career_growth', 'compensation', 'relocation', 'workload'])[1 + ((n - 61) % 4)] end,
-  case when n % 4 = 0
-    then 'Synthetic fixed-term appointment ended.'
-    else 'Synthetic employee moved to another opportunity.'
+  case (n - 70) % 11
+    when 0 then 'contract_end'
+    when 1 then 'retirement'
+    when 2 then 'resignation'
+    when 3 then 'resignation'
+    else 'resignation'
   end,
+  case when (n - 70) % 11 in (0, 1) then 'administrative' else 'voluntary' end,
+  (array['contract_end', 'retirement', 'health', 'education', 'management', 'work_environment', 'personal', 'relocation', 'workload', 'compensation', 'career_growth'])[1 + ((n - 70) % 11)],
+  (array[
+    'Synthetic fixed-term appointment ended.',
+    'Synthetic retirement transition completed.',
+    'Synthetic employee left for health and wellbeing reasons.',
+    'Synthetic employee left to pursue further education.',
+    'Synthetic employee left after a change in management responsibilities.',
+    'Synthetic employee left for a more supportive work environment.',
+    'Synthetic employee left because of personal circumstances.',
+    'Synthetic employee relocated to another province.',
+    'Synthetic employee left because of sustained workload pressure.',
+    'Synthetic employee accepted a better compensated opportunity.',
+    'Synthetic employee progressed to a senior opportunity elsewhere.'
+  ])[1 + ((n - 70) % 11)],
   date '2023-01-15' + ((n - 61) * 9 % 1200),
   'completed'
 from generate_series(70, 219) as numbers(n)
+on conflict (id) do update set
+  employee_id = excluded.employee_id,
+  exit_type = excluded.exit_type,
+  classification = excluded.classification,
+  reason_category = excluded.reason_category,
+  reason = excluded.reason,
+  last_day = excluded.last_day,
+  status = excluded.status;
+
+insert into public.exit_cases (
+  id, employee_id, exit_type, classification, reason_category, reason,
+  last_day, status
+)
+select
+  md5('synthetic-exit-case-' || n)::uuid,
+  md5('synthetic-employee-' || n)::uuid,
+  case (n - 270) % 11
+    when 0 then 'contract_end'
+    when 1 then 'retirement'
+    when 2 then 'resignation'
+    when 3 then 'resignation'
+    else 'resignation'
+  end,
+  case when (n - 270) % 11 in (0, 1) then 'administrative' else 'voluntary' end,
+  (array['contract_end', 'retirement', 'health', 'education', 'management', 'work_environment', 'personal', 'relocation', 'workload', 'compensation', 'career_growth'])[1 + ((n - 270) % 11)],
+  (array[
+    'Synthetic fixed-term appointment ended.',
+    'Synthetic retirement transition completed.',
+    'Synthetic employee left for health and wellbeing reasons.',
+    'Synthetic employee left to pursue further education.',
+    'Synthetic employee left after a change in management responsibilities.',
+    'Synthetic employee left for a more supportive work environment.',
+    'Synthetic employee left because of personal circumstances.',
+    'Synthetic employee relocated to another province.',
+    'Synthetic employee left because of sustained workload pressure.',
+    'Synthetic employee accepted a better compensated opportunity.',
+    'Synthetic employee progressed to a senior opportunity elsewhere.'
+  ])[1 + ((n - 270) % 11)],
+  date '2026-01-15' + ((n - 270) % 3) * 90 + (n % 4) * 7,
+  'completed'
+from generate_series(270, 409) as numbers(n)
 on conflict (id) do update set
   employee_id = excluded.employee_id,
   exit_type = excluded.exit_type,
