@@ -6,6 +6,7 @@ import {
 } from "@/components/dashboard-shell";
 import { Activity, BarChart3, CircleAlert, UsersRound } from "lucide-react";
 import { RealtimeTurnoverRefresh } from "@/components/realtime-turnover-refresh";
+import { PrintReportButton } from "@/components/report-actions";
 import { requireDashboardCapability } from "@/lib/auth-role";
 import { getQuarterlyTurnoverSummary } from "@/lib/supabase/data";
 
@@ -62,7 +63,33 @@ export default async function Page() {
       <PageFrame
         title="Turnover trend tracking system"
         description="Live quarterly analysis of linked historical employee exits by department and reason."
+        action={
+          <div className="flex flex-wrap items-end gap-2">
+            <form action="/api/reports/turnover" method="get" className="flex flex-wrap items-end gap-2">
+              <label className="text-xs font-medium">
+                From
+                <input name="from" type="date" className="mt-1 h-10 rounded-lg border border-input bg-card px-2 text-sm" />
+              </label>
+              <label className="text-xs font-medium">
+                To
+                <input name="to" type="date" className="mt-1 h-10 rounded-lg border border-input bg-card px-2 text-sm" />
+              </label>
+              <label className="text-xs font-medium">
+                Department or school
+                <input name="department" maxLength={100} className="mt-1 h-10 w-40 rounded-lg border border-input bg-card px-2 text-sm" />
+              </label>
+              <button
+                type="submit"
+                className="inline-flex min-h-10 items-center justify-center rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground hover:opacity-90"
+              >
+                Export CSV
+              </button>
+            </form>
+            <PrintReportButton />
+          </div>
+        }
       >
+        <div className="printable-report">
         {rows.length ? (
           <div className="space-y-6">
             <div className="overflow-hidden rounded-3xl bg-gradient-to-br from-slate-950 via-primary to-primary/80 p-6 text-white shadow-lg md:p-8">
@@ -158,6 +185,7 @@ export default async function Page() {
             description="Complete linked exit cases to begin analysing turnover reasons."
           />
         )}
+        </div>
       </PageFrame>
     </DashboardShell>
   );

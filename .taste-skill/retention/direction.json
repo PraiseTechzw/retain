@@ -1,0 +1,172 @@
+{
+ "version": 1,
+ "kind": "app",
+ "at": "2026-11-02T17:56:17.339Z",
+ "seed": 678291280,
+ "input": {
+  "kind": "workspace",
+  "brief": "CUT Retain HR workflows: confidential exits, handover guides, former staff surveys, and turnover analysis",
+  "theme": null,
+  "screens": [
+   "overview",
+   "analytics",
+   "list",
+   "detail",
+   "report"
+  ],
+  "keep": [
+   "palette",
+   "type"
+  ],
+  "style": "achromatic-ledger"
+ },
+ "style": {
+  "id": "achromatic-ledger",
+  "name": "Achromatic ledger",
+  "theme": "light",
+  "basis": "4 screens: a seller home, a per-agent insights page, a generated report, a settings page with usage numbers",
+  "suits": [
+   "finance",
+   "commerce",
+   "devtools",
+   "support",
+   "report",
+   "workspace",
+   "builder"
+  ],
+  "idea": "The chrome holds no colour at all; money and counts are set in ink, the one chart hue marks the screen's main data element, and the only other hue is a small signal where a figure changed.",
+  "colourBudget": "under 1% coloured pixels; the chrome is ink, the one chart hue goes on the main data element, and the only other hue is a small change signal",
+  "tokens": {
+   "ground": "#f8f8f8",
+   "surface": "#ffffff",
+   "raised": "#eeeeee",
+   "border": "#e6e6e6",
+   "rule": "#f0f0f0",
+   "control": "#d4d4d4",
+   "text": "#0a0a0a",
+   "muted": "#6b6b6b",
+   "accent": "#141414",
+   "positive": "#2e7d32",
+   "negative": "#c4242a",
+   "warning": "#92400e",
+   "chart": [
+    "#141414",
+    "#8a8a8a",
+    "#1d5fbf"
+   ],
+   "pills": {
+    "positive": [
+     "#dcfae5",
+     "#04250e"
+    ],
+    "negative": [
+     "#ffedea",
+     "#831c1e"
+    ],
+    "warning": [
+     "#fffbeb",
+     "#92400e"
+    ],
+    "neutral": [
+     "#eeeeee",
+     "#3d3d3d"
+    ]
+   },
+   "radius": {
+    "card": 8,
+    "control": 6
+   },
+   "font": {
+    "family": "Geist",
+    "second": "Geist Mono, for IDs and keys only",
+    "fallback": "Inter, system-ui, sans-serif",
+    "sizes": {
+     "title": 24,
+     "section": 16,
+     "kpi": 30,
+     "body": 14,
+     "small": 12
+    },
+    "weights": [
+     400,
+     500,
+     700
+    ],
+    "note": "700 is for money figures only; every other number is 400-500."
+   },
+   "density": "sparse",
+   "rowHeight": 44,
+   "sidebarWidth": 256,
+   "gap": 12,
+   "pad": 24,
+   "controlHeight": 36
+  },
+  "shell": "open-plane",
+  "shellAlternatives": [
+   "icon-rail",
+   "no-sidebar"
+  ],
+  "signature": "No brand colour anywhere in the chrome: the one primary action is near-black (a grey pill, #e5e5e5, is the secondary), the main data element (today's series, the booked bars, the current period) takes the one chart hue, #1d5fbf, and everything else is drawn in ink with the comparison or the part after the cursor in grey, zero balances are set in grey, and the only hue on the screen is a small triangle or a short coloured number where a figure changed.",
+  "identity": [
+   "A ground from the product's world in place of #f8f8f8, one level off white and low in chroma: a stone (#f4f3f1) for a bakery or a shop, a sage (#f2f5f2) for a garden or a greenhouse, a blue-grey (#f2f4f7) for a ledger or a meter. Cards stay white; a warm tint stays under the cream check (saturation under about 15%).",
+   "The one chart hue (#1d5fbf, or the brand's own hue at 3:1 or more on white) on the screen's main data element: today's line, the booked bars, the current period's column, the margin that breaks. The chrome stays ink and the hue stays under 1% of the screen.",
+   "Every figure in Geist Mono, as the style's decision, so money and counts read as a ledger's columns while the text stays Geist. Lint and the inspector flag mono; give the reason in the report."
+  ],
+  "avoid": [
+   "a brand-coloured primary button",
+   "tinted cards or tinted KPI tiles",
+   "a coloured chart where one series in ink says it",
+   "bold on anything but money",
+   "a chart with no y-scale (the study's one example of this look hid magnitude behind hover and was flagged)",
+   "a grey pill as the only button for the screen's main job: in testing an Approve repeated in grey on every row left the screen without a primary"
+  ],
+  "notes": "The studied screens of this kind used 11-12px card radii, which §9.4 counts among the rare middle values; the library sets the tight pair (8 and 6) so the style lands on the bimodal rule. After testing, the chart hue moved from an unused third series colour onto the main data element: a screen whose only hue was a delta read as a kit."
+ },
+ "shell": {
+  "id": "open-plane",
+  "name": "Open plane",
+  "basis": "5 of 23 screens",
+  "suits": [
+   "finance",
+   "wallet",
+   "workspace",
+   "creator",
+   "analytics"
+  ],
+  "numbers": {
+   "sidebarWidth": "230-256 (230, 240, 256 in the study; 280 and 292 with a built-in icon rail)",
+   "separation": "none, or one 1px hairline; the sidebar sits on the page ground or within 1-2% of it",
+   "navPitch": 34,
+   "navRowHeight": 32,
+   "navIcon": "16px outline, about 1.5px stroke",
+   "navLabel": "14px, 400, grey or ink",
+   "activeItem": "neutral grey pill, radius 6-12, inset 8-12px from the sidebar edges (#e9e9e9-#ededed)",
+   "topBar": "none",
+   "canvas": "fluid with a 24-64px gutter, or a centred 1100px column"
+  },
+  "blueprint": "The labelled sidebar sits on the page ground with nothing or one hairline between it and the canvas; there is no top bar, and the page header and cards sit straight on the ground about 32-36px from the top. Workspace or account switcher at the top of the sidebar, primary nav on a 34px pitch, groups under 12-13px sentence-case grey labels with 22-56px of air above, utilities and the user row pushed to the bottom. Cards are white on the off-white ground (or the sidebar is white with a 1px border on a #f9fafb canvas). The canvas is fluid with one gutter value, or a centred column for personal homes.",
+  "phone": "The sidebar folds into a 48px top bar holding the screen's name, a menu button that opens a full-screen sheet with the nav and the switcher, and at most one action. Content takes the full width with 16px margins."
+ },
+ "screens": [
+  {
+   "name": "overview",
+   "pattern": null
+  },
+  {
+   "name": "analytics",
+   "pattern": null
+  },
+  {
+   "name": "list",
+   "pattern": null
+  },
+  {
+   "name": "detail",
+   "pattern": null
+  },
+  {
+   "name": "report",
+   "pattern": null
+  }
+ ]
+}

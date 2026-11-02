@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ClipboardCheck,
   ChevronDown,
+  FileText,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -50,6 +51,18 @@ const navItems = [
     "/dashboard/reports",
     ClipboardCheck,
     ["hr", "administrator", "hr_manager"],
+  ],
+  [
+    "Retention workflows",
+    "/dashboard/retention",
+    ClipboardCheck,
+    ["hr", "hr_manager"],
+  ],
+  [
+    "Handover guides",
+    "/dashboard/handover",
+    FileText,
+    ["employee", "hr", "administrator", "hr_manager"],
   ],
 ] as const;
 

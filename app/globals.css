@@ -203,3 +203,35 @@
   animation-iteration-count: 1 !important;
   transition-duration: 0.01ms !important;
 }
+@media print {
+  html,
+  body {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  body:has(.printable-report) aside,
+  body:has(.printable-report) header,
+  body:has(.printable-report) button,
+  body:has(.printable-report) a {
+    display: none !important;
+  }
+
+  body:has(.printable-report) main,
+  body:has(.printable-report) section {
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  body:has(.printable-report) .printable-report,
+  body:has(.printable-report) .printable-report * {
+    visibility: visible !important;
+  }
+
+  body:has(.printable-report) .printable-report {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    background: white;
+  }
+}
