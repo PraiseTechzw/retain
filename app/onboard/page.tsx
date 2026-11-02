@@ -40,7 +40,7 @@ export default function OnboardingForm({
   departments?: Department[];
 }) {
   const activeAction = action ?? completeOnboarding;
-  const safeAppName = appName ?? "Retain";
+  const safeAppName = appName ?? "Turnover Trend Tracking System";
   const safeNextPath = nextPath ?? "/dashboard";
   const safeUserName = userName ?? "";
   const safeDefaultRole = defaultRole ?? "Employee";

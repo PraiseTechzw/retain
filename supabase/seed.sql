@@ -1,4 +1,4 @@
--- CUT-HRMERS development-only reference data.
+-- Turnover Trend Tracking System development-only reference data.
 -- Create authentication users through Supabase Auth, then link their profiles
 -- and employee records through the application or an approved import process.
 

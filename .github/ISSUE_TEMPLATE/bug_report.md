@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a reproducible defect in CUT-HRMERS
+about: Report a reproducible defect in Turnover Trend Tracking System
 labels: bug
 ---
 

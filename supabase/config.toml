@@ -1,4 +1,4 @@
-project_id = "cut-hrmers-local"
+project_id = "turnover-trend-tracking-system-local"
 
 [auth]
 enable_signup = false

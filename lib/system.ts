@@ -1,6 +1,8 @@
 export const appConfig = {
-  appName: process.env.NEXT_PUBLIC_APP_NAME || "CUT-HRMERS",
-  shortName: process.env.NEXT_PUBLIC_APP_SHORT_NAME || "CUT-HRMERS",
+  appName:
+    process.env.NEXT_PUBLIC_APP_NAME || "Turnover Trend Tracking System",
+  shortName:
+    process.env.NEXT_PUBLIC_APP_SHORT_NAME || "Turnover Trend Tracking System",
   workspaceLabel:
     process.env.NEXT_PUBLIC_WORKSPACE_LABEL ||
     "Chinhoyi University of Technology",
@@ -19,7 +21,7 @@ export const appConfig = {
 export const defaultSystemSettings = {
   organization_name: appConfig.organization,
   // Kept temporarily so existing database settings can be read during the
-  // CUT-HRMERS transition. The clearance workflow is no longer exposed.
+  // system transition. The clearance workflow is no longer exposed.
   default_clearance_departments: [],
   notification_channel: "email",
   retention_days: "2555",

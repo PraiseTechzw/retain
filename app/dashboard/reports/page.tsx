@@ -60,7 +60,7 @@ export default async function Page() {
     <DashboardShell userName={userName} userRole={userRole}>
       <RealtimeTurnoverRefresh />
       <PageFrame
-        title="Turnover reason analysis"
+        title="Turnover trend tracking system"
         description="Live quarterly analysis of linked historical employee exits by department and reason."
       >
         {rows.length ? (

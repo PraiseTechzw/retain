@@ -1,10 +1,10 @@
-# CUT-HRMERS implementation TODO
+# Turnover Trend Tracking System implementation TODO
 
-This is the implementation backlog for the agreed **CUT Human Resource Management and Employee Retention System (CUT-HRMERS)**. It is the source-of-truth plan alongside [the agreed scope](./cut-hrmers-agreed-scope.md).
+This is the implementation backlog for the agreed **Turnover Trend Tracking System**. It is the source-of-truth plan alongside [the agreed scope](./cut-hrmers-agreed-scope.md).
 
 ## Product decisions already agreed
 
-- CUT-HRMERS is an HR-only, day-to-day Human Resource Management System.
+- Turnover Trend Tracking System is an HR-only, day-to-day Human Resource Management System.
 - The agreed roles are Administrator, HR, HR Manager, and Employee. Confidential Case Officer is a separately assigned permission for HR and HR Managers; it does not grant Administrators access to confidential content.
 - Retention, engagement, and exit analytics are built into the HRMS; exit clearance and asset management are not the purpose of the product.
 - Employees use self-service features. HR manages all HR workflows. Administrators manage access and system configuration.
@@ -25,12 +25,12 @@ This is the implementation backlog for the agreed **CUT Human Resource Managemen
 | Leave requests and balances | Present | Complete the rules, approvals, balances, and employee self-service experience. |
 | Exit requests and reporting | Present, but coupled to asset, knowledge, and departmental clearance blockers | Replace with a self-contained HR exit case and exit interview workflow. |
 | Retention interventions and turnover reporting | Present in early form | Build into a complete engagement, retention, and insight workflow. |
-| Recruitment, assets, knowledge hub, clearance, and asset activity | Present | Do not expose as core CUT-HRMERS functions. Preserve existing data until an approved retirement/migration decision. |
+| Recruitment, assets, knowledge hub, clearance, and asset activity | Present | Do not expose as core Turnover Trend Tracking System functions. Preserve existing data until an approved retirement/migration decision. |
 
 ## Completed transition work
 
 - [x] Legacy CUT-ELAMS screens and navigation removed from the active application.
-- [x] Legacy migration history replaced with a fresh CUT-HRMERS baseline schema.
+- [x] Legacy migration history replaced with a fresh Turnover Trend Tracking System baseline schema.
 - [x] HRMS RLS policy migration and development reference seed added.
 - [x] HR dashboard refocused on employees, leave, and HR exit cases.
 - [x] New employee capture form and HR exit-case creation form aligned to the new schema.
@@ -55,7 +55,7 @@ The system is ready for CUT HR when an employee can securely submit a request or
 - [ ] Confirm whether staff accounts use CUT email, employee number, single sign-on, or administrator-created credentials.
 - [ ] Confirm payroll and existing-system boundaries; do not duplicate an approved external system without a defined integration need.
 - [ ] Define a data-migration plan and data-quality checks for existing staff records.
-- [x] Rename visible branding and documentation from CUT-ELAMS to CUT-HRMERS.
+- [x] Rename visible branding and documentation from CUT-ELAMS to Turnover Trend Tracking System.
 - [ ] Create a safe retirement plan for asset/clearance features: hide them first, migrate or archive data only after written approval.
 
 **Acceptance:** CUT HR signs off the process maps, role matrix, data fields, and feature boundaries.

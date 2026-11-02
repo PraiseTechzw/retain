@@ -1,6 +1,6 @@
 ---
 name: Feature request
-about: Propose an improvement to CUT-HRMERS
+about: Propose an improvement to Turnover Trend Tracking System
 labels: enhancement
 ---
 

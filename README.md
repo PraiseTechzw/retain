@@ -1,6 +1,6 @@
-# CUT-HRMERS
+# Turnover Trend Tracking System
 
-CUT-HRMERS is Chinhoyi University of Technology's Human Resource Management and Employee Retention System. It supports daily HR administration, employee self-service, leave, appointments, contracts, employee relations, engagement, retention, exits, and workforce reporting.
+Turnover Trend Tracking System is Chinhoyi University of Technology's Human Resource Management and Employee Retention System. It supports daily HR administration, employee self-service, leave, appointments, contracts, employee relations, engagement, retention, exits, and workforce reporting.
 
 > **Deployment status:** application code and database migrations are in this repository. A successful local build does not prove that migrations, Supabase Storage policies, scheduled jobs, email delivery, or role access have been validated in the institution's live project. Follow the deployment and acceptance checklists before production use.
 
